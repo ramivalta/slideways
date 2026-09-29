@@ -125,9 +125,9 @@ public final class Race {
             return
         }
         let b = track.bridges[zone]
-        let (u, v) = b.local(car.position)
-        let endGap = b.halfLength + b.zoneExtension - abs(u)
-        let sideGap = b.halfWidth - abs(v)
+        guard let l = track.bridgeLocal(at: car.position) else { return }
+        let endGap = min(l.along - (b.deckStart - b.zoneExtension), b.deckEnd + b.zoneExtension - l.along)
+        let sideGap = b.halfWidth - l.lateral
         car.level = endGap < sideGap ? 1 : 0
     }
 

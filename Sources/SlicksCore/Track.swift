@@ -60,20 +60,26 @@ public final class Track: @unchecked Sendable {
 
         let controlSamples = Track.controlPointSamples(controlPoints: def.controlPoints, dense: dense,
                                                        sampleCount: n, totalLength: length)
+        // Actual arc length between samples (the resampler spreads the remainder evenly).
+        let step = length / Double(n)
         let bridges = Track.buildBridges(def: def, path: path, tangents: tangents,
-                                         controlSamples: controlSamples, spacing: spacing)
+                                         controlSamples: controlSamples, step: step)
         self.bridges = bridges
+        let structure = Track.buildStructure(bridges, path: path, tangents: tangents, step: step,
+                                             width: def.width, height: def.height)
+        structureBridge = structure.bridge
+        structureAlong = structure.along
+        structureLateral = structure.lateral
 
         var levels = [UInt8](repeating: 0, count: n)
         for b in bridges {
-            for k in -b.upperHalfSpan...b.upperHalfSpan {
-                let i = ((b.centerSample + k) % n + n) % n
-                if b.isInZone(path[i]) { levels[i] = 1 }
+            for k in -b.upperHalfSpan...b.upperHalfSpan where b.isZone(along: Double(k) * step, lateral: 0) {
+                levels[((b.centerSample + k) % n + n) % n] = 1
             }
         }
         sampleLevels = levels
 
-        let raster = Track.rasterize(def: def, path: path, bridges: bridges)
+        let raster = Track.rasterize(def: def, path: path, bridges: bridges, structure: structure)
         surfaces = raster.surfaces
         distanceField = raster.distance
         nearestSample = raster.nearest
@@ -84,61 +90,79 @@ public final class Track: @unchecked Sendable {
     public let bridges: [Bridge]
     /// 1 where the centerline runs over a bridge deck, 0 elsewhere.
     public let sampleLevels: [UInt8]
+    /// Per cell: index of the bridge structure (deck, ramps, zone) covering it, or -1.
+    let structureBridge: [Int8]
+    /// Per cell: distance along / away from that bridge's upper road. See `Bridge`.
+    let structureAlong: [Float]
+    let structureLateral: [Float]
+
+    /// Position of a cell relative to the bridge structure covering it, if any.
+    public func bridgeLocal(x: Int, y: Int) -> (bridge: Int, along: Double, lateral: Double)? {
+        guard !bridges.isEmpty, x >= 0, y >= 0, x < width, y < height else { return nil }
+        let c = y * width + x
+        let bi = Int(structureBridge[c])
+        guard bi >= 0 else { return nil }
+        return (bi, Double(structureAlong[c]), Double(structureLateral[c]))
+    }
+
+    public func bridgeLocal(at p: Vec2) -> (bridge: Int, along: Double, lateral: Double)? {
+        bridgeLocal(x: Int(floor(p.x)), y: Int(floor(p.y)))
+    }
+
+    /// Exact position of `p` relative to a bridge's upper road, for rendering at sub-cell
+    /// resolution. Uses the same nearest-sample projection as the per-cell structure map.
+    public func upperRoadLocal(bridge b: Bridge, point p: Vec2) -> (along: Double, lateral: Double) {
+        let n = sampleCount
+        let step = length / Double(n)
+        let k0 = Int(floor(b.deckStart / step)) - 4, k1 = Int(ceil(b.deckEnd / step)) + 4
+        var bestK = 0, bestD = Double.infinity
+        for k in k0...k1 {
+            let d = (p - path[((b.centerSample + k) % n + n) % n]).lengthSquared
+            if d < bestD { bestD = d; bestK = k }
+        }
+        let i = ((b.centerSample + bestK) % n + n) % n
+        let d = p - path[i]
+        return (Double(bestK) * step + d.dot(tangents[i]), abs(d.dot(normals[i])))
+    }
+
+    /// Bridge whose deck covers a cell, if any.
+    public func deck(x: Int, y: Int) -> Int? {
+        guard let l = bridgeLocal(x: x, y: y), bridges[l.bridge].isDeck(along: l.along, lateral: l.lateral) else { return nil }
+        return l.bridge
+    }
 
     /// Bridge whose level zone contains `p`, if any.
     public func bridgeZone(containing p: Vec2) -> Int? {
-        bridges.firstIndex { $0.isInZone(p) }
+        guard let l = bridgeLocal(at: p), bridges[l.bridge].isZone(along: l.along, lateral: l.lateral) else { return nil }
+        return l.bridge
     }
 
     /// Surface a car at `level` feels at `p`. Bridge decks are asphalt.
     public func surface(at p: Vec2, level: Int) -> Surface {
-        if level > 0, bridges.contains(where: { $0.isOnDeck(p) }) { return .asphalt }
+        if level > 0, deck(x: Int(floor(p.x)), y: Int(floor(p.y))) != nil { return .asphalt }
         return surface(at: p)
     }
 
     /// Height of the bridge structure over a cell: 1 on a deck, falling to 0 at the bottom of
     /// each ramp. Nil for plain ground. Includes the ramp railings.
-    public func elevation(x: Int, y: Int) -> (height: Double, bridge: Int, rampStep: Int?)? {
-        guard x >= 0, y >= 0, x < width, y < height else { return nil }
-        let p = Vec2(Double(x) + 0.5, Double(y) + 0.5)
-        for (bi, b) in bridges.enumerated() where b.isOnDeck(p) {
-            return (1, bi, nil)
-        }
-        let i = y * width + x
-        let s = Int(nearestSample[i])
-        guard s >= 0 else { return nil }
-        let d = Double(distanceField[i])
-        for (bi, b) in bridges.enumerated() where d <= b.halfWidth + 1 {
-            if let step = b.rampStep(sample: s, count: sampleCount) {
-                return (1 - Double(step) / Double(max(b.rampSamples, 1)), bi, step)
-            }
-        }
-        return nil
+    public func elevation(x: Int, y: Int) -> (height: Double, bridge: Int, rampDistance: Double?)? {
+        guard let l = bridgeLocal(x: x, y: y) else { return nil }
+        let b = bridges[l.bridge]
+        guard l.lateral <= b.halfWidth, let hgt = b.height(along: l.along) else { return nil }
+        return (hgt, l.bridge, b.rampDistance(along: l.along))
     }
 
     /// Wall contact for a car on a given level. Cars on a deck ignore the ground under it and
     /// are kept on by the railings; cars below use the ground layer (abutments included).
     public func wallContact(center c: Vec2, radius r: Double, level: Int) -> (normal: Vec2, depth: Double)? {
         guard level > 0 else { return wallContact(center: c, radius: r) }
-        let decks = bridges.filter { b in
-            let (u, v) = b.local(c)
-            return abs(u) <= b.halfLength + b.zoneExtension + r && abs(v) <= b.halfWidth + r
-        }
-        guard !decks.isEmpty else { return wallContact(center: c, radius: r) }
-
-        var best: (normal: Vec2, depth: Double)?
-        if let ground = wallContact(center: c, radius: r, ignoring: { p in decks.contains { $0.isOnDeck(p) } }) {
-            best = ground
-        }
-        for b in decks {
-            let (u, v) = b.local(c)
-            guard abs(u) <= b.halfLength + r else { continue }
-            let depth = abs(v) + r - b.driveHalfWidth
-            if depth > 0, depth > (best?.depth ?? 0) {
-                best = (b.side * (v > 0 ? -1 : 1), depth)
+        return wallContact(center: c, radius: r) { x, y in
+            if let l = self.bridgeLocal(x: x, y: y) {
+                let b = self.bridges[l.bridge]
+                if b.isDeck(along: l.along, lateral: l.lateral) { return l.lateral > b.driveHalfWidth }
             }
+            return self.isWall(x, y)
         }
-        return best
     }
 
     // MARK: Queries
@@ -188,11 +212,11 @@ public final class Track: @unchecked Sendable {
     /// Nearest wall contact for a circle, used for car collisions.
     /// Returns the push-out normal and penetration depth.
     public func wallContact(center c: Vec2, radius r: Double) -> (normal: Vec2, depth: Double)? {
-        wallContact(center: c, radius: r, ignoring: nil)
+        wallContact(center: c, radius: r) { x, y in self.isWall(x, y) }
     }
 
-    /// Raster wall contact, optionally skipping wall cells whose centers match `ignoring`.
-    func wallContact(center c: Vec2, radius r: Double, ignoring: ((Vec2) -> Bool)?) -> (normal: Vec2, depth: Double)? {
+    /// Raster wall contact against the cells `blocked` reports as solid.
+    func wallContact(center c: Vec2, radius r: Double, blocked: (Int, Int) -> Bool) -> (normal: Vec2, depth: Double)? {
         let x0 = Int(floor(c.x - r)), x1 = Int(floor(c.x + r))
         let y0 = Int(floor(c.y - r)), y1 = Int(floor(c.y + r))
         var bestD = Double.infinity
@@ -200,8 +224,7 @@ public final class Track: @unchecked Sendable {
         var inside = false
         var away = Vec2.zero
         for y in y0...y1 {
-            for x in x0...x1 where isWall(x, y) {
-                if let ignoring, ignoring(Vec2(Double(x) + 0.5, Double(y) + 0.5)) { continue }
+            for x in x0...x1 where blocked(x, y) {
                 let closest = Vec2(clamp(c.x, Double(x), Double(x + 1)), clamp(c.y, Double(y), Double(y + 1)))
                 let d = (c - closest).length
                 if d < r {
@@ -286,7 +309,8 @@ public final class Track: @unchecked Sendable {
         return (out, total)
     }
 
-    static func rasterize(def: TrackDefinition, path: [Vec2], bridges: [Bridge]) -> (surfaces: [Surface], distance: [Float], nearest: [Int32]) {
+    static func rasterize(def: TrackDefinition, path: [Vec2], bridges: [Bridge],
+                          structure: (bridge: [Int8], along: [Float], lateral: [Float])) -> (surfaces: [Surface], distance: [Float], nearest: [Int32]) {
         let w = def.width, h = def.height
         let half = def.roadWidth / 2
         let barrierOuter = def.barrierDistance.map { half + $0 + def.barrierThickness } ?? 0
@@ -346,7 +370,7 @@ public final class Track: @unchecked Sendable {
             }
         }
 
-        carveBridges(bridges, def: def, path: path, distance: distance, nearest: nearest, surfaces: &surfaces)
+        carveBridges(bridges, def: def, path: path, structure: structure, surfaces: &surfaces)
 
         // The screen edge is always a wall, like the original.
         let border = 3

@@ -71,6 +71,13 @@ public final class Car {
     // Telemetry for rendering, sound and debugging
     public private(set) var slip: Double = 0
     public private(set) var isBraking = false
+    /// Rear tires spinning under hard acceleration (leaves marks).
+    public private(set) var isWheelspinning = false
+    /// Engine push (before surface traction) above which the rear tires spin. With the default
+    /// spec that's full throttle below roughly a third of top speed.
+    static let wheelspinAcceleration = 175.0
+    /// Reverse gear: engaged by braking at a standstill, released by the throttle.
+    public private(set) var inReverse = false
     public private(set) var surface: Surface = .asphalt
     public var wallHits = 0
     public var lastInput = CarInput.none
@@ -117,9 +124,18 @@ public final class Car {
         // and flips when reversing like a real car.
         // Uses total speed so you can still steer while sliding sideways.
         let fwdSpeed = velocity.dot(forward)
+        let throttle = clamp(input.throttle, 0, 1)
+        let brake = clamp(input.brake, 0, 1)
+        // Steering only flips when the driver is deliberately reversing. Being knocked backward
+        // by a crash doesn't put the car in reverse, so the controls keep working as expected.
+        if throttle > 0 {
+            inReverse = false
+        } else if brake > 0, fwdSpeed <= 5 {
+            inReverse = true
+        }
         let speedFactor = clamp(velocity.length / 60, 0, 1)
         let highSpeedDamp = 1 - 0.25 * clamp(abs(fwdSpeed) / spec.maxSpeed, 0, 1)
-        let direction: Double = fwdSpeed >= 0 ? 1 : -1
+        let direction: Double = inReverse && fwdSpeed < 0 ? -1 : 1
         let yaw = clamp(input.steer, -1, 1) * spec.turnRate * speedFactor * highSpeedDamp * direction
         angularVelocity *= exp(-5 * dt)
         heading = wrapAngle(heading + (yaw + angularVelocity) * dt)
@@ -129,11 +145,15 @@ public final class Car {
         var vf = velocity.dot(fwd)
         var vl = velocity.dot(side)
 
-        let throttle = clamp(input.throttle, 0, 1)
-        let brake = clamp(input.brake, 0, 1)
         isBraking = false
-        if throttle > 0 && vf >= -5 {
-            vf += spec.acceleration * props.traction * throttle * max(0, 1 - vf / spec.maxSpeed) * dt
+        isWheelspinning = false
+        if throttle > 0 {
+            // The engine pulls the same whether the car is rolling forward or was knocked
+            // backward by a crash, so the gas always drives it away.
+            let push = spec.acceleration * throttle * clamp(1 - vf / spec.maxSpeed, 0, 1)
+            vf += push * props.traction * dt
+            // Hard launches (and flooring it while rolling backward) spin the rear tires.
+            isWheelspinning = push > Car.wheelspinAcceleration
         }
         if brake > 0 {
             if vf > 5 {

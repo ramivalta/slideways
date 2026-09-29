@@ -3,7 +3,7 @@ import Foundation
 /// Original tracks shipped with the game. All fit on a single 960x600 screen.
 public enum BuiltInTracks {
     public static let all: [TrackDefinition] = [
-        provingGrounds, overpass, hairpinValley, twinBridges, figureEight, desertDunes, frozenLake, canyon,
+        provingGrounds, overpass, hairpinValley, twinBridges, cloverleaf, figureEight, desertDunes, frozenLake, canyon,
     ]
 
     /// Lopsided figure eight: a big right lobe, a tight left lobe, and a bridge where they cross.
@@ -53,6 +53,36 @@ public enum BuiltInTracks {
             Patch(.wall, .circle(center: Vec2(480, 300), radius: 18)),
         ],
         bridges: [BridgeDefinition(controlPoint: 2), BridgeDefinition(controlPoint: 14)]
+    )
+
+    /// Highway-interchange loop: the road dives under a bridge, winds 270 degrees around a
+    /// tight loop and climbs the ramp while still turning, crossing back over itself.
+    static let cloverleaf = TrackDefinition(
+        id: "cloverleaf",
+        name: "Cloverleaf",
+        controlPoints: [
+            // Top straight, heading west.
+            Vec2(620, 548), Vec2(420, 552), Vec2(230, 540), Vec2(100, 490),
+            // Down the left side and through the bottom-left sweepers.
+            Vec2(60, 370), Vec2(80, 230), Vec2(160, 120), Vec2(290, 110), Vec2(390, 190), Vec2(480, 255),
+            Vec2(600, 260), // under the bridge
+            // The loop: 270 degrees to the left, climbing onto the deck on the way out.
+            Vec2(690, 262), Vec2(760, 295), Vec2(782, 355), Vec2(752, 420), Vec2(690, 442),
+            Vec2(628, 420), Vec2(603, 350),
+            Vec2(600, 260), // over the bridge
+            // Down the ramp and round the right side back to the top.
+            Vec2(600, 150), Vec2(640, 75), Vec2(760, 55), Vec2(880, 90), Vec2(915, 230),
+            Vec2(905, 400), Vec2(860, 510), Vec2(760, 550),
+        ],
+        defaultLaps: 4,
+        barrierDistance: 20,
+        patches: [
+            Patch(.sand, .circle(center: Vec2(275, 330), radius: 80)),
+            Patch(.sand, .circle(center: Vec2(935, 560), radius: 60)),
+            // Tire wall between the top of the loop and the top straight, so it can't be cut.
+            Patch(.wall, .capsule(from: Vec2(560, 497), to: Vec2(800, 497), radius: 5)),
+        ],
+        bridges: [BridgeDefinition(controlPoint: 18)]
     )
 
     /// Handling test course: long straight into a fast right-side curve, a tight hairpin,

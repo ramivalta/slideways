@@ -27,7 +27,7 @@ final class RaceScene: GameScene {
 
     private let world = SKNode()
     private let skids = SkidMarks()
-    private let deckSkids = SkidMarks(capacity: 800)
+    private let deckSkids = SkidMarks()
     private var carNodes: [SKSpriteNode] = []
     private var shadowNodes: [SKSpriteNode] = []
     private var frontTires: [[SKSpriteNode]] = []
@@ -63,15 +63,17 @@ final class RaceScene: GameScene {
         ground.zPosition = 0
         world.addChild(ground)
 
+        let worldSize = CGSize(width: track.width, height: track.height)
+        skids.configure(worldSize: worldSize)
+        deckSkids.configure(worldSize: worldSize)
         skids.zPosition = Z.skids
         world.addChild(skids)
 
         for bridge in track.bridges {
-            let size = CGSize(width: bridge.halfLength * 2, height: bridge.halfWidth * 2)
-            let angle = CGFloat(bridge.axis.angle)
-            let deck = SKSpriteNode(texture: coordinator.deckTexture(for: track, bridge: bridge), size: size)
-            deck.position = CGPoint(x: bridge.center.x, y: bridge.center.y)
-            deck.zRotation = angle
+            let rect = TrackRenderer.deckRect(bridge)
+            let deck = SKSpriteNode(texture: coordinator.deckTexture(for: track, bridge: bridge), size: rect.size)
+            deck.anchorPoint = .zero
+            deck.position = rect.origin
             deck.zPosition = Z.deck
             world.addChild(deck)
         }
@@ -190,7 +192,7 @@ final class RaceScene: GameScene {
             let rearL = car.position - fwd * 6.9 + left * 3.8
             let rearR = car.position - fwd * 6.9 - left * 3.8
             let a = CGPoint(x: rearL.x, y: rearL.y), b = CGPoint(x: rearR.x, y: rearR.y)
-            let sliding = car.slip > 22 || (car.isBraking && car.speed > 70)
+            let sliding = car.slip > 22 || (car.isBraking && car.speed > 70) || car.isWheelspinning
             let color = SkidMarks.color(for: car.surface, theme: track.definition.theme)
             if sliding, let color, let prev = lastWheels[car.id] {
                 let moved = hypot(a.x - prev.0.x, a.y - prev.0.y)
@@ -204,6 +206,8 @@ final class RaceScene: GameScene {
                 lastWheels[car.id] = sliding ? (a, b) : nil
             }
         }
+        skids.tick()
+        deckSkids.tick()
     }
 
     private func spawnSparks(_ impact: ImpactEvent) {

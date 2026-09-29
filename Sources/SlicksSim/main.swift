@@ -75,6 +75,44 @@ func skidpad() {
 }
 skidpad()
 
+/// Crash test: floor it head-on into a wall like a player would, keep the throttle pinned and
+/// steer left after the hit. The car should drive away forward and turn left, with no lingering
+/// effect beyond the bounce itself.
+func crashTest() {
+    let pts = (0..<12).map { k -> Vec2 in
+        let a = Double(k) / 12 * 2 * .pi - .pi / 2
+        return Vec2(480 + 300 * cos(a), 300 + 200 * sin(a))
+    }
+    var def = TrackDefinition(id: "crash", name: "Crash", roadWidth: 380, controlPoints: pts, background: .asphalt)
+    let probe = Track(definition: def)
+    let n = probe.sampleCount
+    let wallAt = probe.path[n - 6] + probe.tangents[n - 6] * 230
+    def.patches = [Patch(.wall, .rect(origin: wallAt - Vec2(12, 150), size: Vec2(24, 300)), coversRoad: true)]
+    let track = Track(definition: def)
+    let race = Race(track: track, entrants: [Entrant(name: "P1", colorIndex: 0, playerIndex: 0)], laps: 99)
+    let car = race.cars[0]
+    var t = 0.0, hitAt: Double?, impactSpeed = 0.0, reboundSpeed = 0.0, forwardAgainAt: Double?, headingAtHit = 0.0
+    while t < Race.countdownDuration + 6 {
+        let steer = hitAt != nil && t - hitAt! > 0.05 ? 1.0 : 0.0
+        let before = car.speed
+        race.step(dt: dt, humanInputs: [CarInput(throttle: 1, brake: 0, steer: steer)])
+        if hitAt == nil, car.wallHits > 0 { hitAt = t; impactSpeed = before; headingAtHit = car.heading }
+        if let h = hitAt {
+            reboundSpeed = min(reboundSpeed, car.forwardSpeed)
+            if forwardAgainAt == nil, t - h > 0.02, car.forwardSpeed > 0 { forwardAgainAt = t - h }
+            if t - h > 0.6 { break }
+        }
+        t += dt
+    }
+    guard hitAt != nil else { print("== Crash test: FAIL, never hit the wall"); failures += 1; return }
+    let turned = wrapAngle(car.heading - headingAtHit) * 180 / .pi
+    let recovery = forwardAgainAt ?? .infinity
+    print(String(format: "== Crash test: hit at %.0f, rebound %.0f, rolling forward again after %.2fs, steering left turned %+.0f° in 0.6s",
+                 impactSpeed, reboundSpeed, recovery, turned))
+    if recovery > 0.4 || turned < 20 { print("  FAIL: crash recovery"); failures += 1 }
+}
+crashTest()
+
 /// All liveries, straight and steering, blown up for inspection.
 func kartSheet() {
     let cellW = 300, cellH = 170
@@ -104,12 +142,16 @@ for def in BuiltInTracks.all where onlyTrack == nil || def.id == onlyTrack {
     var offRoad = 0
     for (i, p) in track.path.enumerated() {
         let s = track.surface(at: p, level: Int(track.sampleLevels[i]))
-        if s != .asphalt && s != .ice && s != .sand { offRoad += 1 }
+        if s != .asphalt && s != .ice && s != .sand {
+            offRoad += 1
+            print("   undrivable sample \(i) at \(Int(p.x)),\(Int(p.y)) level \(track.sampleLevels[i]) surface \(s)")
+        }
     }
     for (bi, b) in track.bridges.enumerated() {
         let deckSamples = track.sampleLevels.filter { $0 == 1 }.count
-        print(String(format: "  bridge %d: deck %.0f x %.0f at (%.0f, %.0f), %d deck samples total",
-                     bi, b.halfLength * 2, b.halfWidth * 2, b.center.x, b.center.y, deckSamples))
+        let c = track.path[b.centerSample]
+        print(String(format: "  bridge %d: deck %.0f long (%.0f back, %.0f ahead) x %.0f at (%.0f, %.0f), %d deck samples total",
+                     bi, b.deckEnd - b.deckStart, -b.deckStart, b.deckEnd, b.halfWidth * 2, c.x, c.y, deckSamples))
     }
     if offRoad > 0 { print("  WARN: \(offRoad) centerline samples not drivable"); failures += 1 }
     let ov = overlaps(track)
