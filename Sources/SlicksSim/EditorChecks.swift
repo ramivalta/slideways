@@ -127,7 +127,20 @@ func widthTestTracks() -> [TrackDefinition] {
     for (i, w) in [(7, 104.0), (15, 60), (3, 130), (11, 56)] {
         overpass.setRoadWidth(w, atPoint: i)
     }
-    return [hairpin, overpass]
+    // Reported bug: one bridge's down-ramp runs out under the other bridge's deck, which used
+    // to punch a hole in that deck.
+    let pts: [(Double, Double)] = [
+        (620, 548), (420, 552), (230, 540), (100, 490), (60, 370), (80, 230), (129, 82), (361, 68), (390, 190),
+        (395.33580615411523, 241.89150527704987), (378, 411), (195, 393), (244, 190), (386, 309), (594, 236),
+        (707, 203), (760, 295), (782, 355), (752, 420), (690, 442), (628, 420), (603, 350), (600, 260),
+        (600, 150), (640, 75), (760, 55), (880, 90), (915, 230), (905, 400), (860, 510), (760, 550),
+    ]
+    let overlap = TrackDefinition(
+        id: "overlapping-bridges", name: "Bug: overlapping bridges", controlPoints: pts.map { Vec2($0.0, $0.1) },
+        defaultLaps: 4, barrierDistance: 20,
+        patches: [Patch(.wall, .capsule(from: Vec2(560, 497), to: Vec2(800, 497), radius: 5))],
+        bridges: [BridgeDefinition(controlPoint: 22), BridgeDefinition(controlPoint: 13)])
+    return [hairpin, overpass, overlap]
 }
 
 /// Drifts one car in circles on a big asphalt pad with a band of sand across it, and checks

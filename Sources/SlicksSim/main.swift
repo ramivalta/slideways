@@ -273,7 +273,19 @@ func kartSheet() {
 }
 kartSheet()
 
-for def in BuiltInTracks.all + widthTestTracks() where onlyTrack == nil || def.id == onlyTrack {
+/// A track JSON file given in place of a track id is raced on its own.
+let fileTrack: TrackDefinition? = onlyTrack.flatMap { path in
+    guard path.hasSuffix(".json") else { return nil }
+    guard let data = FileManager.default.contents(atPath: path),
+          let def = try? JSONDecoder().decode(TrackDefinition.self, from: data) else {
+        print("Can't read track file \(path)")
+        exit(2)
+    }
+    return def
+}
+let simTracks = fileTrack.map { [$0] } ?? (BuiltInTracks.all + widthTestTracks()).filter { onlyTrack == nil || $0.id == onlyTrack }
+
+for def in simTracks {
     let t0 = Date()
     let track = Track(definition: def)
     let buildMs = Date().timeIntervalSince(t0) * 1000
@@ -295,6 +307,29 @@ for def in BuiltInTracks.all + widthTestTracks() where onlyTrack == nil || def.i
                      bi, b.deckEnd - b.deckStart, -b.deckStart, b.deckEnd, b.halfWidth * 2, c.x, c.y, deckSamples))
     }
     if offRoad > 0 { print("  WARN: \(offRoad) centerline samples not drivable"); failures += 1 }
+    // Every cell a deck image covers must count as that deck for physics, or cars fall through.
+    for (bi, b) in track.bridges.enumerated() {
+        let r = b.deckBounds
+        var holes = 0, stolen = 0, first: (Int, Int)?
+        for y in r.minY..<r.maxY {
+            for x in r.minX..<r.maxX {
+                let p = Vec2(Double(x) + 0.5, Double(y) + 0.5)
+                let l = track.upperRoadLocal(bridge: b, point: p)
+                // Stay a cell inside the edges, where both measures agree.
+                guard l.along > b.deckStart + 1, l.along < b.deckEnd - 1, l.lateral < b.driveHalfWidth - 1 else { continue }
+                switch track.deck(x: x, y: y) {
+                case bi?: continue
+                case nil: holes += 1
+                default: stolen += 1
+                }
+                if first == nil { first = (x, y) }
+            }
+        }
+        if holes + stolen > 0 {
+            print("  FAIL: bridge \(bi) deck has \(holes) cells cars fall through and \(stolen) claimed by another bridge, first at \(first!)")
+            failures += 1
+        }
+    }
     let crossings = def.crossings()
     let bridged = crossings.filter { def.bridgeIndex(at: $0) != nil }.count
     print("  editor: \(crossings.count) crossing(s), \(bridged) bridged, issues: \(track.issues().map(\.message))")

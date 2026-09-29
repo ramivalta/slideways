@@ -164,11 +164,17 @@ public extension TrackDefinition {
     }
 
     /// Bridge (index into `bridges`) sitting on a crossing, if any.
-    func bridgeIndex(at crossing: RoadCrossing, tolerance: Double = 24) -> Int? {
+    func bridgeIndex(at crossing: RoadCrossing) -> Int? {
         bridges.indices.first { k in
             let c = bridges[k].controlPoint
-            return controlPoints.indices.contains(c) && controlPoints[c].distance(to: crossing.point) < tolerance
+            return controlPoints.indices.contains(c) && controlPoints[c].distance(to: crossing.point) < bridgeReach(atPoint: c)
         }
+    }
+
+    /// How far a bridge's control point can sit from the crossing it spans. The deck sizes
+    /// itself to the road below, so anywhere within about half the road width works.
+    func bridgeReach(atPoint c: Int) -> Double {
+        max(24, roadWidth(atPoint: c) * 0.5)
     }
 
     /// Control point on the given pass at the crossing, inserting one exactly at the crossing
@@ -202,8 +208,8 @@ public extension TrackDefinition {
     /// Crossing a bridge sits on, if it's on one.
     func crossing(forBridge k: Int, in list: [RoadCrossing]) -> RoadCrossing? {
         guard bridges.indices.contains(k), controlPoints.indices.contains(bridges[k].controlPoint) else { return nil }
-        let p = controlPoints[bridges[k].controlPoint]
-        return list.filter { $0.point.distance(to: p) < 24 }.min { $0.point.distance(to: p) < $1.point.distance(to: p) }
+        let c = bridges[k].controlPoint, p = controlPoints[c], reach = bridgeReach(atPoint: c)
+        return list.filter { $0.point.distance(to: p) < reach }.min { $0.point.distance(to: p) < $1.point.distance(to: p) }
     }
 }
 

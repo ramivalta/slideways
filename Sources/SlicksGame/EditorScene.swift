@@ -1505,14 +1505,14 @@ final class EditorScene: GameScene {
                 },
             ])
             if crossing == nil { L.note("Not on a crossing: move the point to where the road crosses itself.", color: EditorColors.issue) }
-        } else if let x = crossings.filter({ $0.point.distance(to: p) < 24 }).first, let k = def.bridgeIndex(at: x) {
+        } else if let x = crossings.filter({ $0.point.distance(to: p) < def.bridgeReach(atPoint: i) }).first, let k = def.bridgeIndex(at: x) {
             L.header("BRIDGE")
             L.note("The other road goes over this one here.")
             L.choices(nil, [Option(title: "Put this road on top", tip: "Swap which road goes over") { [unowned self] in
                 perform { $0.flipBridge(k, at: x) }
                 select(.point(def.bridges[k].controlPoint))
             }])
-        } else if let x = crossings.filter({ $0.point.distance(to: p) < 24 }).first {
+        } else if let x = crossings.filter({ $0.point.distance(to: p) < def.bridgeReach(atPoint: i) }).first {
             L.choices(nil, [Option(title: "Build a bridge here", tip: "This road goes over the other") { [unowned self] in
                 let pass = def.loopDistance(Double(i), x.passA) < def.loopDistance(Double(i), x.passB) ? x.passA : x.passB
                 var k = 0
