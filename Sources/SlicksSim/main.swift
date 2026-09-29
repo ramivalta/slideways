@@ -222,6 +222,33 @@ func soundCheck() {
         print("   race: \(hits) impact sounds in 22s")
     }
 
+    // Results screen: once the race is over the karts must fade to silence.
+    do {
+        let track = Track(definition: BuiltInTracks.all[0])
+        var settings = RaceSettings()
+        settings.humanPlayers = 0
+        settings.aiOpponents = 4
+        let race = Race(track: track, entrants: settings.entrants(seed: 3), laps: 1, seed: 3)
+        let audio = RaceAudio(race: race)
+        while race.phase != .finished && race.time < 200 {
+            race.step(dt: 1.0 / 120, humanInputs: [])
+            _ = race.drainImpacts()
+        }
+        let synth = Synth(sampleRate: Double(rate))
+        var tail: (left: [Float], right: [Float]) = ([], [])
+        for frame in 0..<(3 * 60) {
+            let out = audio.update(race: race, impacts: [], humanInputs: [], paused: false, dt: 1.0 / 60)
+            synth.setCars(out.cars)
+            let block = synth.render(seconds: 1.0 / 60)
+            // Keep the last second: well past the fade.
+            if frame >= 2 * 60 { tail.left += block.left; tail.right += block.right }
+        }
+        let peak = (tail.left + tail.right).map(abs).max() ?? 0
+        print(String(format: "   results screen: peak %.5f one second after the fade", peak))
+        if race.phase != .finished { problems.append("results test race never finished") }
+        if peak > 0.001 { problems.append("karts still audible on the results screen") }
+    }
+
     if problems.isEmpty { print("  sound OK") } else { for p in problems { print("  FAIL: \(p)") }; failures += problems.count }
 }
 soundCheck()

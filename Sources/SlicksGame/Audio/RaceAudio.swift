@@ -13,6 +13,9 @@ public final class RaceAudio {
     private var saidGo = false
     private var laps: [Int]
     private var recentHits: [(position: Vec2, time: Double)] = []
+    /// Kart volume once the race is over: fades from 1 to 0 so the results screen is quiet.
+    private var endFade = 1.0
+    static let endFadeDuration = 0.8
 
     public init(race: Race) {
         laps = race.cars.map(\.lapsCompleted)
@@ -21,10 +24,14 @@ public final class RaceAudio {
     /// - Parameters:
     ///   - humanInputs: live input per player slot, so players can rev on the grid.
     ///   - paused: silences karts while the pause menu is up.
-    public func update(race: Race, impacts: [ImpactEvent], humanInputs: [CarInput], paused: Bool)
-        -> (cars: [CarSound], effects: [SoundEffect]) {
+    ///   - dt: frame time, for the fade-out after the race.
+    public func update(race: Race, impacts: [ImpactEvent], humanInputs: [CarInput], paused: Bool,
+                       dt: Double = 1.0 / 60) -> (cars: [CarSound], effects: [SoundEffect]) {
         var effects: [SoundEffect] = []
         let track = race.track
+        if race.phase == .finished {
+            endFade = max(0, endFade - dt / Self.endFadeDuration)
+        }
 
         // Countdown ticks and the start signal.
         if race.time < 0 {
@@ -86,7 +93,7 @@ public final class RaceAudio {
                 s.engineGain = 0
                 s.tireGain = 0
             } else if race.phase == .finished {
-                s.engineGain *= 0.35
+                s.engineGain *= endFade
                 s.tireGain = 0
             }
             return s

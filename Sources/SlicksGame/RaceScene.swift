@@ -159,7 +159,7 @@ final class RaceScene: GameScene {
             for impact in impacts { spawnSparks(impact) }
         }
 
-        let sound = audio.update(race: race, impacts: impacts, humanInputs: inputs, paused: isPausedByPlayer)
+        let sound = audio.update(race: race, impacts: impacts, humanInputs: inputs, paused: isPausedByPlayer, dt: frameDt)
         SoundSystem.shared.setCars(sound.cars)
         for effect in sound.effects { SoundSystem.shared.play(effect) }
 
