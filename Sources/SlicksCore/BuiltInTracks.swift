@@ -1,0 +1,176 @@
+import Foundation
+
+/// Original tracks shipped with the game. All fit on a single 960x600 screen.
+public enum BuiltInTracks {
+    public static let all: [TrackDefinition] = [
+        provingGrounds, overpass, hairpinValley, twinBridges, figureEight, desertDunes, frozenLake, canyon,
+    ]
+
+    /// Lopsided figure eight: a big right lobe, a tight left lobe, and a bridge where they cross.
+    static let overpass = TrackDefinition(
+        id: "overpass",
+        name: "Overpass",
+        controlPoints: [
+            Vec2(700, 85), Vec2(820, 95), Vec2(895, 200), Vec2(885, 410), Vec2(790, 520),
+            Vec2(650, 510), Vec2(560, 420),
+            Vec2(440, 300), // over the bridge
+            Vec2(320, 180), Vec2(215, 105), Vec2(105, 170), Vec2(75, 300), Vec2(105, 430),
+            Vec2(215, 500), Vec2(320, 420),
+            Vec2(440, 300), // under the bridge
+            Vec2(560, 180), Vec2(630, 100),
+        ],
+        defaultLaps: 5,
+        barrierDistance: 22,
+        patches: [
+            Patch(.sand, .circle(center: Vec2(935, 560), radius: 70)),
+            Patch(.sand, .circle(center: Vec2(30, 40), radius: 70)),
+        ],
+        bridges: [BridgeDefinition(controlPoint: 7)]
+    )
+
+    /// Three lobes chained left to right, crossing at both necks on bridges.
+    static let twinBridges = TrackDefinition(
+        id: "twin-bridges",
+        name: "Twin Bridges",
+        controlPoints: [
+            Vec2(480, 450), Vec2(555, 405),
+            Vec2(620, 300), // over the right bridge
+            Vec2(700, 200), Vec2(790, 112), Vec2(870, 160), Vec2(890, 300), Vec2(870, 440),
+            Vec2(790, 488), Vec2(700, 400),
+            Vec2(620, 300), // under the right bridge
+            Vec2(555, 195), Vec2(480, 150), Vec2(405, 195),
+            Vec2(340, 300), // over the left bridge
+            Vec2(260, 400), Vec2(170, 488), Vec2(90, 440), Vec2(70, 300), Vec2(90, 160),
+            Vec2(170, 112), Vec2(260, 200),
+            Vec2(340, 300), // under the left bridge
+            Vec2(405, 405),
+        ],
+        defaultLaps: 4,
+        theme: .desert,
+        barrierDistance: 20,
+        patches: [
+            Patch(.sand, .circle(center: Vec2(480, 300), radius: 55)),
+            Patch(.wall, .circle(center: Vec2(480, 300), radius: 18)),
+        ],
+        bridges: [BridgeDefinition(controlPoint: 2), BridgeDefinition(controlPoint: 14)]
+    )
+
+    /// Handling test course: long straight into a fast right-side curve, a tight hairpin,
+    /// two sharp right-handers back to back, then a flowing sweeper home.
+    static let provingGrounds = TrackDefinition(
+        id: "proving-grounds",
+        name: "Proving Grounds",
+        roadWidth: 86,
+        controlPoints: [
+            Vec2(330, 80), Vec2(640, 80), Vec2(820, 100), Vec2(885, 190), Vec2(880, 400),
+            // Tight hairpin, top right.
+            Vec2(860, 500), Vec2(805, 545), Vec2(745, 505), Vec2(732, 420),
+            // Two sharp 90-degree right-handers with a short straight between.
+            Vec2(728, 335), Vec2(714, 288), Vec2(672, 266), Vec2(600, 262), Vec2(520, 262),
+            Vec2(470, 272), Vec2(442, 308), Vec2(432, 365), Vec2(425, 440),
+            // Fast sweeper over the top and down the left side.
+            Vec2(385, 515), Vec2(300, 545), Vec2(200, 525), Vec2(140, 450), Vec2(120, 300),
+            Vec2(135, 165), Vec2(200, 95),
+        ],
+        defaultLaps: 5,
+        barrierDistance: 22,
+        patches: [
+            Patch(.sand, .circle(center: Vec2(935, 90), radius: 70)),
+            Patch(.sand, .circle(center: Vec2(50, 560), radius: 90)),
+            Patch(.sand, .circle(center: Vec2(275, 300), radius: 62)),
+            Patch(.wall, .circle(center: Vec2(275, 300), radius: 26)),
+        ]
+    )
+
+    static let hairpinValley = TrackDefinition(
+        id: "hairpin-valley",
+        name: "Hairpin Valley",
+        roadWidth: 72,
+        controlPoints: [
+            Vec2(300, 80), Vec2(720, 80), Vec2(870, 140), Vec2(870, 250), Vec2(720, 280),
+            Vec2(520, 260), Vec2(470, 330), Vec2(560, 390), Vec2(820, 400), Vec2(880, 480),
+            Vec2(800, 540), Vec2(300, 540), Vec2(120, 500), Vec2(90, 300), Vec2(140, 130),
+        ],
+        defaultLaps: 4,
+        barrierDistance: 18,
+        patches: [
+            Patch(.wall, .capsule(from: Vec2(300, 300), to: Vec2(300, 420), radius: 6)),
+            Patch(.sand, .circle(center: Vec2(420, 300), radius: 40)),
+        ]
+    )
+
+    static let figureEight: TrackDefinition = {
+        // Lemniscate of Bernoulli, stretched vertically. Starts on the upper-right diagonal.
+        let count = 16
+        let t0 = 1.15
+        let points = (0..<count).map { k -> Vec2 in
+            let t = t0 + Double(k) * 2 * .pi / Double(count)
+            let d = 1 + sin(t) * sin(t)
+            return Vec2(480 + 400 * cos(t) / d, 300 + 620 * sin(t) * cos(t) / d)
+        }
+        return TrackDefinition(
+            id: "figure-eight",
+            name: "Figure Eight",
+            roadWidth: 78,
+            controlPoints: points,
+            defaultLaps: 5,
+            barrierDistance: 26
+        )
+    }()
+
+    static let desertDunes = TrackDefinition(
+        id: "desert-dunes",
+        name: "Desert Dunes",
+        controlPoints: [
+            Vec2(480, 70), Vec2(800, 80), Vec2(890, 200), Vec2(780, 300), Vec2(870, 420),
+            Vec2(760, 530), Vec2(480, 500), Vec2(200, 540), Vec2(80, 420), Vec2(170, 300),
+            Vec2(90, 180), Vec2(200, 80),
+        ],
+        defaultLaps: 4,
+        theme: .desert,
+        patches: [
+            Patch(.sand, .circle(center: Vec2(480, 300), radius: 150)),
+            Patch(.wall, .circle(center: Vec2(480, 300), radius: 28)),
+            Patch(.wall, .circle(center: Vec2(620, 380), radius: 14)),
+            Patch(.wall, .circle(center: Vec2(340, 220), radius: 14)),
+            Patch(.sand, .circle(center: Vec2(930, 300), radius: 60)),
+            Patch(.sand, .circle(center: Vec2(30, 300), radius: 60)),
+            // Sand blown across the back straight.
+            Patch(.sand, .rect(origin: Vec2(600, 50), size: Vec2(70, 90)), coversRoad: true),
+        ]
+    )
+
+    static let frozenLake = TrackDefinition(
+        id: "frozen-lake",
+        name: "Frozen Lake",
+        controlPoints: [
+            Vec2(480, 80), Vec2(790, 85), Vec2(890, 230), Vec2(840, 440), Vec2(660, 520),
+            Vec2(560, 420), Vec2(420, 420), Vec2(300, 520), Vec2(120, 440), Vec2(70, 230),
+            Vec2(170, 85),
+        ],
+        defaultLaps: 4,
+        theme: .winter,
+        barrierDistance: 30,
+        patches: [
+            Patch(.ice, .circle(center: Vec2(930, 300), radius: 150), coversRoad: true),
+            Patch(.ice, .circle(center: Vec2(490, 440), radius: 70), coversRoad: true),
+            Patch(.ice, .circle(center: Vec2(480, 260), radius: 110)),
+        ]
+    )
+
+    static let canyon = TrackDefinition(
+        id: "canyon",
+        name: "Twisty Canyon",
+        roadWidth: 70,
+        controlPoints: [
+            Vec2(480, 70), Vec2(760, 70), Vec2(880, 150), Vec2(820, 250), Vec2(640, 230),
+            Vec2(560, 300), Vec2(640, 380), Vec2(860, 390), Vec2(890, 500), Vec2(760, 545),
+            Vec2(520, 520), Vec2(400, 440), Vec2(300, 540), Vec2(120, 520), Vec2(70, 380),
+            Vec2(200, 300), Vec2(90, 200), Vec2(160, 80),
+        ],
+        defaultLaps: 3,
+        theme: .desert,
+        barrierDistance: 10,
+        barrierThickness: 9
+    )
+}
