@@ -16,7 +16,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate {
         window.collectionBehavior = [.fullScreenPrimary]
         window.delegate = self
 
-        let view = SKView(frame: rect)
+        let view = GameView(frame: rect)
         view.ignoresSiblingOrder = true
         view.preferredFramesPerSecond = 120
         #if DEBUG

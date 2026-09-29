@@ -26,6 +26,52 @@ public final class GameCoordinator {
         present(RaceScene(coordinator: self, settings: settings))
     }
 
+    #if os(macOS)
+    /// The open editor, kept alive while test driving so it comes back as it was left.
+    private var editor: EditorScene?
+
+    /// Opens the level editor on a track, or on a new one.
+    public func showEditor(editing def: TrackDefinition? = nil) {
+        let scene = EditorScene(coordinator: self, editing: def)
+        editor = scene
+        present(scene)
+    }
+
+    /// Leaves the editor for the menu, with `trackID` selected if given.
+    func closeEditor(selecting trackID: String?) {
+        editor = nil
+        if let id = trackID, let i = TrackLibrary.shared.index(of: id) {
+            settings.trackIndex = i
+            settings.laps = TrackLibrary.shared.definitions[i].defaultLaps
+        }
+        showMenu()
+    }
+
+    /// Races the editor's current track, returning to the editor afterwards.
+    func testDrive(_ def: TrackDefinition) {
+        var d = def
+        // A fixed id keeps test builds out of the texture cache entries of saved tracks.
+        d.id = "editor-test"
+        forgetTextures(for: d.id)
+        var s = settings
+        s.humanPlayers = max(1, s.humanPlayers)
+        s.aiOpponents = min(s.aiOpponents, GameInfo.maxCars - s.humanPlayers)
+        s.laps = def.defaultLaps
+        let track = Track(definition: d)
+        present(RaceScene(coordinator: self, settings: s, testTrack: track))
+    }
+
+    func returnToEditor() {
+        guard let editor else { return showMenu() }
+        present(editor)
+    }
+    #endif
+
+    /// Drops cached images of a track whose definition changed.
+    func forgetTextures(for id: String) {
+        textures = textures.filter { $0.key != id && !$0.key.hasPrefix(id + "#") }
+    }
+
     /// Track with bridge decks baked in, for the menu preview.
     func previewTexture(for track: Track) -> SKTexture {
         let key = track.definition.id + "#preview"
@@ -54,7 +100,7 @@ public final class GameCoordinator {
         return t
     }
 
-    private func present(_ scene: SKScene) {
+    func present(_ scene: SKScene) {
         Input.shared.releaseAll()
         view?.presentScene(scene, transition: .fade(withDuration: 0.2))
     }

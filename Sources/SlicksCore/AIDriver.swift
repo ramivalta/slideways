@@ -24,11 +24,11 @@ public struct AIDriver: Sendable {
 
         // Wiggle the preferred lane slowly so the pack doesn't drive in single file.
         laneDrift = sin(elapsed * 0.35 + Double(car.id) * 1.7) * 0.25
-        let laneOffset = clamp(lane + laneDrift, -0.65, 0.65) * track.halfRoad
 
         // Steer toward a point ahead on the path.
         let look = Int(7 + speed * 0.075)
         let ti = (car.pathIndex + look) % n
+        let laneOffset = clamp(lane + laneDrift, -0.65, 0.65) * track.halfWidths[ti]
         // Tighten the line toward the centerline in corners so we don't clip the inside curb.
         let cornerFactor = clamp(1 - track.curvature[ti] * 40, 0.2, 1)
         let target = track.path[ti] + track.normals[ti] * (laneOffset * cornerFactor)

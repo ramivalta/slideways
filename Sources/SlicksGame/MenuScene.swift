@@ -5,6 +5,16 @@ import SpriteKit
 final class MenuScene: GameScene {
     private enum Row: CaseIterable {
         case track, laps, players, opponents, skill, start
+        #if os(macOS)
+        case editor
+        #endif
+
+        var isAction: Bool {
+            #if os(macOS)
+            if self == .editor { return true }
+            #endif
+            return self == .start
+        }
     }
 
     private static let skillLevels: [(name: String, value: Double)] = [
@@ -21,6 +31,8 @@ final class MenuScene: GameScene {
     init(coordinator: GameCoordinator) {
         self.coordinator = coordinator
         settings = coordinator.settings
+        // Custom tracks can be deleted between launches.
+        settings.trackIndex = clamp(settings.trackIndex, 0, TrackLibrary.shared.definitions.count - 1)
         super.init()
     }
 
@@ -34,7 +46,7 @@ final class MenuScene: GameScene {
 
         for (i, row) in Row.allCases.enumerated() {
             let l = makeLabel("", size: 20)
-            l.position = CGPoint(x: 60, y: 450 - CGFloat(i) * 48 - (row == .start ? 14 : 0))
+            l.position = CGPoint(x: 60, y: 456 - CGFloat(i) * 44 - (row.isAction ? 12 : 0))
             addChild(l)
             rowLabels[row] = l
         }
@@ -72,7 +84,7 @@ final class MenuScene: GameScene {
     private func refresh() {
         let lib = TrackLibrary.shared
         let def = lib.definitions[settings.trackIndex]
-        let values: [Row: String] = [
+        var values: [Row: String] = [
             .track: "TRACK      < \(def.name) >",
             .laps: "LAPS       < \(settings.laps) >",
             .players: "PLAYERS    < \(settings.humanPlayers) >",
@@ -80,6 +92,9 @@ final class MenuScene: GameScene {
             .skill: "AI SKILL   < \(MenuScene.skillLevels[skillIndex].name) >",
             .start: "START RACE",
         ]
+        #if os(macOS)
+        values[.editor] = TrackStore.isCustom(def.id) ? "EDIT THIS TRACK" : "TRACK EDITOR"
+        #endif
         for (row, label) in rowLabels {
             let isSel = row == selected
             label.text = (isSel ? "> " : "  ") + (values[row] ?? "")
@@ -105,6 +120,13 @@ final class MenuScene: GameScene {
         case .enter, .space:
             if isRepeat { return }
             coordinator.settings = settings
+            #if os(macOS)
+            if selected == .editor {
+                // Custom tracks open for editing; with a built-in selected, start fresh.
+                let def = TrackLibrary.shared.definitions[settings.trackIndex]
+                return coordinator.showEditor(editing: TrackStore.isCustom(def.id) ? def : nil)
+            }
+            #endif
             coordinator.startRace()
             return
         default:
@@ -129,7 +151,7 @@ final class MenuScene: GameScene {
         case .skill:
             let i = clamp(skillIndex + delta, 0, MenuScene.skillLevels.count - 1)
             settings.aiSkill = MenuScene.skillLevels[i].value
-        case .start:
+        default:
             break
         }
         coordinator.settings = settings

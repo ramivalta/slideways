@@ -52,11 +52,25 @@ public struct RaceSettings: Codable, Sendable, Equatable {
     }
 }
 
-/// Builds tracks and their images once and keeps them around.
+/// Built-in tracks followed by the player's custom tracks. Builds tracks once and keeps them.
 public final class TrackLibrary {
     public static let shared = TrackLibrary()
-    public let definitions = BuiltInTracks.all
+    public private(set) var definitions: [TrackDefinition]
     private var built: [String: Track] = [:]
+
+    init() {
+        definitions = BuiltInTracks.all + TrackStore.loadAll()
+    }
+
+    /// Re-reads custom tracks from disk, dropping any cached builds of them.
+    public func reload() {
+        definitions = BuiltInTracks.all + TrackStore.loadAll()
+        built = built.filter { !TrackStore.isCustom($0.key) }
+    }
+
+    public func index(of id: String) -> Int? {
+        definitions.firstIndex { $0.id == id }
+    }
 
     public func track(at index: Int) -> Track {
         let def = definitions[(index % definitions.count + definitions.count) % definitions.count]

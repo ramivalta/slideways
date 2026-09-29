@@ -45,10 +45,14 @@ final class RaceScene: GameScene {
     private var lastUpdate: TimeInterval?
     private var accumulator = 0.0
 
-    init(coordinator: GameCoordinator, settings: RaceSettings) {
+    /// Set when test driving from the editor: the race uses this track and exits to the editor.
+    private let testTrack: Track?
+
+    init(coordinator: GameCoordinator, settings: RaceSettings, testTrack: Track? = nil) {
         self.coordinator = coordinator
         self.settings = settings
-        track = TrackLibrary.shared.track(at: settings.trackIndex)
+        self.testTrack = testTrack
+        track = testTrack ?? TrackLibrary.shared.track(at: settings.trackIndex)
         let seed = UInt64.random(in: 1...UInt64.max)
         race = Race(track: track, entrants: settings.entrants(seed: seed), laps: settings.laps, seed: seed)
         super.init()
@@ -67,11 +71,10 @@ final class RaceScene: GameScene {
         world.addChild(skids)
 
         for bridge in track.bridges {
-            let size = CGSize(width: bridge.halfLength * 2, height: bridge.halfWidth * 2)
-            let angle = CGFloat(bridge.axis.angle)
-            let deck = SKSpriteNode(texture: coordinator.deckTexture(for: track, bridge: bridge), size: size)
-            deck.position = CGPoint(x: bridge.center.x, y: bridge.center.y)
-            deck.zRotation = angle
+            let rect = TrackRenderer.deckRect(bridge)
+            let deck = SKSpriteNode(texture: coordinator.deckTexture(for: track, bridge: bridge), size: rect.size)
+            deck.anchorPoint = .zero
+            deck.position = rect.origin
             deck.zPosition = Z.deck
             world.addChild(deck)
         }
@@ -298,7 +301,8 @@ final class RaceScene: GameScene {
         let title = makeLabel("PAUSED", size: 36, color: .accent, align: .center)
         title.position = CGPoint(x: 0, y: 40)
         panel.addChild(title)
-        let help = makeLabel("Esc/Enter resume   R restart   Q quit to menu", size: 15, color: .white, align: .center)
+        let quit = testTrack == nil ? "Q quit to menu" : "Q back to editor"
+        let help = makeLabel("Esc/Enter resume   R restart   \(quit)", size: 15, color: .white, align: .center)
         help.position = CGPoint(x: 0, y: -25)
         panel.addChild(help)
         addChild(panel)
@@ -353,7 +357,7 @@ final class RaceScene: GameScene {
             panel.addChild(row)
         }
 
-        let help = makeLabel("Enter race again   Esc menu", size: 14, color: .dim, align: .center)
+        let help = makeLabel("Enter race again   Esc \(testTrack == nil ? "menu" : "editor")", size: 14, color: .dim, align: .center)
         help.position = CGPoint(x: 0, y: -top + 26)
         panel.addChild(help)
         addChild(panel)
@@ -362,12 +366,27 @@ final class RaceScene: GameScene {
 
     // MARK: Keys
 
+    private func restart() {
+        if let testTrack {
+            coordinator.present(RaceScene(coordinator: coordinator, settings: settings, testTrack: testTrack))
+        } else {
+            coordinator.startRace()
+        }
+    }
+
+    private func exit() {
+        #if os(macOS)
+        if testTrack != nil { return coordinator.returnToEditor() }
+        #endif
+        coordinator.showMenu()
+    }
+
     override func keyPressed(_ key: Key, isRepeat: Bool) {
         guard !isRepeat else { return }
         if showingResults {
             switch key {
-            case .enter, .space: coordinator.startRace()
-            case .escape, .q: coordinator.showMenu()
+            case .enter, .space: restart()
+            case .escape, .q: exit()
             default: break
             }
             return
@@ -375,8 +394,8 @@ final class RaceScene: GameScene {
         if isPausedByPlayer {
             switch key {
             case .escape, .enter, .p: togglePause()
-            case .r: coordinator.startRace()
-            case .q: coordinator.showMenu()
+            case .r: restart()
+            case .q: exit()
             default: break
             }
             return

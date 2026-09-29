@@ -74,6 +74,7 @@ func skidpad() {
                  speedAtTurn, maxDrift, driftTime, minSpeed))
 }
 skidpad()
+failures += editorChecks()
 
 /// All liveries, straight and steering, blown up for inspection.
 func kartSheet() {
@@ -94,7 +95,7 @@ func kartSheet() {
 }
 kartSheet()
 
-for def in BuiltInTracks.all where onlyTrack == nil || def.id == onlyTrack {
+for def in BuiltInTracks.all + widthTestTracks() where onlyTrack == nil || def.id == onlyTrack {
     let t0 = Date()
     let track = Track(definition: def)
     let buildMs = Date().timeIntervalSince(t0) * 1000
@@ -104,14 +105,22 @@ for def in BuiltInTracks.all where onlyTrack == nil || def.id == onlyTrack {
     var offRoad = 0
     for (i, p) in track.path.enumerated() {
         let s = track.surface(at: p, level: Int(track.sampleLevels[i]))
-        if s != .asphalt && s != .ice && s != .sand { offRoad += 1 }
+        if s != .asphalt && s != .ice && s != .sand {
+            offRoad += 1
+            print("   undrivable sample \(i) at \(Int(p.x)),\(Int(p.y)) level \(track.sampleLevels[i]) surface \(s)")
+        }
     }
     for (bi, b) in track.bridges.enumerated() {
         let deckSamples = track.sampleLevels.filter { $0 == 1 }.count
-        print(String(format: "  bridge %d: deck %.0f x %.0f at (%.0f, %.0f), %d deck samples total",
-                     bi, b.halfLength * 2, b.halfWidth * 2, b.center.x, b.center.y, deckSamples))
+        let c = track.path[b.centerSample]
+        print(String(format: "  bridge %d: deck %.0f long (%.0f back, %.0f ahead) x %.0f at (%.0f, %.0f), %d deck samples total",
+                     bi, b.deckEnd - b.deckStart, -b.deckStart, b.deckEnd, b.halfWidth * 2, c.x, c.y, deckSamples))
     }
     if offRoad > 0 { print("  WARN: \(offRoad) centerline samples not drivable"); failures += 1 }
+    let crossings = def.crossings()
+    let bridged = crossings.filter { def.bridgeIndex(at: $0) != nil }.count
+    print("  editor: \(crossings.count) crossing(s), \(bridged) bridged, issues: \(track.issues().map(\.message))")
+    if bridged != def.bridges.count { print("  FAIL: editor doesn't find every bridge on a crossing"); failures += 1 }
     let ov = overlaps(track)
     if !ov.isEmpty {
         let sample = ov.prefix(3).map { "(\($0.0),\($0.1)) d=\(Int($0.2)) at \(Int(track.path[$0.0].x)),\(Int(track.path[$0.0].y))" }

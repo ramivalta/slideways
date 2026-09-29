@@ -37,40 +37,9 @@ public enum TrackRenderer {
         let w = track.width, h = track.height
         let def = track.definition
         let pal = palette(def.theme)
-        let half = track.halfRoad
-        let barrierOuter = def.barrierDistance.map { half + $0 + def.barrierThickness } ?? .infinity
         let start = track.path[0], startT = track.tangents[0], startN = track.normals[0]
+        let startHalf = track.halfWidths[0]
         let hasBridges = !track.bridges.isEmpty
-
-        // Bridge structure heights and the shadow they cast. Each elevated cell throws its shadow
-        // down-right by an amount proportional to its height, so the shadow peels away from the
-        // ramp as it climbs and runs alongside the deck at full offset.
-        var elevation = [Float](repeating: -1, count: hasBridges ? w * h : 0)
-        var rampStep = [Int16](repeating: -1, count: hasBridges ? w * h : 0)
-        var elevBridge = [Int8](repeating: 0, count: hasBridges ? w * h : 0)
-        var inShadow = [Bool](repeating: false, count: hasBridges ? w * h : 0)
-        if hasBridges {
-            for y in 0..<h {
-                for x in 0..<w {
-                    guard let e = track.elevation(x: x, y: y) else { continue }
-                    elevation[y * w + x] = Float(e.height)
-                    rampStep[y * w + x] = Int16(e.rampStep ?? -1)
-                    elevBridge[y * w + x] = Int8(e.bridge)
-                }
-            }
-            for y in 0..<h {
-                for x in 0..<w {
-                    let e = Double(elevation[y * w + x])
-                    guard e > 0 else { continue }
-                    let tx = Int((Double(x) + bridgeShadowOffset.x * e).rounded())
-                    let ty = Int((Double(y) + bridgeShadowOffset.y * e).rounded())
-                    for (sx, sy) in [(tx, ty), (tx + 1, ty), (tx, ty - 1), (tx + 1, ty - 1)]
-                    where sx >= 0 && sy >= 0 && sx < w && sy < h {
-                        inShadow[sy * w + sx] = true
-                    }
-                }
-            }
-        }
 
         var pixels = [UInt8](repeating: 255, count: w * h * 4)
         for y in 0..<h {
@@ -78,8 +47,30 @@ public enum TrackRenderer {
                 let i = y * w + x
                 let s = track.surfaces[i]
                 let d = Double(track.distanceField[i])
+                // Road half width where this cell is, since width can vary along the track.
+                let half = track.halfRoad(atCell: i)
+                let barrierOuter = def.barrierDistance.map { half + $0 + def.barrierThickness } ?? .infinity
                 let noise = hash01(x, y) - 0.5
                 var c: RGB
+
+                // Bridge ramps and the deck footprint are painted as part of the structure, so
+                // the deck sprite sits on a matching surface with no seams at its ends.
+                if hasBridges, let e = track.elevation(x: x, y: y) {
+                    let b = track.bridges[e.bridge]
+                    let l = track.bridgeLocal(x: x, y: y)!
+                    if let ramp = e.rampDistance {
+                        c = rampColor(surface: s, along: l.along, lateral: l.lateral, height: e.height,
+                                      capped: ramp > b.rampLength - 14, bridge: b, half: b.roadHalf, pal: pal, noise: noise)
+                        c = applyWallShadow(c, track: track, x: x, y: y, surface: s)
+                        write(c, x: x, y: y, w: w, h: h, into: &pixels)
+                        continue
+                    } else if s == .wall {
+                        // Abutment under the deck: hidden by the deck sprite, painted to match it.
+                        c = deckColor(along: l.along, lateral: l.lateral, bridge: b, half: b.roadHalf, pal: pal, noise: noise)
+                        write(c, x: x, y: y, w: w, h: h, into: &pixels)
+                        continue
+                    }
+                }
 
                 switch s {
                 case .asphalt:
@@ -87,7 +78,7 @@ public enum TrackRenderer {
                     // Checkered start/finish line.
                     let p = Vec2(Double(x) + 0.5, Double(y) + 0.5) - start
                     let u = p.dot(startT), v = p.dot(startN)
-                    if abs(u) < 4, abs(v) < half {
+                    if abs(u) < 4, abs(v) < startHalf {
                         let checker = (Int(floor(u / 4)) + Int(floor(v / 4))) & 1 == 0
                         c = checker ? RGB(240, 240, 240) : RGB(24, 24, 24)
                     } else if d > half - 1.5 {
@@ -110,44 +101,72 @@ public enum TrackRenderer {
                     c = RGB(186, 222, 244).scaled(1 + noise * 0.05)
                     if (x + y * 3) % 23 == 0 || hash01(x, y, 11) > 0.97 { c = RGB(236, 246, 255) }
                 case .wall:
-                    if hasBridges, elevation[i] >= 0 {
-                        // Ramp side walls, matching the deck railings, with a cap where they meet the ground.
-                        let b = track.bridges[Int(elevBridge[i])]
-                        let step = Int(rampStep[i])
-                        c = step >= b.rampSamples - 4
-                            ? railCap
-                            : railColor(distanceFromCenter: d, driveHalfWidth: b.driveHalfWidth, halfWidth: b.halfWidth)
-                    } else {
-                        // Stacked tire barrier look.
-                        let cell = ((x / 4) + (y / 4)) & 1
-                        c = cell == 0 ? RGB(46, 46, 52) : RGB(22, 22, 26)
-                        c = c.scaled(1 + noise * 0.2)
-                    }
+                    // Stacked tire barrier look.
+                    let cell = ((x / 4) + (y / 4)) & 1
+                    c = cell == 0 ? RGB(46, 46, 52) : RGB(22, 22, 26)
+                    c = c.scaled(1 + noise * 0.2)
                 }
 
-                if hasBridges {
-                    let e = Double(elevation[i])
-                    if e >= 0, rampStep[i] >= 0, s == .asphalt || s == .curb {
-                        c = shadeRamp(c, t: e, isCurb: s == .curb, pal: pal)
-                    } else if e < 0, inShadow[i] {
-                        c = c.scaled(0.5)
-                    }
-                }
-
-                // Walls cast a short shadow down-right.
-                if s != .wall, track.isWall(x - 2, y + 2) || track.isWall(x - 1, y + 1) {
+                c = applyWallShadow(c, track: track, x: x, y: y, surface: s)
+                // The deck casts the same short shadow as walls onto the road passing under it.
+                if hasBridges, track.deck(x: x, y: y) == nil,
+                   (1...deckShadowLength).contains(where: { track.deck(x: x - $0, y: y + $0) != nil }) {
                     c = c.scaled(0.68)
                 }
-
-                let row = h - 1 - y
-                let o = (row * w + x) * 4
-                pixels[o] = UInt8(clamp(c.r, 0, 255))
-                pixels[o + 1] = UInt8(clamp(c.g, 0, 255))
-                pixels[o + 2] = UInt8(clamp(c.b, 0, 255))
-                pixels[o + 3] = 255
+                write(c, x: x, y: y, w: w, h: h, into: &pixels)
             }
         }
         return makeCGImage(pixels: pixels, width: w, height: h)
+    }
+
+    /// How far the deck's shadow reaches onto the road underneath, in cells (down-right).
+    static let deckShadowLength = 3
+
+    /// Walls cast a short shadow down-right.
+    static func applyWallShadow(_ c: RGB, track: Track, x: Int, y: Int, surface s: Surface) -> RGB {
+        guard s != .wall else { return c }
+        // Abutments under a deck are hidden by it, so they don't cast shadows of their own.
+        func casts(_ x: Int, _ y: Int) -> Bool { track.isWall(x, y) && track.deck(x: x, y: y) == nil }
+        return casts(x - 2, y + 2) || casts(x - 1, y + 1) ? c.scaled(0.68) : c
+    }
+
+    static func write(_ c: RGB, x: Int, y: Int, w: Int, h: Int, into pixels: inout [UInt8]) {
+        let o = ((h - 1 - y) * w + x) * 4
+        pixels[o] = UInt8(clamp(c.r, 0, 255))
+        pixels[o + 1] = UInt8(clamp(c.g, 0, 255))
+        pixels[o + 2] = UInt8(clamp(c.b, 0, 255))
+        pixels[o + 3] = 255
+    }
+
+    /// Curb stripes on bridges run by distance along the upper road, so ramp and deck line up.
+    static func bridgeCurb(along: Double) -> RGB {
+        Int(floor(along / 8)) & 1 == 0 ? RGB(206, 44, 40) : RGB(236, 236, 236)
+    }
+
+    /// Ramp surface: walls, curbs and asphalt easing from road color into the deck tone as it climbs.
+    static func rampColor(surface s: Surface, along: Double, lateral: Double, height t: Double, capped: Bool,
+                          bridge b: Bridge, half: Double, pal: Palette, noise: Double) -> RGB {
+        if s == .wall {
+            return capped ? railCap : railColor(distanceFromCenter: lateral, driveHalfWidth: b.driveHalfWidth, halfWidth: b.halfWidth)
+        }
+        if lateral > half { return bridgeCurb(along: along).scaled(1 + 0.1 * t) }
+        var c = pal.asphalt.scaled(1 + noise * 0.12).mixed(deckTone(pal).scaled(1 + noise * 0.08), t)
+        if lateral > half - 1.5 { c = c.scaled(1.2) }
+        return c
+    }
+
+    /// Deck surface at a point: railings, curbs and concrete with seams every 12 units.
+    static func deckColor(along: Double, lateral: Double, bridge b: Bridge, half: Double, pal: Palette, noise: Double) -> RGB {
+        if lateral > b.driveHalfWidth {
+            return railColor(distanceFromCenter: lateral, driveHalfWidth: b.driveHalfWidth, halfWidth: b.halfWidth)
+        }
+        if lateral > half { return bridgeCurb(along: along).scaled(1.1) }
+        var c = deckTone(pal).scaled(1 + noise * 0.08)
+        let seam = (along - b.deckStart).truncatingRemainder(dividingBy: 12)
+        let inside = along > b.deckStart + 4 && along < b.deckEnd - 4
+        if inside, seam > 0.7, seam < 1.4 { c = c.scaled(0.88) }
+        if lateral > half - 1.5 { c = c.scaled(1.2) }
+        return c
     }
 
     /// Deck surface tone: lighter and cooler than asphalt so raised concrete stands out.
@@ -168,59 +187,51 @@ public enum TrackRenderer {
         return railBase
     }
 
-    /// Eases ramp asphalt from road color into the deck tone as it climbs.
-    static func shadeRamp(_ c: RGB, t: Double, isCurb: Bool, pal: Palette) -> RGB {
-        if isCurb { return c.scaled(1 + 0.1 * t) }
-        return c.mixed(deckTone(pal), t).scaled(1 + 0.06 * t)
-    }
-
-    /// Pixels per track unit for bridge deck images. Decks are rotated, so they're supersampled
-    /// and drawn with linear filtering.
+    /// Pixels per track unit for bridge deck images. Decks curve, so they're supersampled and
+    /// drawn with linear filtering.
     public static let bridgeScale = 2
 
-    /// A bridge deck seen from above, in deck-local coordinates (u along the image's x axis,
-    /// v up the image). Size is the deck footprint times `bridgeScale`.
+    /// How far the deck image overlaps the top of each ramp, hiding any seam at the joint.
+    static let deckOverlap = 1.5
+
+    /// World rectangle a bridge's deck image covers.
+    public static func deckRect(_ b: Bridge) -> CGRect {
+        let r = b.deckBounds
+        return CGRect(x: r.minX, y: r.minY, width: r.width, height: r.height)
+    }
+
+    /// A curved bridge deck seen from above, world-aligned over `deckRect`, transparent outside
+    /// the deck. Size is the rect times `bridgeScale`.
     public static func makeBridgeImage(for track: Track, bridge b: Bridge) -> CGImage {
         let s = Double(bridgeScale)
-        let w = Int((b.halfLength * 2 * s).rounded()), h = Int((b.halfWidth * 2 * s).rounded())
+        let rect = b.deckBounds
+        let w = rect.width * bridgeScale, h = rect.height * bridgeScale
+        // A deck squeezed off the map by the editor has nothing to draw.
+        guard w > 0, h > 0 else { return makeCGImage(pixels: [0, 0, 0, 0], width: 1, height: 1) }
         let pal = palette(track.definition.theme)
-        let half = track.halfRoad
+        let half = b.roadHalf
         var pixels = [UInt8](repeating: 0, count: w * h * 4)
         for row in 0..<h {
             for px in 0..<w {
-                let u = (Double(px) + 0.5) / s - b.halfLength
-                let v = b.halfWidth - (Double(row) + 0.5) / s
-                let au = abs(u), av = abs(v)
-                let noise = hash01(px, row, 21) - 0.5
-                var c: RGB
-                if av > b.driveHalfWidth {
-                    c = railColor(distanceFromCenter: av, driveHalfWidth: b.driveHalfWidth, halfWidth: b.halfWidth)
-                } else if av > half {
-                    let stripe = Int(floor((u + b.halfLength) / 8)) & 1
-                    c = stripe == 0 ? RGB(206, 44, 40) : RGB(236, 236, 236)
-                } else {
-                    // Concrete deck: lighter and bluer than the asphalt, with seams every 12 units.
-                    c = deckTone(pal).scaled(1 + noise * 0.08)
-                    if (u + b.halfLength).truncatingRemainder(dividingBy: 12) < 0.7 { c = c.scaled(0.85) }
-                    if av > half - 1.5 { c = c.scaled(1.2) }
-                    // Expansion joints at each end of the deck.
-                    if au > b.halfLength - 1.4 { c = c.scaled(0.72) }
-                }
+                let p = Vec2(Double(rect.minX) + (Double(px) + 0.5) / s, Double(rect.maxY) - (Double(row) + 0.5) / s)
+                let (along, lateral) = track.upperRoadLocal(bridge: b, point: p)
+                guard along >= b.deckStart - deckOverlap, along <= b.deckEnd + deckOverlap else { continue }
+                // Soft edge along the outside of the railings.
+                let alpha = clamp((b.halfWidth - lateral) * s + 0.5, 0, 1)
+                guard alpha > 0 else { continue }
+                let noise = hash01(Int(floor(p.x)), Int(floor(p.y))) - 0.5
+                let c = deckColor(along: along, lateral: lateral, bridge: b, half: half, pal: pal, noise: noise)
                 let o = (row * w + px) * 4
-                pixels[o] = UInt8(clamp(c.r, 0, 255))
-                pixels[o + 1] = UInt8(clamp(c.g, 0, 255))
-                pixels[o + 2] = UInt8(clamp(c.b, 0, 255))
-                pixels[o + 3] = 255
+                pixels[o] = UInt8(clamp(c.r * alpha, 0, 255))
+                pixels[o + 1] = UInt8(clamp(c.g * alpha, 0, 255))
+                pixels[o + 2] = UInt8(clamp(c.b * alpha, 0, 255))
+                pixels[o + 3] = UInt8(clamp(alpha * 255, 0, 255))
             }
         }
         return makeCGImage(pixels: pixels, width: w, height: h)
     }
 
-    /// Offset of a bridge deck's drop shadow, in track units.
-    /// Shadow offset cast by the bridge at full deck height, in track units. Ramps scale it down.
-    public static let bridgeShadowOffset = CGPoint(x: 17, y: -17)
-
-    /// Ground plus bridge decks and their shadows in one image, for previews.
+    /// Ground plus bridge decks in one image, for previews.
     public static func makeCompositeImage(for track: Track) -> CGImage {
         let ground = makeImage(for: track)
         guard !track.bridges.isEmpty else { return ground }
@@ -230,13 +241,86 @@ public enum TrackRenderer {
         ctx.draw(ground, in: CGRect(x: 0, y: 0, width: track.width, height: track.height))
         ctx.interpolationQuality = .high
         for b in track.bridges {
-            let rect = CGRect(x: -b.halfLength, y: -b.halfWidth, width: b.halfLength * 2, height: b.halfWidth * 2)
-            ctx.saveGState()
-            ctx.translateBy(x: b.center.x, y: b.center.y)
-            ctx.rotate(by: b.axis.angle)
-            ctx.draw(makeBridgeImage(for: track, bridge: b), in: rect)
-            ctx.restoreGState()
+            ctx.draw(makeBridgeImage(for: track, bridge: b), in: deckRect(b))
         }
+        return ctx.makeImage()!
+    }
+
+    /// Flat-colored approximation of a track drawn with vector strokes: fast enough to redraw
+    /// on every mouse move while the editor waits for the exact raster. Bridges aren't drawn.
+    public static func makeQuickPreview(for def: TrackDefinition) -> CGImage {
+        let w = def.width, h = def.height
+        let ctx = CGContext(data: nil, width: w, height: h, bitsPerComponent: 8, bytesPerRow: 0,
+                            space: CGColorSpace(name: CGColorSpace.sRGB)!,
+                            bitmapInfo: CGImageAlphaInfo.premultipliedLast.rawValue)!
+        let pal = palette(def.theme)
+        func color(_ s: Surface) -> CGColor {
+            let c: RGB
+            switch s {
+            case .asphalt: c = pal.asphalt
+            case .curb: c = RGB(206, 44, 40)
+            case .grass: c = pal.ground
+            case .sand: c = pal.sand
+            case .ice: c = RGB(186, 222, 244)
+            case .wall: c = RGB(46, 46, 52)
+            }
+            return CGColor(srgbRed: c.r / 255, green: c.g / 255, blue: c.b / 255, alpha: 1)
+        }
+        ctx.setFillColor(color(def.background))
+        ctx.fill(CGRect(x: 0, y: 0, width: w, height: h))
+
+        let dense = Track.centerline(through: def.controlPoints)
+        let widths = def.centerlineWidths()
+        let road = CGMutablePath()
+        road.addLines(between: dense.map { CGPoint(x: $0.x, y: $0.y) })
+        road.closeSubpath()
+        ctx.setLineJoin(.round)
+        ctx.setLineCap(.round)
+        /// Band along the road, `extra` wider than the road on each side.
+        func band(extra: Double, _ c: CGColor) {
+            if def.hasPointWidths && widths.count == dense.count {
+                // Varying width: a disc at every dense point (they're a few units apart).
+                ctx.setFillColor(c)
+                for (p, wd) in zip(dense, widths) {
+                    let r = wd / 2 + extra
+                    ctx.fillEllipse(in: CGRect(x: p.x - r, y: p.y - r, width: r * 2, height: r * 2))
+                }
+            } else {
+                ctx.addPath(road)
+                ctx.setLineWidth(def.roadWidth + 2 * extra)
+                ctx.setStrokeColor(c)
+                ctx.strokePath()
+            }
+        }
+        func fill(_ patch: Patch) {
+            switch patch.shape {
+            case let .circle(c, r):
+                ctx.setFillColor(color(patch.surface))
+                ctx.fillEllipse(in: CGRect(x: c.x - r, y: c.y - r, width: r * 2, height: r * 2))
+            case let .rect(o, s):
+                ctx.setFillColor(color(patch.surface))
+                ctx.fill(CGRect(x: o.x, y: o.y, width: s.x, height: s.y))
+            case let .capsule(a, b, r):
+                ctx.move(to: CGPoint(x: a.x, y: a.y))
+                ctx.addLine(to: CGPoint(x: b.x, y: b.y))
+                ctx.setLineWidth(r * 2)
+                ctx.setStrokeColor(color(patch.surface))
+                ctx.strokePath()
+            }
+        }
+
+        // Same layering as `Track.rasterize`: barrier, patches beside the road, road, patches on it.
+        if let bd = def.barrierDistance {
+            band(extra: bd + def.barrierThickness, color(.wall))
+            band(extra: bd, color(def.background))
+        }
+        def.patches.filter { !$0.coversRoad }.forEach(fill)
+        band(extra: Track.curbWidth, color(.curb))
+        band(extra: 0, color(.asphalt))
+        def.patches.filter(\.coversRoad).forEach(fill)
+        ctx.setStrokeColor(color(.wall))
+        ctx.setLineWidth(6)
+        ctx.stroke(CGRect(x: 0, y: 0, width: w, height: h))
         return ctx.makeImage()!
     }
 

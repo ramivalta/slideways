@@ -4,13 +4,17 @@ import Foundation
 ///
 /// The road follows a closed centripetal Catmull-Rom spline through `controlPoints`.
 /// The first control point is the start/finish line; the point order sets the race direction.
-public struct TrackDefinition: Codable, Sendable, Identifiable {
+public struct TrackDefinition: Codable, Sendable, Identifiable, Equatable {
     public var id: String
     public var name: String
     public var width: Int
     public var height: Int
+    /// Road width wherever a control point doesn't set its own.
     public var roadWidth: Double
     public var controlPoints: [Vec2]
+    /// Optional road width at each control point, parallel to `controlPoints`. Nil (or a
+    /// missing entry) uses `roadWidth`. The width eases smoothly between points.
+    public var pointWidths: [Double?]
     public var defaultLaps: Int
     public var theme: TrackTheme
     /// Surface used everywhere that isn't road, curb, barrier or a patch.
@@ -29,6 +33,7 @@ public struct TrackDefinition: Codable, Sendable, Identifiable {
         height: Int = 600,
         roadWidth: Double = 82,
         controlPoints: [Vec2],
+        pointWidths: [Double?] = [],
         defaultLaps: Int = 5,
         theme: TrackTheme = .summer,
         background: Surface = .grass,
@@ -43,6 +48,7 @@ public struct TrackDefinition: Codable, Sendable, Identifiable {
         self.height = height
         self.roadWidth = roadWidth
         self.controlPoints = controlPoints
+        self.pointWidths = pointWidths
         self.defaultLaps = defaultLaps
         self.theme = theme
         self.background = background
@@ -51,10 +57,55 @@ public struct TrackDefinition: Codable, Sendable, Identifiable {
         self.patches = patches
         self.bridges = bridges
     }
+
+    /// Tracks saved before a field existed still load: missing optional parts get defaults.
+    public init(from decoder: Decoder) throws {
+        let c = try decoder.container(keyedBy: CodingKeys.self)
+        id = try c.decode(String.self, forKey: .id)
+        name = try c.decode(String.self, forKey: .name)
+        width = try c.decodeIfPresent(Int.self, forKey: .width) ?? 960
+        height = try c.decodeIfPresent(Int.self, forKey: .height) ?? 600
+        roadWidth = try c.decodeIfPresent(Double.self, forKey: .roadWidth) ?? 82
+        controlPoints = try c.decode([Vec2].self, forKey: .controlPoints)
+        pointWidths = try c.decodeIfPresent([Double?].self, forKey: .pointWidths) ?? []
+        defaultLaps = try c.decodeIfPresent(Int.self, forKey: .defaultLaps) ?? 5
+        theme = try c.decodeIfPresent(TrackTheme.self, forKey: .theme) ?? .summer
+        background = try c.decodeIfPresent(Surface.self, forKey: .background) ?? .grass
+        barrierDistance = try c.decodeIfPresent(Double.self, forKey: .barrierDistance)
+        barrierThickness = try c.decodeIfPresent(Double.self, forKey: .barrierThickness) ?? 7
+        patches = try c.decodeIfPresent([Patch].self, forKey: .patches) ?? []
+        bridges = try c.decodeIfPresent([BridgeDefinition].self, forKey: .bridges) ?? []
+    }
+
+    /// Road width at a control point.
+    public func roadWidth(atPoint i: Int) -> Double {
+        pointWidths.indices.contains(i) ? pointWidths[i] ?? roadWidth : roadWidth
+    }
+
+    /// Whether any control point sets its own width.
+    public var hasPointWidths: Bool { pointWidths.contains { $0 != nil } }
+
+    /// Road width at every point of `Track.centerline(through: controlPoints)`, easing
+    /// between control point widths with a smoothstep so edges stay smooth.
+    public func centerlineWidths() -> [Double] {
+        let n = controlPoints.count
+        let steps = Track.splineSteps
+        guard hasPointWidths, n >= 3 else { return [Double](repeating: roadWidth, count: n >= 3 ? n * steps : n) }
+        var out: [Double] = []
+        out.reserveCapacity(n * steps)
+        for i in 0..<n {
+            let a = roadWidth(atPoint: i), b = roadWidth(atPoint: (i + 1) % n)
+            for s in 0..<steps {
+                let t = Double(s) / Double(steps)
+                out.append(a + (b - a) * t * t * (3 - 2 * t))
+            }
+        }
+        return out
+    }
 }
 
 /// A region painted with a surface after the road is laid down.
-public struct Patch: Codable, Sendable {
+public struct Patch: Codable, Sendable, Equatable {
     public var surface: Surface
     public var shape: PatchShape
     /// When false the patch only replaces non-road cells (e.g. sand traps beside the road).
@@ -67,7 +118,7 @@ public struct Patch: Codable, Sendable {
     }
 }
 
-public enum PatchShape: Codable, Sendable {
+public enum PatchShape: Codable, Sendable, Equatable {
     case circle(center: Vec2, radius: Double)
     case rect(origin: Vec2, size: Vec2)
     /// A thick line segment with rounded ends. Handy for walls.
