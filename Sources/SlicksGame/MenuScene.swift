@@ -4,7 +4,7 @@ import SpriteKit
 /// Race setup screen, fully keyboard/gamepad-free navigable with arrows and Enter.
 final class MenuScene: GameScene {
     private enum Row: CaseIterable {
-        case track, laps, players, opponents, skill, start
+        case track, laps, players, opponents, skill, sound, start
         #if os(macOS)
         case editor
         #endif
@@ -46,7 +46,8 @@ final class MenuScene: GameScene {
 
         for (i, row) in Row.allCases.enumerated() {
             let l = makeLabel("", size: 20)
-            l.position = CGPoint(x: 60, y: 456 - CGFloat(i) * 44 - (row.isAction ? 12 : 0))
+            // Eight rows with the editor entry: tighter spacing keeps them clear of the help text.
+            l.position = CGPoint(x: 60, y: 456 - CGFloat(i) * 40 - (row.isAction ? 12 : 0))
             addChild(l)
             rowLabels[row] = l
         }
@@ -81,6 +82,11 @@ final class MenuScene: GameScene {
         return idx?.offset ?? 1
     }
 
+    private var volumeText: String {
+        let v = SoundSystem.shared.volume
+        return v <= 0 ? "Off" : "\(Int((v * 100).rounded()))%"
+    }
+
     private func refresh() {
         let lib = TrackLibrary.shared
         let def = lib.definitions[settings.trackIndex]
@@ -90,6 +96,7 @@ final class MenuScene: GameScene {
             .players: "PLAYERS    < \(settings.humanPlayers) >",
             .opponents: "OPPONENTS  < \(settings.aiOpponents) >",
             .skill: "AI SKILL   < \(MenuScene.skillLevels[skillIndex].name) >",
+            .sound: "SOUND      < \(volumeText) >",
             .start: "START RACE",
         ]
         #if os(macOS)
@@ -111,14 +118,19 @@ final class MenuScene: GameScene {
         switch key {
         case .up, .w:
             selected = rows[(idx - 1 + rows.count) % rows.count]
+            SoundSystem.shared.play(.menuMove)
         case .down, .s, .tab:
             selected = rows[(idx + 1) % rows.count]
+            SoundSystem.shared.play(.menuMove)
         case .left, .a:
             change(by: -1)
+            SoundSystem.shared.play(.menuMove)
         case .right, .d:
             change(by: 1)
+            SoundSystem.shared.play(.menuMove)
         case .enter, .space:
             if isRepeat { return }
+            SoundSystem.shared.play(.menuSelect)
             coordinator.settings = settings
             #if os(macOS)
             if selected == .editor {
@@ -151,6 +163,10 @@ final class MenuScene: GameScene {
         case .skill:
             let i = clamp(skillIndex + delta, 0, MenuScene.skillLevels.count - 1)
             settings.aiSkill = MenuScene.skillLevels[i].value
+        case .sound:
+            let steps = SoundSystem.volumeSteps
+            let current = steps.enumerated().min { abs($0.element - SoundSystem.shared.volume) < abs($1.element - SoundSystem.shared.volume) }?.offset ?? 0
+            SoundSystem.shared.volume = steps[clamp(current + delta, 0, steps.count - 1)]
         default:
             break
         }

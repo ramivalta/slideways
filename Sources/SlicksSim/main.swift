@@ -114,6 +114,118 @@ func crashTest() {
 }
 crashTest()
 
+/// 16-bit stereo WAV.
+func writeWAV(_ left: [Float], _ right: [Float], sampleRate: Int, to url: URL) {
+    var data = Data()
+    func u32(_ v: UInt32) { withUnsafeBytes(of: v.littleEndian) { data.append(contentsOf: $0) } }
+    func u16(_ v: UInt16) { withUnsafeBytes(of: v.littleEndian) { data.append(contentsOf: $0) } }
+    let bytes = UInt32(left.count * 4)
+    data.append(contentsOf: Array("RIFF".utf8)); u32(36 + bytes)
+    data.append(contentsOf: Array("WAVEfmt ".utf8)); u32(16); u16(1); u16(2)
+    u32(UInt32(sampleRate)); u32(UInt32(sampleRate * 4)); u16(4); u16(16)
+    data.append(contentsOf: Array("data".utf8)); u32(bytes)
+    for i in left.indices {
+        for s in [left[i], right[i]] {
+            u16(UInt16(bitPattern: Int16(max(-1, min(1, s)) * 32767)))
+        }
+    }
+    try? data.write(to: url)
+}
+
+/// Offline sound check: renders each effect and a full AI race mix to WAV files (for listening)
+/// and checks the output is audible, finite and not overdriven.
+func soundCheck() {
+    let rate = 48_000
+    var problems: [String] = []
+    func check(_ name: String, _ out: (left: [Float], right: [Float]), minRMS: Float = 0.01) {
+        let all = out.left + out.right
+        let finite = all.allSatisfy(\.isFinite)
+        let peak = all.map(abs).max() ?? 0
+        let rms = (all.reduce(0) { $0 + $1 * $1 } / Float(max(all.count, 1))).squareRoot()
+        let hot = Float(all.filter { abs($0) > 0.72 }.count) / Float(max(all.count, 1))
+        print(String(format: "   %@: peak %.2f, rms %.3f, %.2f%% near the limiter", name, peak, rms, hot * 100))
+        if !finite { problems.append("\(name) has NaN/inf") }
+        if rms < minRMS { problems.append("\(name) is silent") }
+        if hot > 0.01 { problems.append("\(name) is overdriven") }
+        writeWAV(out.left, out.right, sampleRate: rate, to: outDir.appendingPathComponent("sound-\(name).wav"))
+    }
+    print("== Sound check (WAVs in \(outDir.path))")
+
+    // Engine: idle, rev up flat out, lift off, back to idle.
+    do {
+        let synth = Synth(sampleRate: Double(rate))
+        var l: [Float] = [], r: [Float] = []
+        for step in 0..<(5 * 60) {
+            let t = Double(step) / 60
+            var s = CarSound()
+            s.engineGain = 1
+            s.throttle = t > 0.5 && t < 3.5 ? 1 : 0
+            s.rpm = t < 0.5 ? 0 : t < 3.5 ? min(1, (t - 0.5) / 2.5) : max(0, 1 - (t - 3.5) / 1.2)
+            synth.setCars([s])
+            let block = synth.render(seconds: 1.0 / 60)
+            l += block.left; r += block.right
+        }
+        check("engine", (l, r))
+    }
+    // Tires: squeal building up on asphalt, then on ice, then grass rumble.
+    do {
+        let synth = Synth(sampleRate: Double(rate))
+        var l: [Float] = [], r: [Float] = []
+        for step in 0..<(4 * 60) {
+            let t = Double(step) / 60
+            var s = CarSound()
+            s.tireGain = 1
+            if t < 1.6 { s.screech = min(1, t / 1.2) } else if t < 2.8 { s.screech = 0.7; s.screechPitch = 0.62 } else { s.rumble = 0.8 }
+            synth.setCars([s])
+            let block = synth.render(seconds: 1.0 / 60)
+            l += block.left; r += block.right
+        }
+        check("tires", (l, r))
+    }
+    // One-shots, spaced out.
+    do {
+        let synth = Synth(sampleRate: Double(rate))
+        let shots: [SoundEffect] = [.countdown, .countdown, .countdown, .go, .wallHit(strength: 0.3, pan: -0.6),
+                                    .wallHit(strength: 1, pan: 0.6), .carHit(strength: 0.4, pan: 0), .carHit(strength: 1, pan: 0),
+                                    .lap, .finish, .menuMove, .menuSelect]
+        var l: [Float] = [], r: [Float] = []
+        for e in shots {
+            synth.trigger(e)
+            let block = synth.render(seconds: e == .finish ? 1.3 : 0.6)
+            l += block.left; r += block.right
+        }
+        check("effects", (l, r))
+    }
+    // A whole AI race through RaceAudio, as the game would play it: 8 karts, impacts and all.
+    do {
+        let track = Track(definition: BuiltInTracks.all[0])
+        var settings = RaceSettings()
+        settings.humanPlayers = 0
+        settings.aiOpponents = 8
+        let race = Race(track: track, entrants: settings.entrants(seed: 7), laps: 1, seed: 7)
+        let audio = RaceAudio(race: race)
+        let synth = Synth(sampleRate: Double(rate))
+        var l: [Float] = [], r: [Float] = []
+        var hits = 0
+        for _ in 0..<(22 * 60) {
+            for _ in 0..<2 { race.step(dt: 1.0 / 120, humanInputs: []) }
+            let out = audio.update(race: race, impacts: race.drainImpacts(), humanInputs: [], paused: false)
+            synth.setCars(out.cars)
+            for e in out.effects {
+                if case .wallHit = e { hits += 1 } else if case .carHit = e { hits += 1 }
+                synth.trigger(e)
+            }
+            let block = synth.render(seconds: 1.0 / 60)
+            l += block.left; r += block.right
+        }
+        check("race", (l, r))
+        print("   race: \(hits) impact sounds in 22s")
+    }
+
+    if problems.isEmpty { print("  sound OK") } else { for p in problems { print("  FAIL: \(p)") }; failures += problems.count }
+}
+soundCheck()
+
 /// All liveries, straight and steering, blown up for inspection.
 func kartSheet() {
     let cellW = 300, cellH = 170

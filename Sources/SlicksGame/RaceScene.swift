@@ -44,6 +44,7 @@ final class RaceScene: GameScene {
 
     private var lastUpdate: TimeInterval?
     private var accumulator = 0.0
+    private let audio: RaceAudio
 
     /// Set when test driving from the editor: the race uses this track and exits to the editor.
     private let testTrack: Track?
@@ -55,7 +56,12 @@ final class RaceScene: GameScene {
         track = testTrack ?? TrackLibrary.shared.track(at: settings.trackIndex)
         let seed = UInt64.random(in: 1...UInt64.max)
         race = Race(track: track, entrants: settings.entrants(seed: seed), laps: settings.laps, seed: seed)
+        audio = RaceAudio(race: race)
         super.init()
+    }
+
+    override func willMove(from view: SKView) {
+        SoundSystem.shared.setCars([])
     }
 
     override func didMove(to view: SKView) {
@@ -141,15 +147,21 @@ final class RaceScene: GameScene {
         guard let last = lastUpdate else { return }
         let frameDt = min(currentTime - last, 0.1)
 
+        let inputs = (0..<4).map { Input.shared.carInput(forPlayer: $0) }
+        var impacts: [ImpactEvent] = []
         if !isPausedByPlayer && race.phase != .finished {
             accumulator += frameDt
-            let inputs = (0..<4).map { Input.shared.carInput(forPlayer: $0) }
             while accumulator >= RaceScene.physicsStep {
                 race.step(dt: RaceScene.physicsStep, humanInputs: inputs)
                 accumulator -= RaceScene.physicsStep
             }
-            for impact in race.drainImpacts() { spawnSparks(impact) }
+            impacts = race.drainImpacts()
+            for impact in impacts { spawnSparks(impact) }
         }
+
+        let sound = audio.update(race: race, impacts: impacts, humanInputs: inputs, paused: isPausedByPlayer)
+        SoundSystem.shared.setCars(sound.cars)
+        for effect in sound.effects { SoundSystem.shared.play(effect) }
 
         syncCars()
         updateSkids()

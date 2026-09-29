@@ -14,6 +14,7 @@ public final class GameCoordinator {
 
     public func start(in view: SKView) {
         self.view = view
+        SoundSystem.shared.start()
         showMenu()
     }
 
