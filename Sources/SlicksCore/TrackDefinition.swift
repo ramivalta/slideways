@@ -25,6 +25,8 @@ public struct TrackDefinition: Codable, Sendable, Identifiable, Equatable {
     public var patches: [Patch]
     /// Places where the road crosses itself on two levels.
     public var bridges: [BridgeDefinition]
+    /// Whether cars kick sand out of sand traps and track it onto the road during a race.
+    public var looseSand: Bool
 
     public init(
         id: String,
@@ -40,7 +42,8 @@ public struct TrackDefinition: Codable, Sendable, Identifiable, Equatable {
         barrierDistance: Double? = nil,
         barrierThickness: Double = 7,
         patches: [Patch] = [],
-        bridges: [BridgeDefinition] = []
+        bridges: [BridgeDefinition] = [],
+        looseSand: Bool = true
     ) {
         self.id = id
         self.name = name
@@ -56,6 +59,7 @@ public struct TrackDefinition: Codable, Sendable, Identifiable, Equatable {
         self.barrierThickness = barrierThickness
         self.patches = patches
         self.bridges = bridges
+        self.looseSand = looseSand
     }
 
     /// Tracks saved before a field existed still load: missing optional parts get defaults.
@@ -75,6 +79,7 @@ public struct TrackDefinition: Codable, Sendable, Identifiable, Equatable {
         barrierThickness = try c.decodeIfPresent(Double.self, forKey: .barrierThickness) ?? 7
         patches = try c.decodeIfPresent([Patch].self, forKey: .patches) ?? []
         bridges = try c.decodeIfPresent([BridgeDefinition].self, forKey: .bridges) ?? []
+        looseSand = try c.decodeIfPresent(Bool.self, forKey: .looseSand) ?? true
     }
 
     /// Road width at a control point.

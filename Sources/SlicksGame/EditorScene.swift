@@ -1410,6 +1410,17 @@ final class EditorScene: GameScene {
                 perform { $0.barrierThickness = clamp($0.barrierThickness + 1, t.lowerBound, t.upperBound) }
             }
         }
+        let hasSand = def.patches.contains { $0.surface == .sand } || def.background == .sand
+        L.choices("Sand drift", [
+            Option(title: "Off", selected: !def.looseSand, tip: "Sand traps stay put") { [unowned self] in
+                perform { $0.looseSand = false }
+            },
+            Option(title: "On", selected: def.looseSand,
+                   tip: "Sliding cars throw sand out of traps and track it onto the road during a race") { [unowned self] in
+                perform { $0.looseSand = true }
+            },
+        ])
+        if def.looseSand && !hasSand { L.note("Add a sand patch for this to do anything.") }
         L.choices(nil, [Option(title: "Reverse race direction", tip: "Cars race the other way round") { [unowned self] in
             perform { $0.reverseDirection() }
         }])

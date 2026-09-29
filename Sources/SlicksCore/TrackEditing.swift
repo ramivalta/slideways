@@ -209,6 +209,55 @@ public extension TrackDefinition {
 
 // MARK: Patch shapes
 
+/// The outline of a sand patch as if it had been tipped out of a shovel: the drawn shape's edge
+/// pushed in and out by noise, with loose grains scattered just past it. The noise is sampled
+/// relative to the patch's center, so the look moves with the patch.
+public struct RaggedEdge: Sendable {
+    public let shape: PatchShape
+    let salt: Int
+    /// How far the edge wanders in or out of the drawn shape.
+    let amplitude: Double
+    /// Size of the edge's bumps.
+    let featureSize: Double
+    /// How far loose grains land past the edge.
+    let spill: Double
+
+    public init(shape: PatchShape, salt: Int) {
+        self.shape = shape
+        self.salt = salt
+        // Thinner patches get a gentler edge so they don't break apart.
+        let extent: Double
+        switch shape {
+        case let .circle(_, r): extent = r
+        case let .rect(_, s): extent = min(s.x, s.y) / 2
+        case let .capsule(_, _, r): extent = r
+        }
+        amplitude = clamp(extent * 0.22, 1.5, 9)
+        featureSize = clamp(extent * 0.45, 6, 18)
+        spill = 2 + amplitude * 0.8
+    }
+
+    /// Farthest a covered cell can be outside the drawn shape.
+    public var reach: Double { amplitude * 1.3 + spill + 1 }
+
+    /// Signed offset of the edge at `p`: positive pushes it outward.
+    func edgeOffset(at p: Vec2) -> Double {
+        (fractalNoise(p - shape.center, scale: featureSize, salt: salt) - 0.5) * 2.6 * amplitude
+    }
+
+    public func covers(_ p: Vec2, x: Int, y: Int) -> Bool {
+        let d = shape.distance(to: p)
+        guard d > -amplitude * 1.3 else { return true }
+        guard d < reach else { return false }
+        let past = d - edgeOffset(at: p)
+        if past <= 0 { return true }
+        guard past < spill else { return false }
+        // Grains thin out quickly away from the pile.
+        let t = 1 - past / spill
+        return hash01(x, y, salt &+ 7) < 0.45 * t * t
+    }
+}
+
 public enum PatchShapeKind: String, CaseIterable, Sendable {
     case circle, rect, capsule
 }

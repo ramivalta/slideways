@@ -69,6 +69,25 @@ public struct SplitMix64: RandomNumberGenerator, Sendable {
     }
 }
 
+/// Smooth 2D value noise in [0, 1): hashed lattice values blended with smoothstep.
+public func valueNoise(_ x: Double, _ y: Double, salt: Int = 0) -> Double {
+    let x0 = floor(x), y0 = floor(y)
+    let ix = Int(x0), iy = Int(y0)
+    let fx = x - x0, fy = y - y0
+    let u = fx * fx * (3 - 2 * fx), v = fy * fy * (3 - 2 * fy)
+    let a = hash01(ix, iy, salt), b = hash01(ix + 1, iy, salt)
+    let c = hash01(ix, iy + 1, salt), d = hash01(ix + 1, iy + 1, salt)
+    return a + (b - a) * u + (c - a) * v + (a - b - c + d) * u * v
+}
+
+/// Three octaves of value noise in [0, 1) at a base feature size of `scale` units.
+public func fractalNoise(_ p: Vec2, scale: Double, salt: Int = 0) -> Double {
+    let x = p.x / scale, y = p.y / scale
+    return 0.57 * valueNoise(x, y, salt: salt)
+        + 0.29 * valueNoise(x * 2.3, y * 2.3, salt: salt + 1)
+        + 0.14 * valueNoise(x * 5.1, y * 5.1, salt: salt + 2)
+}
+
 /// Cheap integer hash to [0, 1) for procedural texturing.
 @inlinable public func hash01(_ x: Int, _ y: Int, _ salt: Int = 0) -> Double {
     var h = UInt64(bitPattern: Int64(x &* 374_761_393 &+ y &* 668_265_263 &+ salt &* 2_147_483_647))

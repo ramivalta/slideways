@@ -75,6 +75,7 @@ func skidpad() {
 }
 skidpad()
 failures += editorChecks()
+failures += looseSandCheck()
 
 /// Crash test: floor it head-on into a wall like a player would, keep the throttle pinned and
 /// steer left after the hit. The car should drive away forward and turn left, with no lingering
@@ -353,6 +354,21 @@ for def in BuiltInTracks.all + widthTestTracks() where onlyTrack == nil || def.i
     }
     let finished = race.cars.filter(\.isFinished).count
     print(String(format: "  race: %d/%d finished in %.1fs sim, impacts %d, max dist from centerline %.0f", finished, race.cars.count, race.time, impacts, maxOff))
+    if let sand = race.looseSand {
+        let t = sand.totals()
+        // Same race without spreading, to see what the loose sand costs in lap time.
+        var still = def
+        still.looseSand = false
+        let calm = Race(track: Track(definition: still), entrants: entrants, laps: def.defaultLaps, seed: 42)
+        while calm.phase != .finished && calm.time < 400 { calm.step(dt: dt, humanInputs: []) }
+        func meanBest(_ r: Race) -> Double {
+            let laps = r.cars.compactMap(\.bestLap)
+            return laps.reduce(0, +) / Double(max(laps.count, 1))
+        }
+        let roadCells = track.surfaces.filter { $0 == .asphalt || $0 == .curb }.count
+        print(String(format: "  loose sand: %.0f cells total, %.0f on the road, %.2f%% of road covered; mean best lap %.2f vs %.2f without",
+                     t.total, t.onRoad, 100 * Double(t.roadCellsCovered) / Double(max(roadCells, 1)), meanBest(race), meanBest(calm)))
+    }
     print(String(format: "  handling: sliding %.0f%% of the time, avg speed %.0f, max slip %.0f",
                  100 * Double(slideSteps) / Double(max(carSteps, 1)), speedSum / Double(max(carSteps, 1)), maxSlip))
     for car in race.standings {
@@ -374,6 +390,17 @@ for def in BuiltInTracks.all + widthTestTracks() where onlyTrack == nil || def.i
     let ctx = CGContext(data: nil, width: track.width, height: track.height, bitsPerComponent: 8, bytesPerRow: 0,
                         space: CGColorSpace(name: CGColorSpace.sRGB)!, bitmapInfo: CGImageAlphaInfo.premultipliedLast.rawValue)!
     ctx.draw(base, in: CGRect(x: 0, y: 0, width: track.width, height: track.height))
+    if let sand = race.looseSand {
+        // Loose sand in bright orange so it's easy to spot.
+        for y in 0..<track.height {
+            for x in 0..<track.width {
+                let a = sand.coverage(x: x, y: y)
+                guard a > 0 else { continue }
+                ctx.setFillColor(CGColor(srgbRed: 1, green: 0.45, blue: 0, alpha: min(1, 0.25 + a)))
+                ctx.fill(CGRect(x: x, y: y, width: 1, height: 1))
+            }
+        }
+    }
     for (i, trail) in trails.enumerated() where i == 0 || i == 7 {
         ctx.setStrokeColor(i == 0 ? CGColor(srgbRed: 1, green: 0, blue: 1, alpha: 0.6) : CGColor(srgbRed: 0, green: 1, blue: 1, alpha: 0.6))
         ctx.setLineWidth(1)
