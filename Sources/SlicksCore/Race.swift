@@ -38,16 +38,20 @@ public final class Race {
     public private(set) var impacts: [ImpactEvent] = []
     /// Sand kicked out of the traps this race, if the track has sand and allows it to spread.
     public let looseSand: LooseSand?
+    /// Tire rubber laid on the road this race, which makes the rubbered-in line grippier.
+    public let rubber: Rubber?
 
     private var drivers: [Int: AIDriver] = [:]
     private var firstFinishTime: Double?
     private var allHumansDoneAt: Double?
     private var finishCounter = 0
 
-    public init(track: Track, entrants: [Entrant], laps: Int, seed: UInt64 = 1) {
+    /// - Parameter rubberBuildsUp: whether tires rubber in the road as the race goes on.
+    public init(track: Track, entrants: [Entrant], laps: Int, seed: UInt64 = 1, rubberBuildsUp: Bool = true) {
         self.track = track
         self.laps = max(1, laps)
         looseSand = track.definition.looseSand && track.surfaces.contains(.sand) ? LooseSand(track: track, seed: seed) : nil
+        rubber = rubberBuildsUp ? Rubber(track: track) : nil
         var rng = SplitMix64(seed: seed)
         let slots = track.gridSlots(count: entrants.count)
         let n = Double(track.sampleCount)
@@ -90,17 +94,18 @@ public final class Race {
             var input = CarInput.none
             if phase != .countdown {
                 if var driver = drivers[car.id] {
-                    input = driver.input(for: car, track: track, sand: looseSand, dt: dt, elapsed: time)
+                    input = driver.input(for: car, track: track, sand: looseSand, rubber: rubber, dt: dt, elapsed: time)
                     drivers[car.id] = driver
                 } else if let p = car.playerIndex, p < humanInputs.count {
                     input = humanInputs[p]
                 }
             }
             let before = car.position
-            car.integrate(input: input, track: track, sand: looseSand, dt: dt)
+            car.integrate(input: input, track: track, sand: looseSand, rubber: rubber, dt: dt)
             Jumps.update(car, from: before, track: track, dt: dt, events: &impacts)
             updateLevel(car)
             looseSand?.interact(with: car, dt: dt)
+            rubber?.interact(with: car, dt: dt)
         }
 
         for i in 0..<cars.count {

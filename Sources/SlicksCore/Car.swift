@@ -131,7 +131,7 @@ public final class Car {
 
     /// Advances the car's own dynamics: steering, engine, drag and tire grip.
     /// Collisions are resolved separately by the race.
-    func integrate(input: CarInput, track: Track, sand: LooseSand? = nil, dt: Double) {
+    func integrate(input: CarInput, track: Track, sand: LooseSand? = nil, rubber: Rubber? = nil, dt: Double) {
         lastInput = input
         if isAirborne {
             // Ballistic: the tires have nothing to push on, so the car keeps its heading
@@ -144,7 +144,7 @@ public final class Car {
             position += velocity * dt
             return
         }
-        let ground = LooseSand.surface(track: track, sand: sand, at: position, level: level)
+        let ground = Ground.at(position, level: level, track: track, sand: sand, rubber: rubber)
         surface = ground.surface
         let props = ground.properties
 

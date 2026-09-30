@@ -9,6 +9,8 @@ final class RaceScene: GameScene {
     /// Draw order. Cars on a bridge deck render above it, cars below render under it.
     private enum Z {
         static let ground: CGFloat = 0
+        /// Rubber is on the road itself: spilled sand covers it.
+        static let rubber: CGFloat = 0.4
         static let looseSand: CGFloat = 0.5
         /// Ramps stand on the ground, over any sand spilled around them.
         static let ramps: CGFloat = 0.6
@@ -36,6 +38,7 @@ final class RaceScene: GameScene {
     private let world = SKNode()
     private let skids = SkidMarks()
     private var looseSandLayer: LooseSandLayer?
+    private var rubberLayer: RubberLayer?
     private let deckSkids = SkidMarks()
     private var carNodes: [SKSpriteNode] = []
     private var shadowNodes: [SKSpriteNode] = []
@@ -81,6 +84,13 @@ final class RaceScene: GameScene {
         ground.size = CGSize(width: track.width, height: track.height)
         ground.zPosition = 0
         world.addChild(ground)
+
+        if race.rubber != nil {
+            let layer = RubberLayer(track: track)
+            layer.zPosition = Z.rubber
+            world.addChild(layer)
+            rubberLayer = layer
+        }
 
         if race.looseSand != nil {
             let layer = LooseSandLayer(width: track.width, height: track.height, theme: track.definition.theme)
@@ -194,6 +204,7 @@ final class RaceScene: GameScene {
         for effect in sound.effects { SoundSystem.shared.play(effect) }
 
         syncCars()
+        if let rubber = race.rubber { rubberLayer?.update(from: rubber) }
         if let sand = race.looseSand { looseSandLayer?.update(from: sand) }
         updateSkids()
         updateHUD()
@@ -244,7 +255,7 @@ final class RaceScene: GameScene {
             let rearL = car.position - fwd * 6.9 + left * 3.8
             let rearR = car.position - fwd * 6.9 - left * 3.8
             let a = CGPoint(x: rearL.x, y: rearL.y), b = CGPoint(x: rearR.x, y: rearR.y)
-            let sliding = !car.isAirborne && (car.slip > 22 || (car.isBraking && car.speed > 70) || car.isWheelspinning)
+            let sliding = Rubber.isMarking(car)
             let color = SkidMarks.color(for: car.surface, theme: track.definition.theme)
             if sliding, let color, let prev = lastWheels[car.id] {
                 let moved = hypot(a.x - prev.0.x, a.y - prev.0.y)

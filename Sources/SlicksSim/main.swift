@@ -77,6 +77,7 @@ skidpad()
 failures += editorChecks()
 failures += looseSandCheck()
 failures += slipstreamCheck()
+failures += rubberCheck()
 
 /// Crash test: floor it head-on into a wall like a player would, keep the throttle pinned and
 /// steer left after the hit. The car should drive away forward and turn left, with no lingering
@@ -407,6 +408,19 @@ for def in simTracks {
         print(String(format: "  loose sand: %.0f cells total, %.0f on the road, %.2f%% of road covered; mean best lap %.2f vs %.2f without",
                      t.total, t.onRoad, 100 * Double(t.roadCellsCovered) / Double(max(roadCells, 1)), meanBest(race), meanBest(calm)))
     }
+    if let rubber = race.rubber {
+        // Same race on a track that never rubbers in, to see what the rubber is worth.
+        let clean = Race(track: track, entrants: entrants, laps: def.defaultLaps, seed: 42, rubberBuildsUp: false)
+        while clean.phase != .finished && clean.time < 400 { clean.step(dt: dt, humanInputs: []) }
+        func meanLap(_ r: Race, _ lap: Int) -> Double {
+            let times = r.cars.compactMap { $0.lapTimes.count > lap ? $0.lapTimes[lap] : nil }
+            return times.reduce(0, +) / Double(max(times.count, 1))
+        }
+        let t = rubber.totals()
+        let last = def.defaultLaps - 1
+        print(String(format: "  rubber: peak %.2f, mean %.2f, %d cells over 0.25; mean lap 2 %.2f vs %.2f clean, last lap %.2f vs %.2f clean",
+                     t.peak, t.mean, t.cellsAbove, meanLap(race, 1), meanLap(clean, 1), meanLap(race, last), meanLap(clean, last)))
+    }
     print(String(format: "  handling: sliding %.0f%% of the time, avg speed %.0f, max slip %.0f",
                  100 * Double(slideSteps) / Double(max(carSteps, 1)), speedSum / Double(max(carSteps, 1)), maxSlip))
     for car in race.standings {
@@ -428,6 +442,14 @@ for def in simTracks {
     let ctx = CGContext(data: nil, width: track.width, height: track.height, bitsPerComponent: 8, bytesPerRow: 0,
                         space: CGColorSpace(name: CGColorSpace.sRGB)!, bitmapInfo: CGImageAlphaInfo.premultipliedLast.rawValue)!
     ctx.draw(base, in: CGRect(x: 0, y: 0, width: track.width, height: track.height))
+    if let rubber = race.rubber {
+        // Rubber in dark violet, one block per rubber cell.
+        let s = Rubber.cellSize
+        for (i, a) in rubber.amount.enumerated() where a > 0.02 {
+            ctx.setFillColor(CGColor(srgbRed: 0.25, green: 0, blue: 0.35, alpha: CGFloat(min(1, 0.15 + Double(a)))))
+            ctx.fill(CGRect(x: i % rubber.columns * s, y: i / rubber.columns * s, width: s, height: s))
+        }
+    }
     if let sand = race.looseSand {
         // Loose sand in bright orange so it's easy to spot.
         for y in 0..<track.height {

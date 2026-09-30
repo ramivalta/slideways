@@ -48,23 +48,15 @@ public final class LooseSand {
 
     /// How a surface behaves with a given amount of loose sand on it. A dusting on hard ground
     /// mostly costs grip; it takes a thick layer to bog a car down like a real trap.
-    public static func properties(base: Surface, coverage: Double) -> SurfaceProperties {
-        guard coverage > 0, base != .sand, base != .wall else { return base.properties }
+    /// `beneath` is how the ground handles without the sand (rubber included), if not `base`'s own.
+    public static func properties(base: Surface, coverage: Double, beneath: SurfaceProperties? = nil) -> SurfaceProperties {
+        let b = beneath ?? base.properties
+        guard coverage > 0, base != .sand, base != .wall else { return b }
         let t = clamp(coverage, 0, 1) * fullEffect
-        let b = base.properties, s = Surface.sand.properties
+        let s = Surface.sand.properties
         return SurfaceProperties(grip: b.grip + (s.grip - b.grip) * t,
                                  drag: b.drag + (s.drag - b.drag) * t * t,
                                  traction: b.traction + (s.traction - b.traction) * t)
-    }
-
-    /// Surface and handling at a point for a car on `level`, loose sand included.
-    /// Bridge decks never get sand on them.
-    public static func surface(track: Track, sand: LooseSand?, at p: Vec2, level: Int) -> (surface: Surface, properties: SurfaceProperties) {
-        let base = track.surface(at: p, level: level)
-        guard level == 0, let sand else { return (base, base.properties) }
-        let c = sand.coverage(at: p)
-        let feel = c > feelsLikeSand && base != .wall ? Surface.sand : base
-        return (feel, properties(base: base, coverage: c))
     }
 
     /// Cells whose amount changed since the last call, for redrawing.
