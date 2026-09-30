@@ -1,10 +1,17 @@
 import SlicksCore
 import SpriteKit
+#if os(macOS)
+import AppKit
+#endif
 
 /// Race setup screen, fully keyboard/gamepad-free navigable with arrows and Enter.
 final class MenuScene: GameScene {
     private enum Row: CaseIterable {
-        case track, laps, players, opponents, skill, sound, start, online
+        case track, laps, players, opponents, skill, sound
+        #if os(macOS)
+        case display
+        #endif
+        case start, online
         #if os(macOS)
         case editor
         #endif
@@ -14,6 +21,15 @@ final class MenuScene: GameScene {
             if self == .editor { return true }
             #endif
             return self == .start || self == .online
+        }
+
+        /// Two-state rows ignore key repeat, so holding Left/Right doesn't flip them back and forth.
+        var isToggle: Bool {
+            #if os(macOS)
+            return self == .display
+            #else
+            return false
+            #endif
         }
     }
 
@@ -33,6 +49,7 @@ final class MenuScene: GameScene {
     private var rowLabels: [Row: SKLabelNode] = [:]
     private let preview = SKSpriteNode()
     private var previewCaption: SKLabelNode!
+    private var fullScreenObservers: [NSObjectProtocol] = []
 
     init(coordinator: GameCoordinator) {
         self.coordinator = coordinator
@@ -50,8 +67,9 @@ final class MenuScene: GameScene {
         subtitle.position = CGPoint(x: 480, y: 524)
         addChild(subtitle)
 
-        // Nine rows with the online and editor entries: tighter spacing keeps them clear of the help text.
-        let spacing: CGFloat = Row.allCases.count > 8 ? 35 : 40
+        // Up to ten rows with the display, online and editor entries: tighter spacing keeps
+        // them clear of the help text.
+        let spacing: CGFloat = Row.allCases.count > 9 ? 32 : Row.allCases.count > 8 ? 35 : 40
         for (i, row) in Row.allCases.enumerated() {
             let l = makeLabel("", size: 20)
             l.position = CGPoint(x: 60, y: 456 - CGFloat(i) * spacing - (row.isAction ? 12 : 0))
@@ -71,17 +89,30 @@ final class MenuScene: GameScene {
         previewCaption.position = CGPoint(x: 712, y: 206)
         addChild(previewCaption)
 
-        let help = [
+        var help = [
             "P1 Arrows    P2 W A S D    P3 I J K L    P4 Numpad 8 4 5 6",
             "Game controllers drive players 1-4 in connection order",
             "Up/Down select   Left/Right change   Enter race   Esc pause",
         ]
+        #if os(macOS)
+        help[2] += "   Cmd+Return full screen"
+        // The switch also happens from the View menu, the green button and Cmd+Return.
+        let center = NotificationCenter.default
+        fullScreenObservers = [NSWindow.didEnterFullScreenNotification, NSWindow.didExitFullScreenNotification].map {
+            center.addObserver(forName: $0, object: view.window, queue: .main) { [weak self] _ in self?.refresh() }
+        }
+        #endif
         for (i, line) in help.enumerated() {
             let l = makeLabel(line, size: 14, color: i == 0 ? .white : .dim, align: .center)
             l.position = CGPoint(x: 480, y: 120 - CGFloat(i) * 26)
             addChild(l)
         }
         refresh()
+    }
+
+    override func willMove(from view: SKView) {
+        fullScreenObservers.forEach(NotificationCenter.default.removeObserver)
+        fullScreenObservers = []
     }
 
     private var skillIndex: Int { MenuScene.skillIndex(settings.aiSkill) }
@@ -105,6 +136,7 @@ final class MenuScene: GameScene {
             .online: "ONLINE",
         ]
         #if os(macOS)
+        values[.display] = "DISPLAY    < \(isFullScreen ? "Full screen" : "Window") >"
         values[.editor] = TrackStore.isCustom(def.id) ? "EDIT THIS TRACK" : "TRACK EDITOR"
         #endif
         for (row, label) in rowLabels {
@@ -128,9 +160,11 @@ final class MenuScene: GameScene {
             selected = rows[(idx + 1) % rows.count]
             SoundSystem.shared.play(.menuMove)
         case .left, .a:
+            if isRepeat && selected.isToggle { return }
             change(by: -1)
             SoundSystem.shared.play(.menuMove)
         case .right, .d:
+            if isRepeat && selected.isToggle { return }
             change(by: 1)
             SoundSystem.shared.play(.menuMove)
         case .enter, .space:
@@ -176,6 +210,12 @@ final class MenuScene: GameScene {
             let steps = SoundSystem.volumeSteps
             let current = steps.enumerated().min { abs($0.element - SoundSystem.shared.volume) < abs($1.element - SoundSystem.shared.volume) }?.offset ?? 0
             SoundSystem.shared.volume = steps[clamp(current + delta, 0, steps.count - 1)]
+        #if os(macOS)
+        case .display:
+            // Only two choices, so either direction flips it. The label updates once the
+            // window has finished switching.
+            toggleFullScreen()
+        #endif
         default:
             break
         }

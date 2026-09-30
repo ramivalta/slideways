@@ -29,9 +29,41 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate {
 
         GameCoordinator.shared.start(in: view)
         NSApp.activate()
+        if DisplaySettings.fullScreen && shouldRestoreFullScreen {
+            window.toggleFullScreen(nil)
+        }
         #if DEBUG
         DebugHarness.runIfRequested(view: view)
         #endif
+    }
+
+    /// Opens in full screen only for a normal launch: not a second copy (play-local.sh puts
+    /// two side by side) and not a scripted debug run.
+    private var shouldRestoreFullScreen: Bool {
+        #if DEBUG
+        if ProcessInfo.processInfo.environment["SLIDEWAYS_SNAPSHOT_DIR"] != nil { return false }
+        #endif
+        guard let id = Bundle.main.bundleIdentifier else { return true }
+        return NSRunningApplication.runningApplications(withBundleIdentifier: id).count <= 1
+    }
+
+    /// Set once the app starts closing, when the window may leave full screen on its way out;
+    /// that shouldn't overwrite the choice the player made.
+    private var isClosing = false
+
+    func windowDidEnterFullScreen(_ notification: Notification) {
+        if !isClosing { DisplaySettings.fullScreen = true }
+    }
+
+    func windowDidExitFullScreen(_ notification: Notification) {
+        if !isClosing { DisplaySettings.fullScreen = false }
+    }
+
+    func windowWillClose(_ notification: Notification) { isClosing = true }
+
+    func applicationShouldTerminate(_ sender: NSApplication) -> NSApplication.TerminateReply {
+        isClosing = true
+        return .terminateNow
     }
 
     func applicationShouldTerminateAfterLastWindowClosed(_ sender: NSApplication) -> Bool { true }

@@ -214,6 +214,8 @@ open class GameScene: SKScene {
     open override func keyDown(with event: NSEvent) {
         // Leave Command shortcuts to the menu bar.
         if event.modifierFlags.contains(.command) { return super.keyDown(with: event) }
+        // In full screen the pointer would sit over the track; hide it until the mouse moves.
+        if isFullScreen { NSCursor.setHiddenUntilMouseMoves(true) }
         if handleTyping(event) { return }
         guard let key = Key(macKeyCode: event.keyCode) else { return }
         Input.shared.press(key)
