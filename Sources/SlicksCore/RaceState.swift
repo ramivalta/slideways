@@ -115,6 +115,7 @@ public struct RaceSnapshot: Codable, Sendable, Equatable {
             h.add(id)
             h.add(d.skill); h.add(d.lane)
             h.add(d.stuckTime); h.add(d.reverseTime); h.add(d.reverseSteer); h.add(d.laneDrift)
+            h.add(d.routeBest); h.add(d.routeStall)
         }
         return h.value
     }

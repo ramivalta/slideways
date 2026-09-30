@@ -5,7 +5,7 @@ public enum BuiltInTracks {
     public static let all: [TrackDefinition] = [
         provingGrounds, overpass, hairpinValley, twinBridges, cloverleaf, figureEight, desertDunes, frozenLake, canyon,
         riversidePark,
-    ]
+    ] + ClassicTracks.all
 
     /// Parkland circuit dressed up with scenery: pit garages and a painted grid on the start
     /// straight, grandstands, trees (some solid, some to drive under), a river ford and mud.

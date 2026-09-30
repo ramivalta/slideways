@@ -6,8 +6,9 @@ public enum NetProtocol {
     /// 2: encrypted UDP transport with join codes.
     /// 3: jumps and loose sand in race state.
     /// 4: slipstream.
-    /// 5: tire rubber on the road (its checksum in race state, and rubber deltas).
-    public static let version: UInt16 = 5
+    /// 5: AI routes back to the road from behind walls.
+    /// 6: tire rubber on the road (its checksum in race state, and rubber deltas).
+    public static let version: UInt16 = 6
     /// UDP.
     public static let defaultPort: UInt16 = 47800
     public static let bonjourType = "_slideways._udp"

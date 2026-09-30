@@ -49,6 +49,10 @@ public final class Race {
     public let rubber: Rubber?
 
     private var drivers: [Int: AIDriver] = [:]
+    /// Routes back to the road for AI cars knocked behind walls. Built the first time a race
+    /// has a computer driver (from the start, or when a human hands over mid-race), the same
+    /// way on every peer since it only depends on the track.
+    private var roadFinder: RoadFinder?
     private var firstFinishTime: Double?
     private var allHumansDoneAt: Double?
     private var finishCounter = 0
@@ -115,11 +119,12 @@ public final class Race {
         }
 
         Slipstream.update(cars, dt: dt)
+        if roadFinder == nil, phase != .countdown, !drivers.isEmpty { roadFinder = RoadFinder(track: track) }
         for car in cars {
             var input = CarInput.none
             if phase != .countdown {
                 if var driver = drivers[car.id] {
-                    input = driver.input(for: car, track: track, sand: looseSand, rubber: rubber, dt: dt, elapsed: time)
+                    input = driver.input(for: car, track: track, sand: looseSand, rubber: rubber, roads: roadFinder, dt: dt, elapsed: time)
                     drivers[car.id] = driver
                 } else if let p = car.playerIndex, p < humanInputs.count {
                     input = humanInputs[p]
