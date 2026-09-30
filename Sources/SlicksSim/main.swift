@@ -346,7 +346,9 @@ for def in simTracks {
     }
     let crossings = def.crossings()
     let bridged = crossings.filter { def.bridgeIndex(at: $0) != nil }.count
-    print("  editor: \(crossings.count) crossing(s), \(bridged) bridged, issues: \(track.issues().map(\.message))")
+    let covered = crossings.filter { track.bridge(covering: $0) != nil }.count
+    let issueText = track.issues().map { i in i.message + (i.position.map { String(format: " @%.0f,%.0f", $0.x, $0.y) } ?? "") }
+    print("  editor: \(crossings.count) crossing(s), \(bridged) bridged, \(covered) under a deck, issues: \(issueText)")
     if bridged != def.bridges.count { print("  FAIL: editor doesn't find every bridge on a crossing"); failures += 1 }
     let ov = overlaps(track)
     if !ov.isEmpty {

@@ -37,7 +37,7 @@ final class EditorScene: GameScene {
             case .select: "Drag road points, patches, lines and objects to move them, drag empty space to pan. Right-click deletes. Scroll or pinch to zoom."
             case .road: "Click to add a road point where the road should bend, drag points to reshape. Right-click a point to delete it."
             case .patch: "Drag on the map to draw a patch (a click gives a default size). Drag a patch to move it, its handles to resize."
-            case .bridge: "Click where the road crosses itself to build a bridge. Click it again to swap which road goes over. Right-click removes."
+            case .bridge: "Click a crossing to build a bridge, click it again to swap which road goes over. Click one next to a bridge to stretch it over. Right-click removes."
             case .line: "Click to start a paint line and click to add points. Click the last point, Enter or right-click to finish."
             case .object: "Click to place a tree or building, drag to move it. Drag its handles to resize or turn it. Right-click deletes."
             }
@@ -75,6 +75,7 @@ final class EditorScene: GameScene {
         case crossing(Int)
         case insert(index: Int, position: Vec2)
         case widthHandle(side: Int)
+        case deckHandle(BridgeEnd)
         case line(Int)
         case lineVertex(Int)
         case object(Int)
@@ -89,6 +90,8 @@ final class EditorScene: GameScene {
         case create(start: Vec2)
         /// Dragging a road edge handle of the selected point, along the road's normal there.
         case width(index: Int, normal: Vec2)
+        /// Dragging one end of a bridge deck along its road.
+        case deckEnd(bridge: Int, end: BridgeEnd)
         case line(index: Int, start: Vec2, original: PaintLine)
         case lineVertex(index: Int, vertex: Int)
         case object(index: Int, grab: Vec2)
@@ -628,6 +631,129 @@ final class EditorScene: GameScene {
         return widthHandles().first { $0.position.distance(to: w) < tol }?.side
     }
 
+    // MARK: Bridge decks
+
+    /// The last built version of bridge `k`, if the build has it.
+    private func builtBridge(_ k: Int) -> Bridge? {
+        guard def.bridges.indices.contains(k) else { return nil }
+        let cp = def.bridges[k].controlPoint
+        return track?.bridges.first { $0.controlPoint == cp }
+    }
+
+    /// How far bridge `k`'s deck reaches on one end as last built.
+    private func builtExtent(bridge k: Int, _ end: BridgeEnd) -> Double? {
+        builtBridge(k).map { end == .back ? -$0.deckStart : $0.deckEnd }
+    }
+
+    /// How far bridge `k`'s deck reaches on one end: the fixed length, or the automatic one
+    /// from the last build.
+    private func deckExtent(bridge k: Int, _ end: BridgeEnd) -> Double? {
+        def.bridges[k].extent(end) ?? builtExtent(bridge: k, end)
+    }
+
+    /// The build of the current definition, made now if the background one is behind. For
+    /// clicks that decide what to do from where the decks are.
+    private var currentTrack: Track {
+        (isCurrent ? track : nil) ?? Track(definition: def)
+    }
+
+    /// Bridge (index into `def.bridges`) whose deck covers a crossing, in `built` or else the
+    /// last background build.
+    private func coveringBridge(_ x: RoadCrossing, in built: Track? = nil) -> Int? {
+        guard let t = built ?? track, let bi = t.bridge(covering: x) else { return nil }
+        let cp = t.bridges[bi].controlPoint
+        return def.bridges.firstIndex { $0.controlPoint == cp }
+    }
+
+    /// How many crossings bridge `k`'s deck covers, at least one if it's on a crossing.
+    private func coveredCount(bridge k: Int, in built: Track? = nil) -> Int {
+        let n = crossings.filter { coveringBridge($0, in: built) == k }.count
+        return max(n, def.crossing(forBridge: k, in: crossings) == nil ? 0 : 1)
+    }
+
+    /// Position and direction on the road `distance` along it from control point `cp`
+    /// (negative goes back against the race direction).
+    private func roadPosition(fromPoint cp: Int, distance: Double, dense: [Vec2]) -> (position: Vec2, tangent: Vec2) {
+        let m = dense.count
+        guard m > 2 else { return (def.controlPoints[cp], Vec2(1, 0)) }
+        let dir = distance < 0 ? -1 : 1
+        var j = cp * Track.splineSteps % m
+        var left = abs(distance)
+        for _ in 0..<m {
+            let next = ((j + dir) % m + m) % m
+            let seg = dense[j].distance(to: dense[next])
+            if seg >= left, seg > 0 {
+                let t = (dense[next] - dense[j]) * (1 / seg)
+                return (dense[j] + t * left, t * Double(dir))
+            }
+            left -= seg
+            j = next
+        }
+        return (dense[j], Vec2(1, 0))
+    }
+
+    /// Signed distance along the road from control point `cp` to the point of the road
+    /// nearest `w`, looking no further than `window` either way.
+    private func roadDistance(fromPoint cp: Int, to w: Vec2, window: Double, dense: [Vec2]) -> Double {
+        let m = dense.count
+        guard m > 2 else { return 0 }
+        let start = cp * Track.splineSteps % m
+        var best = 0.0, bestD = Double.infinity
+        for dir in [-1, 1] {
+            var j = start, along = 0.0
+            while along <= window {
+                let d = dense[j].distance(to: w)
+                if d < bestD { bestD = d; best = along * Double(dir) }
+                let next = ((j + dir) % m + m) % m
+                along += dense[j].distance(to: dense[next])
+                j = next
+                if j == start { break }
+            }
+        }
+        return best
+    }
+
+    /// Handles at the ends of the selected bridge's deck: drag them along the road to stretch
+    /// or shorten it.
+    private func deckEndHandles() -> [(end: BridgeEnd, position: Vec2, normal: Vec2, half: Double)] {
+        guard tool == .select || tool == .bridge, case let .point(i) = selection,
+              let k = def.bridges.firstIndex(where: { $0.controlPoint == i }) else { return [] }
+        let dense = Track.centerline(through: def.controlPoints)
+        // Decks keep the width the road has at the bridge point.
+        let half = def.roadWidth(atPoint: i) / 2 + Track.curbWidth + 6
+        return BridgeEnd.allCases.compactMap { end in
+            guard let e = deckExtent(bridge: k, end) else { return nil }
+            let r = roadPosition(fromPoint: i, distance: Double(end.sign) * e, dense: dense)
+            return (end, r.position, r.tangent.perp, half)
+        }
+    }
+
+    private func deckHandle(at w: Vec2) -> BridgeEnd? {
+        let tol = tolerance(8)
+        return deckEndHandles().first { $0.position.distance(to: w) < tol }?.end
+    }
+
+    /// Stretches bridge `k` over crossing `x` if the crossing is on its road a little past
+    /// one of its deck ends. Returns whether it did.
+    private func stretchBridge(over x: RoadCrossing, in built: Track) -> Bool {
+        let limit = EditorLimits.bridgeEnd.upperBound
+        var best: (k: Int, end: BridgeEnd, length: Double, gap: Double)?
+        for (bi, b) in built.bridges.enumerated() {
+            guard let k = def.bridges.firstIndex(where: { $0.controlPoint == b.controlPoint }),
+                  let e = built.extent(toCover: x, bridge: bi, maxEnd: limit) else { continue }
+            let current = e.end == .back ? -b.deckStart : b.deckEnd
+            let gap = e.length - current
+            guard gap <= EditorLimits.bridgeStretchGap, gap < (best?.gap ?? .infinity) else { continue }
+            best = (k, e.end, e.length, gap)
+        }
+        guard let best else { return false }
+        let length = min((best.length / 2).rounded(.up) * 2, limit)
+        perform { $0.bridges[best.k].setExtent(length, best.end) }
+        select(.point(def.bridges[best.k].controlPoint))
+        flash("Stretched the bridge at road point \(def.bridges[best.k].controlPoint + 1) over this road too")
+        return true
+    }
+
     /// Whether a control point sets its own width.
     private func hasOwnWidth(_ i: Int) -> Bool {
         def.pointWidths.indices.contains(i) && def.pointWidths[i] != nil
@@ -636,6 +762,7 @@ final class EditorScene: GameScene {
     private func computeHover(at p: CGPoint) -> Hover {
         guard !isOverUI(p) else { return .none }
         let w = toWorld(p)
+        if let e = deckHandle(at: w) { return .deckHandle(e) }
         switch tool {
         case .select:
             if let s = widthHandle(at: w) { return .widthHandle(side: s) }
@@ -679,6 +806,11 @@ final class EditorScene: GameScene {
         dragOrigin = p
         dragMoved = false
         if spaceHeld { return beginPan(at: p) }
+        if let e = deckHandle(at: w), case let .point(i) = selection,
+           let k = def.bridges.firstIndex(where: { $0.controlPoint == i }) {
+            drag = .deckEnd(bridge: k, end: e)
+            return
+        }
         if widthHandle(at: w) != nil, case let .point(i) = selection {
             drag = .width(index: i, normal: pointNormal(i))
             return
@@ -877,6 +1009,17 @@ final class EditorScene: GameScene {
             performContinuing { $0.setRoadWidth(width, atPoint: i) }
             refreshStatus(cursor: w)
             return flash("Road width here: \(Int(width))")
+        case let .deckEnd(k, end):
+            guard def.bridges.indices.contains(k) else { break }
+            let r = EditorLimits.bridgeEnd
+            let cp = def.bridges[k].controlPoint
+            let along = roadDistance(fromPoint: cp, to: w, window: r.upperBound + 40,
+                                     dense: Track.centerline(through: def.controlPoints))
+            let step = snapToGrid ? EditorScene.gridStep : 2
+            let length = clamp((along * Double(end.sign) / step).rounded() * step, r.lowerBound, r.upperBound)
+            performContinuing { $0.bridges[k].setExtent(length, end) }
+            refreshStatus(cursor: w)
+            return flash("Deck \(end == .back ? "starts" : "ends") \(Int(length)) \(end == .back ? "before" : "after") the bridge point")
         case let .line(i, start, original):
             guard let first = original.points.first else { break }
             let moved = original.translated(by: snap(first + (w - start)) - first)
@@ -945,9 +1088,15 @@ final class EditorScene: GameScene {
         guard !isOverUI(p) else { return }
         let w = toWorld(p)
         if drawingLine != nil { return finishLine() }
-        if tool == .bridge, let x = crossingIndex(at: w), let k = def.bridgeIndex(at: crossings[x]) {
-            perform { $0.bridges.remove(at: k) }
-            return flash("Bridge removed")
+        if tool == .bridge, let x = crossingIndex(at: w) {
+            if let k = def.bridgeIndex(at: crossings[x]) {
+                perform { $0.bridges.remove(at: k) }
+                return flash("Bridge removed")
+            }
+            if let k = coveringBridge(crossings[x], in: currentTrack) {
+                select(.point(def.bridges[k].controlPoint))
+                return flash("This crossing is part of a longer bridge. Drag its deck ends to leave it out, or right-click its own crossing to remove it.")
+            }
         }
         // A point of the selected line goes first, then the whole line.
         if let v = lineVertex(at: w), case let .line(i) = selection, tool == .select || tool == .line {
@@ -1010,10 +1159,22 @@ final class EditorScene: GameScene {
             return flash("Bridges go where the road crosses itself. Drag road points so it crosses first.")
         }
         let x = crossings[xi]
+        // Where the decks end right now decides between swapping, stretching and adding.
+        let built = currentTrack
         if let k = def.bridgeIndex(at: x) {
+            let covered = coveredCount(bridge: k, in: built)
+            guard covered <= 1 else {
+                select(.point(def.bridges[k].controlPoint))
+                return flash("This bridge goes over \(covered) roads. Only a bridge over one road can swap: shorten it first.")
+            }
             perform { $0.flipBridge(k, at: x) }
             select(.point(def.bridges[k].controlPoint))
             flash("Swapped which road goes over")
+        } else if let k = coveringBridge(x, in: built) {
+            select(.point(def.bridges[k].controlPoint))
+            flash("This crossing is under the bridge at road point \(def.bridges[k].controlPoint + 1). Drag its deck ends to change what it covers.")
+        } else if stretchBridge(over: x, in: built) {
+            return
         } else if def.bridges.count >= EditorLimits.maxBridges {
             flash("That's the most bridges a track can have")
         } else {
@@ -1197,11 +1358,30 @@ final class EditorScene: GameScene {
     /// World position of the selected point's left road edge handle.
     var debugWidthHandle: Vec2? { widthHandles().first?.position }
 
+    /// World position of one deck end handle of the selected bridge.
+    func debugDeckHandle(_ end: BridgeEnd) -> Vec2? { deckEndHandles().first { $0.end == end }?.position }
+
+    /// Opens a definition as if picked in the browser.
+    func debugLoad(_ d: TrackDefinition) { load(d) }
+
+    /// Clicks on the map at a world position.
+    func debugMapClick(_ w: Vec2) {
+        let p = toScene(w)
+        pointerMoved(to: p)
+        pointerDown(at: p)
+        pointerUp(at: p)
+    }
+
+    var debugFlash: String { flashText ?? "" }
+
+    /// Crossings under some bridge's deck in the current build.
+    var debugCoveredCrossings: Int { crossings.filter { def.bridgeIndex(at: $0) != nil || coveringBridge($0) != nil }.count }
+
     var debugSummary: String {
         "\(def.name): \(def.controlPoints.count) points, \(def.patches.count) patches, \(def.bridges.count) bridges "
             + "\(def.lines.count) lines \(def.lines.map(\.points.count)) points, "
             + "\(def.objects.count) objects \(def.objects.map { "\($0.kind.rawValue)\($0.isSolid ? "" : "(deco)")" }), "
-            + "(over at \(def.bridges.map(\.controlPoint))), widths \(def.pointWidths.map { $0.map { Int($0) } }), "
+            + "(over at \(def.bridges.map(\.controlPoint)), ends \(def.bridges.map { [$0.back, $0.ahead].map { $0.map { "\(Int($0))" } ?? "auto" } })), widths \(def.pointWidths.map { $0.map { Int($0) } }), "
             + "theme \(def.theme.rawValue), dirty \(isDirty), "
             + "undo \(undoStack.count), issues \(isCurrent ? "\(issues.map(\.message))" : "pending"), "
             + "tool \(tool.title), selection \(selection)"
@@ -1586,24 +1766,45 @@ final class EditorScene: GameScene {
         addShape(chevron, stroke: SKColor(white: 1, alpha: 0.75), width: 1.5, z: 3)
 
         // Crossings and which road each bridge carries over.
+        let selectedBridge: Int? = {
+            guard case let .point(i) = selection else { return nil }
+            return def.bridges.firstIndex { $0.controlPoint == i }
+        }()
+        if tool == .bridge || (tool == .select && selectedBridge != nil) {
+            // Each deck as a band along the road it carries, from end to end.
+            for k in def.bridges.indices where tool == .bridge || k == selectedBridge {
+                let cp = def.bridges[k].controlPoint
+                guard def.controlPoints.indices.contains(cp) else { continue }
+                let fallback = def.roadWidth(atPoint: cp) / 2 + 20
+                let back = deckExtent(bridge: k, .back) ?? fallback, ahead = deckExtent(bridge: k, .ahead) ?? fallback
+                let count = max(2, Int((back + ahead) / 6))
+                let pts = (0...count).map { s -> CGPoint in
+                    let d = -back + (back + ahead) * Double(s) / Double(count)
+                    return toScene(roadPosition(fromPoint: cp, distance: d, dense: dense).position)
+                }
+                let band = addShape(polyline(pts, closed: false),
+                                    stroke: EditorColors.bridge.withAlphaComponent(k == selectedBridge ? 0.9 : 0.7),
+                                    width: max(6, CGFloat(def.roadWidth(atPoint: cp)) * zoom * 0.35), z: 4)
+                band.lineCap = .butt
+            }
+        }
         if tool == .bridge {
             for (i, x) in crossings.enumerated() {
                 let c = toScene(x.point)
                 let hovered = hover == .crossing(i)
-                if let k = def.bridgeIndex(at: x) {
-                    let cp = def.bridges[k].controlPoint
-                    let di = cp * Track.splineSteps
-                    let t = (dense[(di + 2) % dense.count] - dense[(di - 2 + dense.count) % dense.count]).normalized
-                    let half = (def.roadWidth(atPoint: cp) / 2 + 20)
-                    let p0 = toScene(def.controlPoints[cp] - t * half), p1 = toScene(def.controlPoints[cp] + t * half)
-                    let over = addShape(polyline([p0, p1], closed: false), stroke: EditorColors.bridge.withAlphaComponent(0.85),
-                                        width: max(6, CGFloat(def.roadWidth(atPoint: cp)) * zoom * 0.35), z: 4)
-                    over.lineCap = .round
-                }
+                let bridged = def.bridgeIndex(at: x) != nil || coveringBridge(x) != nil
                 let ring = CGPath(ellipseIn: CGRect(x: c.x - 16, y: c.y - 16, width: 32, height: 32), transform: nil)
-                addShape(def.bridgeIndex(at: x) == nil ? ring.copy(dashingWithPhase: 0, lengths: [4, 3]) : ring,
+                addShape(bridged ? ring : ring.copy(dashingWithPhase: 0, lengths: [4, 3]),
                          stroke: hovered ? .accent : .white, width: hovered ? 2.5 : 1.5, z: 4)
             }
+        }
+
+        // Deck end handles of the selected bridge: bars across the road with a square grip.
+        for e in deckEndHandles() {
+            let a = toScene(e.position + e.normal * e.half), b = toScene(e.position - e.normal * e.half)
+            addShape(polyline([a, b], closed: false), stroke: SKColor.accent.withAlphaComponent(0.9), width: 2, z: 6)
+            let s = toScene(e.position), r: CGFloat = hover == .deckHandle(e.end) ? 6 : 4.5
+            addShape(squarePath(s, r), stroke: .black, width: 1, fill: .accent, z: 6)
         }
 
         // Handles of the selected patch.
@@ -1916,30 +2117,41 @@ final class EditorScene: GameScene {
         ])
         if let k = def.bridges.firstIndex(where: { $0.controlPoint == i }) {
             L.header("BRIDGE")
-            L.note("The road through this point goes over the other one.")
-            let length = def.bridges[k].length
-            L.choices("Length", [
-                Option(title: "Auto", selected: length == nil, tip: "Size the deck to span the road below") { [unowned self] in
-                    perform { $0.bridges[k].length = nil }
-                },
-                Option(title: "Fixed", selected: length != nil, tip: "Choose the deck length yourself") { [unowned self] in
-                    let built = track?.bridges.first { $0.controlPoint == i }.map { $0.deckEnd - $0.deckStart } ?? 120
-                    let r = EditorLimits.bridgeLength
-                    perform { $0.bridges[k].length = clamp((built / 10).rounded() * 10, r.lowerBound, r.upperBound) }
-                },
-            ])
-            if let length {
-                let r = EditorLimits.bridgeLength
-                L.stepper("Deck", value: "\(Int(length))", tip: "Deck length along the road") { [unowned self] in
-                    perform { $0.bridges[k].length = clamp(length - 10, r.lowerBound, r.upperBound) }
-                } plus: { [unowned self] in
-                    perform { $0.bridges[k].length = clamp(length + 10, r.lowerBound, r.upperBound) }
+            let covered = coveredCount(bridge: k)
+            L.note(covered > 1 ? "The road through this point goes over \(covered) other roads."
+                               : "The road through this point goes over the other one.")
+            let r = EditorLimits.bridgeEnd
+            for end in BridgeEnd.allCases {
+                let fixed = def.bridges[k].extent(end)
+                L.choices(end == .back ? "Deck start" : "Deck end", [
+                    Option(title: "Auto", selected: fixed == nil,
+                           tip: "Reach just past the road below, with the ramp clear of other roads") { [unowned self] in
+                        perform { $0.bridges[k].setExtent(nil, end) }
+                    },
+                    Option(title: "Fixed", selected: fixed != nil,
+                           tip: "Choose how far the deck reaches. You can also drag its end on the map.") { [unowned self] in
+                        let built = builtExtent(bridge: k, end) ?? 60
+                        perform { $0.bridges[k].setExtent(clamp((built / 10).rounded(.up) * 10, r.lowerBound, r.upperBound), end) }
+                    },
+                ])
+                if let fixed {
+                    L.stepper(end == .back ? "Before point" : "After point", value: "\(Int(fixed))",
+                              tip: "How far the deck reaches \(end == .back ? "back from" : "ahead of") this point") { [unowned self] in
+                        perform { $0.bridges[k].setExtent(clamp(fixed - 10, r.lowerBound, r.upperBound), end) }
+                    } plus: { [unowned self] in
+                        perform { $0.bridges[k].setExtent(clamp(fixed + 10, r.lowerBound, r.upperBound), end) }
+                    }
                 }
             }
             let crossing = def.crossing(forBridge: k, in: crossings)
             L.choices(nil, [
-                Option(title: "Swap over/under", enabled: crossing != nil, tip: "Put the other road on the bridge") { [unowned self] in
+                Option(title: "Swap over/under", enabled: crossing != nil && covered <= 1,
+                       tip: covered > 1 ? "Only a bridge over one road can swap. Shorten this one first."
+                                        : "Put the other road on the bridge") { [unowned self] in
                     guard let crossing else { return }
+                    guard coveredCount(bridge: k, in: currentTrack) <= 1 else {
+                        return flash("Only a bridge over one road can swap. Shorten this one first.")
+                    }
                     perform { $0.flipBridge(k, at: crossing) }
                     select(.point(def.bridges[k].controlPoint))
                 },
@@ -1949,13 +2161,24 @@ final class EditorScene: GameScene {
                 },
             ])
             if crossing == nil { L.note("Not on a crossing: move the point to where the road crosses itself.", color: EditorColors.issue) }
-        } else if let x = crossings.filter({ $0.point.distance(to: p) < def.bridgeReach(atPoint: i) }).first, let k = def.bridgeIndex(at: x) {
+            L.note("Drag the square handles at the deck ends to stretch the bridge over more roads.")
+        } else if let x = crossings.filter({ $0.point.distance(to: p) < def.bridgeReach(atPoint: i) }).first,
+                  let k = def.bridgeIndex(at: x) ?? coveringBridge(x) {
             L.header("BRIDGE")
-            L.note("The other road goes over this one here.")
-            L.choices(nil, [Option(title: "Put this road on top", tip: "Swap which road goes over") { [unowned self] in
-                perform { $0.flipBridge(k, at: x) }
-                select(.point(def.bridges[k].controlPoint))
-            }])
+            let owner = def.bridges[k].controlPoint
+            let own = def.bridgeIndex(at: x) == k
+            L.note(own ? "The other road goes over this one here." : "The bridge from road point \(owner + 1) goes over this road here.")
+            var options: [Option] = []
+            if own, coveredCount(bridge: k) <= 1 {
+                options.append(Option(title: "Put this road on top", tip: "Swap which road goes over") { [unowned self] in
+                    perform { $0.flipBridge(k, at: x) }
+                    select(.point(def.bridges[k].controlPoint))
+                })
+            }
+            options.append(Option(title: "Select bridge", tip: "Select the road point the bridge is built around") { [unowned self] in
+                select(.point(owner))
+            })
+            L.choices(nil, options)
         } else if let x = crossings.filter({ $0.point.distance(to: p) < def.bridgeReach(atPoint: i) }).first {
             L.choices(nil, [Option(title: "Build a bridge here", tip: "This road goes over the other") { [unowned self] in
                 let pass = def.loopDistance(Double(i), x.passA) < def.loopDistance(Double(i), x.passB) ? x.passA : x.passB

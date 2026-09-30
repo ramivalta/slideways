@@ -1,16 +1,67 @@
 import Foundation
 
-/// Authoring format: where the road crosses itself, one pass goes over on a bridge.
-public struct BridgeDefinition: Codable, Sendable, Equatable {
-    /// Index into `TrackDefinition.controlPoints` at the middle of the deck. The pass through this
-    /// control point is the upper road; whichever other part of the track crosses there goes under.
-    public var controlPoint: Int
-    /// Deck length along the upper road. When nil it's sized to span the road underneath.
-    public var length: Double?
+/// One end of a bridge deck, in race direction: `back` is where cars drive onto it, `ahead`
+/// where they drive off.
+public enum BridgeEnd: CaseIterable, Sendable {
+    case back, ahead
 
-    public init(controlPoint: Int, length: Double? = nil) {
+    /// Direction along the upper road, in samples.
+    public var sign: Int { self == .back ? -1 : 1 }
+}
+
+/// Authoring format: where the road crosses itself, one pass goes over on a bridge. A deck can
+/// be stretched along its road to carry it over several other roads.
+public struct BridgeDefinition: Codable, Sendable, Equatable {
+    /// Index into `TrackDefinition.controlPoints` the deck is built around. The pass through
+    /// this control point is the upper road; every other road under the deck goes under.
+    public var controlPoint: Int
+    /// How far the deck reaches back from the control point (against the race direction).
+    /// When nil it's sized to clear the roads underneath.
+    public var back: Double?
+    /// How far the deck reaches ahead of the control point. Nil sizes it automatically.
+    public var ahead: Double?
+
+    public init(controlPoint: Int, back: Double? = nil, ahead: Double? = nil) {
         self.controlPoint = controlPoint
-        self.length = length
+        self.back = back
+        self.ahead = ahead
+    }
+
+    /// A deck of fixed total length centered on the control point, or automatic with nil.
+    public init(controlPoint: Int, length: Double?) {
+        self.init(controlPoint: controlPoint, back: length.map { $0 / 2 }, ahead: length.map { $0 / 2 })
+    }
+
+    public func extent(_ end: BridgeEnd) -> Double? {
+        end == .back ? back : ahead
+    }
+
+    public mutating func setExtent(_ value: Double?, _ end: BridgeEnd) {
+        if end == .back { back = value } else { ahead = value }
+    }
+
+    private enum CodingKeys: String, CodingKey {
+        case controlPoint, back, ahead
+        /// Symmetric deck length, written by earlier versions.
+        case length
+    }
+
+    public init(from decoder: Decoder) throws {
+        let c = try decoder.container(keyedBy: CodingKeys.self)
+        controlPoint = try c.decode(Int.self, forKey: .controlPoint)
+        back = try c.decodeIfPresent(Double.self, forKey: .back)
+        ahead = try c.decodeIfPresent(Double.self, forKey: .ahead)
+        if back == nil, ahead == nil, let length = try c.decodeIfPresent(Double.self, forKey: .length) {
+            back = length / 2
+            ahead = length / 2
+        }
+    }
+
+    public func encode(to encoder: Encoder) throws {
+        var c = encoder.container(keyedBy: CodingKeys.self)
+        try c.encode(controlPoint, forKey: .controlPoint)
+        try c.encodeIfPresent(back, forKey: .back)
+        try c.encodeIfPresent(ahead, forKey: .ahead)
     }
 }
 
@@ -48,6 +99,10 @@ public struct Bridge: Sendable {
     public let upperHalfSpan: Int
     /// Cells covered by the deck.
     public let deckBounds: CellBounds
+    /// An automatic end ran to the longest deck allowed without clearing the road below.
+    public let reachedMaxLength: Bool
+    /// Where a ramp comes down on another road (at most one spot per end).
+    public let blockedRamps: [Vec2]
 
     /// Half width a car on the deck can use before touching the railing.
     public var driveHalfWidth: Double { halfWidth - railing }
@@ -74,7 +129,7 @@ public struct Bridge: Sendable {
     }
 
     /// Along range covered by deck, ramps and zone.
-    var structureRange: ClosedRange<Double> {
+    public var structureRange: ClosedRange<Double> {
         (deckStart - max(rampLength, zoneExtension))...(deckEnd + max(rampLength, zoneExtension))
     }
 }
@@ -102,50 +157,148 @@ extension Track {
         return result
     }
 
+    /// Longest an automatically sized deck end reaches from its control point.
+    static let maxAutoDeckEnd = 260.0
+
+    /// The roads around one bridge's upper road, for sizing its deck: which cross-sections of
+    /// the upper road are clear of every other road, for the deck and for the ramps.
+    struct BridgeClearance {
+        let path: [Vec2]
+        let tangents: [Vec2]
+        let centerSample: Int
+        let halfWidth: Double
+        let rampSamples: Int
+        /// Samples of every other pass near the bridge, with the half width of their asphalt
+        /// and curbs, and whether that pass is up on another bridge's deck there.
+        let lower: [(index: Int, point: Vec2, edge: Double, raised: Bool)]
+        /// Along the loop, samples this close to a ramp section are the ramp's own road, even
+        /// past the structure (a hairpin can't fold back tighter than this).
+        let ownRoadGap: Int
+
+        /// `reach` is the farthest the structure (deck plus ramp) may reach from the center.
+        /// `raised` marks samples on other bridges' decks: a ramp can run out under those.
+        init(path: [Vec2], tangents: [Vec2], halfWidths: [Double], centerSample ci: Int, halfWidth: Double,
+             reach: Double, step: Double, raised: [Bool] = []) {
+            let n = path.count
+            self.path = path
+            self.tangents = tangents
+            centerSample = ci
+            self.halfWidth = halfWidth
+            rampSamples = Int((bridgeRampLength / step).rounded(.up))
+            // Everything far enough along the loop from here is another pass. The upper road's
+            // own samples within the structure are excluded.
+            let exclude = Int((reach / step).rounded(.up)) + rampSamples + 8
+            let center = path[ci]
+            let radius = reach + bridgeRampLength + 60
+            lower = (0..<n).filter { j in
+                let d = abs(j - ci) % n
+                return min(d, n - d) > exclude && (path[j] - center).length < radius
+            }.map { (index: $0, point: path[$0], edge: halfWidths[$0] + curbWidth, raised: raised.indices.contains($0) && raised[$0]) }
+            ownRoadGap = Int(((halfWidth * 2 + 60) / step).rounded(.up))
+        }
+
+        func sample(_ k: Int) -> Int {
+            let n = path.count
+            return ((centerSample + k) % n + n) % n
+        }
+
+        /// Whether the cross-section `k` samples from the center keeps `margin` clear of the
+        /// edges of `roads`.
+        func isClear(_ k: Int, margin: Double, of roads: [(index: Int, point: Vec2, edge: Double, raised: Bool)]) -> Bool {
+            let i = sample(k)
+            let p = path[i], nrm = tangents[i].perp
+            var l = -halfWidth
+            while l <= halfWidth + 0.01 {
+                let q = p + nrm * l
+                if roads.contains(where: { let c = $0.edge + margin; return ($0.point - q).lengthSquared < c * c }) { return false }
+                l += 2
+            }
+            return true
+        }
+
+        /// A deck section needs room for the road below to pass with some clearance.
+        func deckClear(_ k: Int) -> Bool { isClear(k, margin: bridgeMargin, of: lower) }
+
+        /// First section of the ramp beyond a deck end at `k` (signed) whose walls would stand
+        /// on another road's asphalt, as an offset past the end. Roads up on other decks (or
+        /// high on their ramps) pass over it.
+        func rampBlock(deckEnd k: Int, sign: Int) -> Int? {
+            let n = path.count
+            let ground = lower.filter { !$0.raised }
+            guard !ground.isEmpty else { return nil }
+            return (1...rampSamples).first { r in
+                let i = sample(k + sign * r)
+                let roads = ground.filter { let d = abs($0.index - i) % n; return min(d, n - d) > ownRoadGap }
+                return !isClear(k + sign * r, margin: -curbWidth, of: roads)
+            }
+        }
+
+        /// Shortest deck end, at least `from` samples out, whose section clears the roads
+        /// below and whose ramp doesn't come down on another road. Nil past `limit`.
+        func autoEnd(sign: Int, from: Int = 0, limit: Int, checkRamp: Bool = true) -> Int? {
+            var k = from
+            while k <= limit {
+                guard let clear = (k...limit).first(where: { deckClear(sign * $0) }) else { return nil }
+                guard checkRamp, let blocked = rampBlock(deckEnd: sign * clear, sign: sign) else { return clear }
+                k = clear + blocked
+            }
+            return nil
+        }
+    }
+
     static func buildBridges(def: TrackDefinition, path: [Vec2], tangents: [Vec2], halfWidths: [Double],
                              controlSamples: [Int], step: Double) -> [Bridge] {
-        let n = path.count
-        let maxDeck = Int(260 / step)
-        let rampSamples = Int((bridgeRampLength / step).rounded(.up))
+        let maxAuto = Int(maxAutoDeckEnd / step)
         let zoneExtension = 14.0
-        func wrap(_ i: Int) -> Int { (i % n + n) % n }
-        func indexGap(_ a: Int, _ b: Int) -> Int { let d = abs(a - b) % n; return min(d, n - d) }
+        let n = path.count
+        let valid = def.bridges.filter { $0.controlPoint >= 0 && $0.controlPoint < controlSamples.count }
 
-        return def.bridges.compactMap { bd in
-            guard bd.controlPoint >= 0, bd.controlPoint < controlSamples.count else { return nil }
+        /// Deck ends of a bridge in samples. The first pass sizes decks to clear the roads
+        /// under them; the second also keeps ramps off roads on the ground, which needs to know
+        /// where the other decks are.
+        func ends(_ bd: BridgeDefinition, raised: [Bool]?) -> (back: Int, fwd: Int, maxed: Bool, blocked: [Vec2], clearance: BridgeClearance) {
             let ci = controlSamples[bd.controlPoint]
-            let center = path[ci]
+            let halfWidth = halfWidths[ci] + curbWidth + bridgeRailing
+            let fixed = BridgeEnd.allCases.map { bd.extent($0).map { max(0, Int(($0 / step).rounded())) } }
+            let longest = Double(max(maxAuto, fixed[0] ?? 0, fixed[1] ?? 0)) * step
+            let clearance = BridgeClearance(path: path, tangents: tangents, halfWidths: halfWidths, centerSample: ci,
+                                            halfWidth: halfWidth, reach: longest, step: step, raised: raised ?? [])
+            var maxed = false
+            var blocked: [Vec2] = []
+            let ks = BridgeEnd.allCases.enumerated().map { e, end -> Int in
+                if let k = fixed[e] {
+                    if raised != nil, let r = clearance.rampBlock(deckEnd: end.sign * k, sign: end.sign) {
+                        blocked.append(path[clearance.sample(end.sign * (k + r))])
+                    }
+                    return k
+                }
+                if let k = clearance.autoEnd(sign: end.sign, limit: maxAuto, checkRamp: raised != nil) { return k }
+                maxed = true
+                return maxAuto
+            }
+            return (ks[0], ks[1], maxed, blocked, clearance)
+        }
+
+        // Road up on a deck, or on the upper half of a ramp: another bridge's ramp can run out
+        // under it.
+        let halfRamp = Int((bridgeRampLength / 2 / step).rounded())
+        var raised = [Bool](repeating: false, count: n)
+        for bd in valid {
+            let e = ends(bd, raised: nil), ci = controlSamples[bd.controlPoint]
+            for k in -(e.back + halfRamp)...(e.fwd + halfRamp) { raised[((ci + k) % n + n) % n] = true }
+        }
+
+        return valid.map { bd in
+            let ci = controlSamples[bd.controlPoint]
             // The upper road keeps the width it has at the crossing across the whole structure.
             let half = halfWidths[ci]
             let halfWidth = half + curbWidth + bridgeRailing
-
-            // Other passes near the crossing: everything far enough along the loop from here,
-            // each with the clearance its own road edge needs.
-            let exclude = maxDeck + rampSamples + 8
-            let lower = (0..<n).filter { indexGap($0, ci) > exclude && (path[$0] - center).length < 420 }
-                .map { (point: path[$0], clearance: halfWidths[$0] + curbWidth + bridgeMargin) }
-
-            // A cross-section of the upper road is clear when no point on it is near another pass.
-            func isClear(_ i: Int) -> Bool {
-                let p = path[i], nrm = tangents[i].perp
-                var l = -halfWidth
-                while l <= halfWidth + 0.01 {
-                    let q = p + nrm * l
-                    if lower.contains(where: { ($0.point - q).lengthSquared < $0.clearance * $0.clearance }) { return false }
-                    l += 2
-                }
-                return true
-            }
-            func deckSamples(dir: Int) -> Int {
-                if let length = bd.length { return Int((length / 2 / step).rounded()) }
-                for k in 0...maxDeck where isClear(wrap(ci + dir * k)) { return k }
-                return maxDeck
-            }
-            let back = deckSamples(dir: -1), fwd = deckSamples(dir: 1)
+            let e = ends(bd, raised: raised)
+            let back = e.back, fwd = e.fwd, reachedMax = e.maxed, blocked = e.blocked, clearance = e.clearance
 
             var minX = Double.infinity, minY = Double.infinity, maxX = -Double.infinity, maxY = -Double.infinity
             for k in -back...fwd {
-                let i = wrap(ci + k)
+                let i = clearance.sample(k)
                 for side in [-1.0, 1.0] {
                     let q = path[i] + tangents[i].perp * (side * halfWidth)
                     minX = min(minX, q.x); maxX = max(maxX, q.x)
@@ -158,7 +311,7 @@ extension Track {
             return Bridge(controlPoint: bd.controlPoint, centerSample: ci, deckStart: -Double(back) * step, deckEnd: Double(fwd) * step,
                           roadHalf: half, halfWidth: halfWidth, railing: bridgeRailing, rampLength: bridgeRampLength,
                           zoneExtension: zoneExtension, upperHalfSpan: Int((reach / step).rounded(.up)),
-                          deckBounds: bounds)
+                          deckBounds: bounds, reachedMaxLength: reachedMax, blockedRamps: blocked)
         }
     }
 
@@ -286,5 +439,52 @@ extension Track {
                 surfaces[c] = .wall
             }
         }
+    }
+}
+
+// MARK: Crossings under bridges
+
+public extension Track {
+    /// Bridge (index into `bridges`) whose deck carries one road of the crossing over the
+    /// other, if any. Long decks can cover several crossings.
+    func bridge(covering x: RoadCrossing) -> Int? {
+        bridges.indices.first { bi in
+            let b = bridges[bi]
+            let l = upperRoadLocal(bridge: b, point: x.point)
+            return l.along > b.deckStart && l.along < b.deckEnd && l.lateral < 6
+        }
+    }
+
+    /// How far one end of bridge `bi` has to reach from its control point to carry its road
+    /// over crossing `x` too: past the road there, with the ramp landing clear of other roads.
+    /// Nil when the crossing isn't on this bridge's road within `maxEnd`, is already on the
+    /// deck, or can't be cleared within `maxEnd`.
+    func extent(toCover x: RoadCrossing, bridge bi: Int, maxEnd: Double) -> (end: BridgeEnd, length: Double)? {
+        guard bridges.indices.contains(bi) else { return nil }
+        let b = bridges[bi]
+        let n = sampleCount, step = length / Double(n)
+        let maxK = min(Int(maxEnd / step), n / 2 - 1)
+        guard maxK > 0 else { return nil }
+        // Where the upper road runs through the crossing.
+        var bestK = 0, bestD = Double.infinity
+        for k in -maxK...maxK {
+            let d = (path[((b.centerSample + k) % n + n) % n] - x.point).lengthSquared
+            if d < bestD { bestD = d; bestK = k }
+        }
+        guard bestD < 36 else { return nil }
+        let along = Double(bestK) * step
+        guard along < b.deckStart || along > b.deckEnd else { return nil }
+        let end: BridgeEnd = bestK < 0 ? .back : .ahead
+        var raised = [Bool](repeating: false, count: n)
+        // Same rule as when the decks were built: roads on other decks and the upper half of
+        // their ramps pass over this one's ramp.
+        for (j, o) in bridges.enumerated() where j != bi {
+            let k0 = Int(((o.deckStart - o.rampLength / 2) / step).rounded()), k1 = Int(((o.deckEnd + o.rampLength / 2) / step).rounded())
+            for k in k0...k1 { raised[((o.centerSample + k) % n + n) % n] = true }
+        }
+        let clearance = BridgeClearance(path: path, tangents: tangents, halfWidths: halfWidths, centerSample: b.centerSample,
+                                        halfWidth: b.halfWidth, reach: Double(maxK) * step, step: step, raised: raised)
+        guard let k = clearance.autoEnd(sign: end.sign, from: abs(bestK), limit: maxK) else { return nil }
+        return (end, Double(k) * step)
     }
 }
