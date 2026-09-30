@@ -166,11 +166,14 @@ public final class Track: @unchecked Sendable {
     }
 
     /// Exact position of `p` relative to a bridge's upper road, for rendering at sub-cell
-    /// resolution. Uses the same nearest-sample projection as the per-cell structure map.
+    /// resolution. Uses the same nearest-sample projection over the same samples as the
+    /// per-cell structure map, so where a deck ends on a bend the inside of the bend is ramp
+    /// in both.
     public func upperRoadLocal(bridge b: Bridge, point p: Vec2) -> (along: Double, lateral: Double) {
         let n = sampleCount
         let step = length / Double(n)
-        let k0 = Int(floor(b.deckStart / step)) - 4, k1 = Int(ceil(b.deckEnd / step)) + 4
+        let range = b.structureRange
+        let k0 = Int(floor(range.lowerBound / step)) - 1, k1 = Int(ceil(range.upperBound / step)) + 1
         var bestK = 0, bestD = Double.infinity
         for k in k0...k1 {
             let d = (p - path[((b.centerSample + k) % n + n) % n]).lengthSquared

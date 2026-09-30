@@ -100,6 +100,8 @@ func editorChecks() -> Int {
         check(false, "legacy JSON decodes")
     }
 
+    extendedBridgeChecks(check)
+
     // Round trip through JSON.
     if let data = try? JSONEncoder().encode(BuiltInTracks.all),
        let back = try? JSONDecoder().decode([TrackDefinition].self, from: data) {
@@ -140,7 +142,89 @@ func widthTestTracks() -> [TrackDefinition] {
         defaultLaps: 4, barrierDistance: 20,
         patches: [Patch(.wall, .capsule(from: Vec2(560, 497), to: Vec2(800, 497), radius: 5))],
         bridges: [BridgeDefinition(controlPoint: 22), BridgeDefinition(controlPoint: 13)])
-    return [hairpin, overpass, overlap]
+    return [hairpin, overpass, overlap, combTrack(gap: 180), stretchedComb()]
+}
+
+/// A straight crossing three legs of a serpentine `gap` apart, with a bridge carrying the
+/// straight over the middle leg. At 180 the legs are close enough that the automatic deck
+/// has to cover all three to keep its ramps off them; at 250 it covers just the middle one.
+func combTrack(gap: Double) -> TrackDefinition {
+    let xs = [470 - gap, 470, 470 + gap]
+    let pts: [(Double, Double)] = [(870, 420), (880, 530), (xs[2], 540), (xs[2], 70), (xs[1], 70), (xs[1], 540),
+                                   (xs[0], 540), (xs[0], 70), (80, 70), (80, 300), (860, 300)]
+    var d = TrackDefinition(id: "comb-\(Int(gap))", name: "Bridge test: straight over a comb \(Int(gap)) apart",
+                            controlPoints: pts.map { Vec2($0.0, $0.1) }, defaultLaps: 3, barrierDistance: 20)
+    // The straight is the segment from point 9 to point 10.
+    if let x = d.crossings().min(by: { $0.point.distance(to: Vec2(470, 300)) < $1.point.distance(to: Vec2(470, 300)) }) {
+        d.addBridge(at: x, over: Int(floor(x.passA)) == 9 ? x.passA : x.passB)
+    }
+    return d
+}
+
+/// The wide comb with its bridge stretched over the outer legs the way the editor does when
+/// you click their crossings.
+func stretchedComb() -> TrackDefinition {
+    var d = combTrack(gap: 250)
+    d.id = "comb-stretched"
+    d.name = "Bridge test: deck stretched over three roads"
+    for x in d.crossings() {
+        let t = Track(definition: d)
+        guard t.bridge(covering: x) == nil, let e = t.extent(toCover: x, bridge: 0, maxEnd: 400) else { continue }
+        d.bridges[0].setExtent((e.length / 2).rounded(.up) * 2, e.end)
+    }
+    return d
+}
+
+/// Deck ends set per end, stretched over several roads, old files and reversing.
+func extendedBridgeChecks(_ check: (Bool, String) -> Void) {
+    // Old files with one symmetric length still load; new ones don't write it.
+    let old = #"{"controlPoint":3,"length":200}"#
+    if let b = try? JSONDecoder().decode(BridgeDefinition.self, from: Data(old.utf8)) {
+        check(b.back == 100 && b.ahead == 100, "legacy bridge length splits over both ends (got \(String(describing: b.back)), \(String(describing: b.ahead)))")
+        let json = (try? JSONEncoder().encode(b)).map { String(decoding: $0, as: UTF8.self) } ?? ""
+        check(!json.contains("length") && json.contains("back"), "bridge encodes its ends: \(json)")
+    } else {
+        check(false, "legacy bridge length decodes")
+    }
+    let auto = #"{"controlPoint":3}"#
+    let a = try? JSONDecoder().decode(BridgeDefinition.self, from: Data(auto.utf8))
+    check(a?.back == nil && a?.ahead == nil, "bridge without lengths is automatic")
+
+    // Reversing the race swaps which end is which.
+    var r = combTrack(gap: 250)
+    r.bridges[0].back = 120
+    r.bridges[0].ahead = 300
+    let spot = r.controlPoints[r.bridges[0].controlPoint]
+    r.reverseDirection()
+    check(r.controlPoints[r.bridges[0].controlPoint] == spot && r.bridges[0].back == 300 && r.bridges[0].ahead == 120,
+          "reverse swaps the deck ends")
+
+    // Close legs: the automatic deck grows over all of them so its ramps land clear.
+    let close = combTrack(gap: 180)
+    let ct = Track(definition: close)
+    let closeCovered = close.crossings().filter { ct.bridge(covering: $0) == 0 }.count
+    check(close.crossings().count == 3 && closeCovered == 3, "automatic deck covers all three close roads (covers \(closeCovered))")
+    check(ct.issues().isEmpty, "close comb has no issues: \(ct.issues().map(\.message))")
+
+    // Wide legs: one road under the automatic deck, then stretched over the other two.
+    let wide = combTrack(gap: 250)
+    let wt = Track(definition: wide)
+    let wideCovered = wide.crossings().filter { wt.bridge(covering: $0) == 0 }.count
+    check(wideCovered == 1, "automatic deck covers only its own road when the others are far (covers \(wideCovered))")
+    let stretched = stretchedComb()
+    let st = Track(definition: stretched)
+    let stretchedCovered = stretched.crossings().filter { st.bridge(covering: $0) == 0 }.count
+    let b = stretched.bridges[0]
+    check(stretchedCovered == 3, "stretched deck covers all three roads (covers \(stretchedCovered), ends \(String(describing: b.back)) / \(String(describing: b.ahead)))")
+    check(st.issues().isEmpty, "stretched comb has no issues: \(st.issues().map(\.message))")
+    print("  comb bridges: close deck \(Int(ct.bridges[0].deckEnd - ct.bridges[0].deckStart)) long, stretched ends "
+          + "\(Int(b.back ?? -1)) / \(Int(b.ahead ?? -1))")
+
+    // A fixed end short of a road leaves its ramp on it, and the editor says so.
+    var short = stretched
+    short.bridges[0].ahead = 200
+    let shortIssues = Track(definition: short).issues().map(\.message)
+    check(shortIssues.contains { $0.hasPrefix("Bridge ramp comes down on another road") }, "short fixed deck warns about its ramp: \(shortIssues)")
 }
 
 /// Drifts one car in circles on a big asphalt pad with a band of sand across it, and checks

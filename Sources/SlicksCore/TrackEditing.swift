@@ -99,7 +99,11 @@ public extension TrackDefinition {
             let oldWidths = pointWidths
             pointWidths = (0..<n).map { oldWidths[(n - $0) % n] }
         }
-        for k in bridges.indices { bridges[k].controlPoint = (n - bridges[k].controlPoint) % n }
+        for k in bridges.indices {
+            bridges[k].controlPoint = (n - bridges[k].controlPoint) % n
+            // The deck's ends trade places with the race direction.
+            (bridges[k].back, bridges[k].ahead) = (bridges[k].ahead, bridges[k].back)
+        }
     }
 
     /// Index a new control point at `p` should be inserted at: on the stretch of road under
@@ -203,6 +207,9 @@ public extension TrackDefinition {
         let other = loopDistance(current, crossing.passA) < loopDistance(current, crossing.passB) ? crossing.passB : crossing.passA
         let c = controlPoint(at: crossing, pass: other)
         bridges[k].controlPoint = c
+        // Fixed deck ends were set for the other road.
+        bridges[k].back = nil
+        bridges[k].ahead = nil
     }
 
     /// Crossing a bridge sits on, if it's on one.
@@ -368,20 +375,61 @@ public extension Track {
             out.append(TrackIssue(message: o.kind.isTree ? "Tree on the road" : "Building on the road", position: o.position))
         }
 
-        let maxDeck = 260.0
         for b in bridges {
             let p = path[b.centerSample]
             let deck = b.deckEnd - b.deckStart
             if deck < 8 {
                 out.append(TrackIssue(message: "Bridge doesn't cross another road", position: p))
-            } else if definition.bridges.first(where: { $0.controlPoint == b.controlPoint })?.length == nil,
-                      deck >= maxDeck - 2 * spacing {
+            } else if b.reachedMaxLength {
                 out.append(TrackIssue(message: "Bridge roads run side by side; cross more steeply", position: p))
             }
+            for q in b.blockedRamps {
+                out.append(TrackIssue(message: "Bridge ramp comes down on another road; make the deck longer", position: q))
+            }
         }
+        out += bridgeOverlaps()
 
         if gridSlots(count: 8).contains(where: { surface(at: $0.position) != .asphalt }) {
             out.append(TrackIssue(message: "Starting grid isn't all on asphalt", position: path[0]))
+        }
+        return out
+    }
+
+    /// Bridges that get in each other's way: two on the same road whose ramps run into each
+    /// other, or decks on different roads crossing (which would need a third level).
+    private func bridgeOverlaps() -> [TrackIssue] {
+        let n = sampleCount
+        guard bridges.count > 1, n > 0 else { return [] }
+        let step = length / Double(n)
+        func wrap(_ i: Int) -> Int { (i % n + n) % n }
+        // Samples of each bridge's upper road: the whole structure, and just the deck.
+        let structure = bridges.map { b -> Set<Int> in
+            let r = b.structureRange
+            return Set((Int(floor(r.lowerBound / step))...Int(ceil(r.upperBound / step))).map { wrap(b.centerSample + $0) })
+        }
+        let decks = bridges.map { b -> [Int] in
+            let k0 = Int(ceil(b.deckStart / step)), k1 = Int(floor(b.deckEnd / step))
+            return k0 <= k1 ? stride(from: k0, through: k1, by: 2).map { wrap(b.centerSample + $0) } : []
+        }
+        var out: [TrackIssue] = []
+        for i in bridges.indices {
+            for j in bridges.indices where j > i {
+                let shared = structure[i].intersection(structure[j])
+                if let s = shared.min() {
+                    out.append(TrackIssue(message: "Bridges run into each other; stretch one deck over both crossings",
+                                          position: path[s]))
+                    continue
+                }
+                let reach = bridges[i].halfWidth + bridges[j].halfWidth - 4
+                var hit: Vec2?
+                search: for a in decks[i] {
+                    for b in decks[j] where path[a].distance(to: path[b]) < reach {
+                        hit = (path[a] + path[b]) * 0.5
+                        break search
+                    }
+                }
+                if let hit { out.append(TrackIssue(message: "Bridge decks cross each other", position: hit)) }
+            }
         }
         return out
     }

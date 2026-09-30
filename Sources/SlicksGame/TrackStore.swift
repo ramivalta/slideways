@@ -102,7 +102,11 @@ public enum EditorLimits {
     public static let roadWidth: ClosedRange<Double> = 40...160
     public static let barrierDistance: ClosedRange<Double> = 2...120
     public static let barrierThickness: ClosedRange<Double> = 3...24
-    public static let bridgeLength: ClosedRange<Double> = 20...500
+    /// How far a fixed deck end reaches from its bridge's control point.
+    public static let bridgeEnd: ClosedRange<Double> = 10...400
+    /// Farthest from an existing bridge's deck end a clicked crossing gets added to it instead
+    /// of getting a bridge of its own.
+    public static let bridgeStretchGap = 260.0
     public static let patchSize: ClosedRange<Double> = 3...960
     public static let maxBridges = 16
     public static let maxPatches = 200

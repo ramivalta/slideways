@@ -200,6 +200,59 @@ public enum DebugHarness {
         }
         step(4) { snap("editor-16-width-test-drive") }
         step { coordinator.returnToEditor() }
+
+        // Extended bridges: a straight crossing three legs 250 apart, bridged over the middle.
+        step {
+            guard let e = editor else { return }
+            let pts: [(Double, Double)] = [(870, 420), (880, 530), (720, 540), (720, 70), (470, 70), (470, 540),
+                                           (220, 540), (220, 70), (80, 70), (80, 300), (860, 300)]
+            var d = TrackDefinition.blank(id: TrackStore.newID(), name: "Comb")
+            d.controlPoints = pts.map { Vec2($0.0, $0.1) }
+            if let x = d.crossings().min(by: { $0.point.distance(to: Vec2(470, 300)) < $1.point.distance(to: Vec2(470, 300)) }) {
+                d.addBridge(at: x, over: Int(floor(x.passA)) == 9 ? x.passA : x.passB)
+            }
+            e.debugLoad(d)
+            e.debugClick("Bridge")
+            e.select(.point(d.bridges[0].controlPoint))
+            log("comb loaded")
+        }
+        step(6) {
+            // Debug builds rebuild the track slowly; give the deck ends time to settle.
+            guard let e = editor else { return }
+            snap("editor-17-comb-bridge")
+            print("editor test: comb covered crossings \(e.debugCoveredCrossings)")
+            // Clicking the next crossing along stretches the bridge over it.
+            e.debugMapClick(Vec2(720, 300))
+            print("editor test: stretch click says \"\(e.debugFlash)\"")
+            log("stretched ahead")
+        }
+        step(6) {
+            // Debug builds rebuild the track slowly; give the deck ends time to settle.
+            guard let e = editor else { return }
+            snap("editor-18-comb-stretched")
+            print("editor test: comb covered crossings \(e.debugCoveredCrossings)")
+            // Drag the start of the deck back over the left leg.
+            guard let h = e.debugDeckHandle(.back) else { return print("editor test: no deck handle") }
+            e.pointerMoved(to: e.toScene(h))
+            e.pointerDown(at: e.toScene(h))
+            e.pointerDragged(to: e.toScene(Vec2(h.x - 60, h.y)))
+            e.pointerDragged(to: e.toScene(Vec2(140, h.y)))
+            snap("editor-19-deck-drag")
+            e.pointerUp(at: e.toScene(Vec2(140, h.y)))
+            log("dragged deck start")
+        }
+        step(6) {
+            // Debug builds rebuild the track slowly; give the deck ends time to settle.
+            guard let e = editor else { return }
+            print("editor test: comb covered crossings \(e.debugCoveredCrossings)")
+            // The left crossing is under the deck now: clicking it explains instead of adding.
+            e.debugMapClick(Vec2(220, 300))
+            print("editor test: covered click says \"\(e.debugFlash)\"")
+            e.debugMapClick(Vec2(470, 300))
+            print("editor test: swap click says \"\(e.debugFlash)\"")
+            snap("editor-20-comb-inspector")
+            log("comb done")
+        }
         step { editor?.debugClick("< Menu"); editor?.debugClick("Discard") }
         step { snap("editor-13-menu") }
         step(0.5) { NSApplication.shared.terminate(nil) }
