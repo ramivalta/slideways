@@ -27,8 +27,10 @@ public struct TrackDefinition: Codable, Sendable, Identifiable, Equatable {
     public var bridges: [BridgeDefinition]
     /// Paint on the ground, drawn in order. No effect on driving.
     public var lines: [PaintLine]
-    /// Trees and buildings.
+    /// Trees, buildings and jump ramps.
     public var objects: [TrackObject]
+    /// Whether cars kick sand out of sand traps and track it onto the road during a race.
+    public var looseSand: Bool
 
     public init(
         id: String,
@@ -46,7 +48,8 @@ public struct TrackDefinition: Codable, Sendable, Identifiable, Equatable {
         patches: [Patch] = [],
         bridges: [BridgeDefinition] = [],
         lines: [PaintLine] = [],
-        objects: [TrackObject] = []
+        objects: [TrackObject] = [],
+        looseSand: Bool = true
     ) {
         self.id = id
         self.name = name
@@ -64,6 +67,7 @@ public struct TrackDefinition: Codable, Sendable, Identifiable, Equatable {
         self.bridges = bridges
         self.lines = lines
         self.objects = objects
+        self.looseSand = looseSand
     }
 
     /// Tracks saved before a field existed still load: missing optional parts get defaults.
@@ -85,6 +89,7 @@ public struct TrackDefinition: Codable, Sendable, Identifiable, Equatable {
         bridges = try c.decodeIfPresent([BridgeDefinition].self, forKey: .bridges) ?? []
         lines = try c.decodeIfPresent([PaintLine].self, forKey: .lines) ?? []
         objects = try c.decodeIfPresent([TrackObject].self, forKey: .objects) ?? []
+        looseSand = try c.decodeIfPresent(Bool.self, forKey: .looseSand) ?? true
     }
 
     /// Road width at a control point.

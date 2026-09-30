@@ -127,5 +127,73 @@ func widthTestTracks() -> [TrackDefinition] {
     for (i, w) in [(7, 104.0), (15, 60), (3, 130), (11, 56)] {
         overpass.setRoadWidth(w, atPoint: i)
     }
-    return [hairpin, overpass]
+    // Reported bug: one bridge's down-ramp runs out under the other bridge's deck, which used
+    // to punch a hole in that deck.
+    let pts: [(Double, Double)] = [
+        (620, 548), (420, 552), (230, 540), (100, 490), (60, 370), (80, 230), (129, 82), (361, 68), (390, 190),
+        (395.33580615411523, 241.89150527704987), (378, 411), (195, 393), (244, 190), (386, 309), (594, 236),
+        (707, 203), (760, 295), (782, 355), (752, 420), (690, 442), (628, 420), (603, 350), (600, 260),
+        (600, 150), (640, 75), (760, 55), (880, 90), (915, 230), (905, 400), (860, 510), (760, 550),
+    ]
+    let overlap = TrackDefinition(
+        id: "overlapping-bridges", name: "Bug: overlapping bridges", controlPoints: pts.map { Vec2($0.0, $0.1) },
+        defaultLaps: 4, barrierDistance: 20,
+        patches: [Patch(.wall, .capsule(from: Vec2(560, 497), to: Vec2(800, 497), radius: 5))],
+        bridges: [BridgeDefinition(controlPoint: 22), BridgeDefinition(controlPoint: 13)])
+    return [hairpin, overpass, overlap]
+}
+
+/// Drifts one car in circles on a big asphalt pad with a band of sand across it, and checks
+/// that sand gets thrown and tracked out onto the asphalt, repeatably.
+func looseSandCheck() -> Int {
+    var problems = 0
+    func check(_ ok: Bool, _ what: String) {
+        if !ok { print("  FAIL: \(what)"); problems += 1 }
+    }
+    let pts = (0..<12).map { k -> Vec2 in
+        let a = Double(k) / 12 * 2 * .pi - .pi / 2
+        return Vec2(480 + 300 * cos(a), 300 + 200 * sin(a))
+    }
+    let band = PatchShape.rect(origin: Vec2(320, 0), size: Vec2(50, 600))
+    let def = TrackDefinition(id: "sandpad", name: "Sandpad", roadWidth: 380, controlPoints: pts, background: .asphalt,
+                              patches: [Patch(.sand, band, coversRoad: true)])
+    let track = Track(definition: def)
+    func run() -> Race {
+        let race = Race(track: track, entrants: [Entrant(name: "P1", colorIndex: 0, playerIndex: 0)], laps: 99, seed: 7)
+        let dt = 1.0 / 120.0
+        while race.phase == .countdown { race.step(dt: dt, humanInputs: []) }
+        // Flat out toward the band, then throw it into a drift across it and keep circling.
+        let car = race.cars[0]
+        car.position = Vec2(200, 300)
+        car.heading = 0
+        car.velocity = Vec2(230, 0)
+        var t = 0.0
+        while t < 8 {
+            race.step(dt: dt, humanInputs: [CarInput(throttle: 1, brake: 0, steer: car.position.x > 290 || t > 0.6 ? 1 : 0)])
+            t += dt
+        }
+        return race
+    }
+    print("== Loose sand")
+    let race = run()
+    guard let sand = race.looseSand else {
+        check(false, "sand pad has a loose sand layer")
+        return problems
+    }
+    let totals = sand.totals()
+    // How far from the band loose sand ended up.
+    var farthest = 0.0
+    for y in 0..<track.height {
+        for x in 0..<track.width where sand.coverage(x: x, y: y) > 0.02 {
+            farthest = max(farthest, band.distance(to: Vec2(Double(x) + 0.5, Double(y) + 0.5)))
+        }
+    }
+    print(String(format: "  drifting through a sand band: %.1f cells of loose sand, %.1f on asphalt, reaching %.0f from the band",
+                 totals.total, totals.onRoad, farthest))
+    check(totals.total > 2, "drifting through sand spreads some")
+    check(farthest > 12, "loose sand travels away from the trap")
+    check(totals.total < 400, "loose sand stays bounded")
+    let again = run()
+    check(again.looseSand?.amount == sand.amount, "loose sand is deterministic")
+    return problems
 }

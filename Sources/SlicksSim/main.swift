@@ -75,6 +75,7 @@ func skidpad() {
 }
 skidpad()
 failures += editorChecks()
+failures += looseSandCheck()
 
 /// Crash test: floor it head-on into a wall like a player would, keep the throttle pinned and
 /// steer left after the hit. The car should drive away forward and turn left, with no lingering
@@ -272,7 +273,19 @@ func kartSheet() {
 }
 kartSheet()
 
-for def in BuiltInTracks.all + widthTestTracks() where onlyTrack == nil || def.id == onlyTrack {
+/// A track JSON file given in place of a track id is raced on its own.
+let fileTrack: TrackDefinition? = onlyTrack.flatMap { path in
+    guard path.hasSuffix(".json") else { return nil }
+    guard let data = FileManager.default.contents(atPath: path),
+          let def = try? JSONDecoder().decode(TrackDefinition.self, from: data) else {
+        print("Can't read track file \(path)")
+        exit(2)
+    }
+    return def
+}
+let simTracks = fileTrack.map { [$0] } ?? (BuiltInTracks.all + widthTestTracks()).filter { onlyTrack == nil || $0.id == onlyTrack }
+
+for def in simTracks {
     let t0 = Date()
     let track = Track(definition: def)
     let buildMs = Date().timeIntervalSince(t0) * 1000
@@ -294,6 +307,29 @@ for def in BuiltInTracks.all + widthTestTracks() where onlyTrack == nil || def.i
                      bi, b.deckEnd - b.deckStart, -b.deckStart, b.deckEnd, b.halfWidth * 2, c.x, c.y, deckSamples))
     }
     if offRoad > 0 { print("  WARN: \(offRoad) centerline samples not drivable"); failures += 1 }
+    // Every cell a deck image covers must count as that deck for physics, or cars fall through.
+    for (bi, b) in track.bridges.enumerated() {
+        let r = b.deckBounds
+        var holes = 0, stolen = 0, first: (Int, Int)?
+        for y in r.minY..<r.maxY {
+            for x in r.minX..<r.maxX {
+                let p = Vec2(Double(x) + 0.5, Double(y) + 0.5)
+                let l = track.upperRoadLocal(bridge: b, point: p)
+                // Stay a cell inside the edges, where both measures agree.
+                guard l.along > b.deckStart + 1, l.along < b.deckEnd - 1, l.lateral < b.driveHalfWidth - 1 else { continue }
+                switch track.deck(x: x, y: y) {
+                case bi?: continue
+                case nil: holes += 1
+                default: stolen += 1
+                }
+                if first == nil { first = (x, y) }
+            }
+        }
+        if holes + stolen > 0 {
+            print("  FAIL: bridge \(bi) deck has \(holes) cells cars fall through and \(stolen) claimed by another bridge, first at \(first!)")
+            failures += 1
+        }
+    }
     let crossings = def.crossings()
     let bridged = crossings.filter { def.bridgeIndex(at: $0) != nil }.count
     print("  editor: \(crossings.count) crossing(s), \(bridged) bridged, issues: \(track.issues().map(\.message))")
@@ -353,6 +389,21 @@ for def in BuiltInTracks.all + widthTestTracks() where onlyTrack == nil || def.i
     }
     let finished = race.cars.filter(\.isFinished).count
     print(String(format: "  race: %d/%d finished in %.1fs sim, impacts %d, max dist from centerline %.0f", finished, race.cars.count, race.time, impacts, maxOff))
+    if let sand = race.looseSand {
+        let t = sand.totals()
+        // Same race without spreading, to see what the loose sand costs in lap time.
+        var still = def
+        still.looseSand = false
+        let calm = Race(track: Track(definition: still), entrants: entrants, laps: def.defaultLaps, seed: 42)
+        while calm.phase != .finished && calm.time < 400 { calm.step(dt: dt, humanInputs: []) }
+        func meanBest(_ r: Race) -> Double {
+            let laps = r.cars.compactMap(\.bestLap)
+            return laps.reduce(0, +) / Double(max(laps.count, 1))
+        }
+        let roadCells = track.surfaces.filter { $0 == .asphalt || $0 == .curb }.count
+        print(String(format: "  loose sand: %.0f cells total, %.0f on the road, %.2f%% of road covered; mean best lap %.2f vs %.2f without",
+                     t.total, t.onRoad, 100 * Double(t.roadCellsCovered) / Double(max(roadCells, 1)), meanBest(race), meanBest(calm)))
+    }
     print(String(format: "  handling: sliding %.0f%% of the time, avg speed %.0f, max slip %.0f",
                  100 * Double(slideSteps) / Double(max(carSteps, 1)), speedSum / Double(max(carSteps, 1)), maxSlip))
     for car in race.standings {
@@ -374,6 +425,17 @@ for def in BuiltInTracks.all + widthTestTracks() where onlyTrack == nil || def.i
     let ctx = CGContext(data: nil, width: track.width, height: track.height, bitsPerComponent: 8, bytesPerRow: 0,
                         space: CGColorSpace(name: CGColorSpace.sRGB)!, bitmapInfo: CGImageAlphaInfo.premultipliedLast.rawValue)!
     ctx.draw(base, in: CGRect(x: 0, y: 0, width: track.width, height: track.height))
+    if let sand = race.looseSand {
+        // Loose sand in bright orange so it's easy to spot.
+        for y in 0..<track.height {
+            for x in 0..<track.width {
+                let a = sand.coverage(x: x, y: y)
+                guard a > 0 else { continue }
+                ctx.setFillColor(CGColor(srgbRed: 1, green: 0.45, blue: 0, alpha: min(1, 0.25 + a)))
+                ctx.fill(CGRect(x: x, y: y, width: 1, height: 1))
+            }
+        }
+    }
     for (i, trail) in trails.enumerated() where i == 0 || i == 7 {
         ctx.setStrokeColor(i == 0 ? CGColor(srgbRed: 1, green: 0, blue: 1, alpha: 0.6) : CGColor(srgbRed: 0, green: 1, blue: 1, alpha: 0.6))
         ctx.setLineWidth(1)

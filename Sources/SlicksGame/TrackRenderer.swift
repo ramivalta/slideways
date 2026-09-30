@@ -108,6 +108,11 @@ public enum TrackRenderer {
                 case .sand:
                     c = pal.sand.scaled(1 + noise * 0.1)
                     if hash01(x / 2, y, 3) > 0.93 { c = c.scaled(0.9) }
+                    // Thin sand at the rim of a pile and loose grains are a touch darker, so
+                    // the ground shows through the edge.
+                    let sandNeighbors = [(1, 0), (-1, 0), (0, 1), (0, -1)]
+                        .filter { track.surface(x: x + $0.0, y: y + $0.1) == .sand }.count
+                    if sandNeighbors < 4 { c = c.scaled(sandNeighbors == 0 ? 0.84 : 0.93) }
                 case .ice:
                     c = RGB(186, 222, 244).scaled(1 + noise * 0.05)
                     if (x + y * 3) % 23 == 0 || hash01(x, y, 11) > 0.97 { c = RGB(236, 246, 255) }

@@ -86,6 +86,9 @@ public final class Car {
     public internal(set) var level = 0
     /// Index of the bridge zone the car is currently in, if any.
     public internal(set) var bridgeZone: Int?
+    /// Sand stuck to the rear tires after driving through a trap, in cells' worth (up to
+    /// `LooseSand.tireCapacity`). Shed onto the road over the next few car lengths.
+    public internal(set) var sandOnTires = 0.0
 
     /// Height above the ground: rising up a ramp or flying off one. See `Jumps`.
     public internal(set) var height = 0.0
@@ -125,7 +128,7 @@ public final class Car {
 
     /// Advances the car's own dynamics: steering, engine, drag and tire grip.
     /// Collisions are resolved separately by the race.
-    func integrate(input: CarInput, track: Track, dt: Double) {
+    func integrate(input: CarInput, track: Track, sand: LooseSand? = nil, dt: Double) {
         lastInput = input
         if isAirborne {
             // Ballistic: the tires have nothing to push on, so the car keeps its heading
@@ -138,8 +141,9 @@ public final class Car {
             position += velocity * dt
             return
         }
-        surface = track.surface(at: position, level: level)
-        let props = surface.properties
+        let ground = LooseSand.surface(track: track, sand: sand, at: position, level: level)
+        surface = ground.surface
+        let props = ground.properties
 
         // Steering scales in with speed so the car can't spin on the spot,
         // and flips when reversing like a real car.

@@ -441,18 +441,21 @@ public final class Track: @unchecked Sendable {
             }
         }
 
-        for patch in def.patches {
+        for (pi, patch) in def.patches.enumerated() {
+            let ragged = patch.surface == .sand ? RaggedEdge(shape: patch.shape, salt: pi &* 7919 &+ 17) : nil
             let b = patch.shape.bounds
+            let grow = ragged.map { Int(ceil($0.reach)) } ?? 0
             // Patches may hang off the map (or lie entirely outside it) while editing.
-            let x0 = max(0, b.minX), x1 = min(w - 1, b.maxX), y0 = max(0, b.minY), y1 = min(h - 1, b.maxY)
+            let x0 = max(0, b.minX - grow), x1 = min(w - 1, b.maxX + grow)
+            let y0 = max(0, b.minY - grow), y1 = min(h - 1, b.maxY + grow)
             guard x0 <= x1, y0 <= y1 else { continue }
             for y in y0...y1 {
                 for x in x0...x1 {
                     let i = y * w + x
                     if !patch.coversRoad && (surfaces[i] == .asphalt || surfaces[i] == .curb) { continue }
-                    if patch.shape.contains(Vec2(Double(x) + 0.5, Double(y) + 0.5)) {
-                        surfaces[i] = patch.surface
-                    }
+                    let p = Vec2(Double(x) + 0.5, Double(y) + 0.5)
+                    let covered = ragged?.covers(p, x: x, y: y) ?? patch.shape.contains(p)
+                    if covered { surfaces[i] = patch.surface }
                 }
             }
         }

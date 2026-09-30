@@ -36,6 +36,8 @@ public final class Race {
     /// Seconds since the green light. Negative during the countdown.
     public private(set) var time: Double = -Race.countdownDuration
     public private(set) var impacts: [ImpactEvent] = []
+    /// Sand kicked out of the traps this race, if the track has sand and allows it to spread.
+    public let looseSand: LooseSand?
 
     private var drivers: [Int: AIDriver] = [:]
     private var firstFinishTime: Double?
@@ -45,6 +47,7 @@ public final class Race {
     public init(track: Track, entrants: [Entrant], laps: Int, seed: UInt64 = 1) {
         self.track = track
         self.laps = max(1, laps)
+        looseSand = track.definition.looseSand && track.surfaces.contains(.sand) ? LooseSand(track: track, seed: seed) : nil
         var rng = SplitMix64(seed: seed)
         let slots = track.gridSlots(count: entrants.count)
         let n = Double(track.sampleCount)
@@ -86,16 +89,17 @@ public final class Race {
             var input = CarInput.none
             if phase != .countdown {
                 if var driver = drivers[car.id] {
-                    input = driver.input(for: car, track: track, dt: dt, elapsed: time)
+                    input = driver.input(for: car, track: track, sand: looseSand, dt: dt, elapsed: time)
                     drivers[car.id] = driver
                 } else if let p = car.playerIndex, p < humanInputs.count {
                     input = humanInputs[p]
                 }
             }
             let before = car.position
-            car.integrate(input: input, track: track, dt: dt)
+            car.integrate(input: input, track: track, sand: looseSand, dt: dt)
             Jumps.update(car, from: before, track: track, dt: dt, events: &impacts)
             updateLevel(car)
+            looseSand?.interact(with: car, dt: dt)
         }
 
         for i in 0..<cars.count {

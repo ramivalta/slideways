@@ -164,11 +164,17 @@ public extension TrackDefinition {
     }
 
     /// Bridge (index into `bridges`) sitting on a crossing, if any.
-    func bridgeIndex(at crossing: RoadCrossing, tolerance: Double = 24) -> Int? {
+    func bridgeIndex(at crossing: RoadCrossing) -> Int? {
         bridges.indices.first { k in
             let c = bridges[k].controlPoint
-            return controlPoints.indices.contains(c) && controlPoints[c].distance(to: crossing.point) < tolerance
+            return controlPoints.indices.contains(c) && controlPoints[c].distance(to: crossing.point) < bridgeReach(atPoint: c)
         }
+    }
+
+    /// How far a bridge's control point can sit from the crossing it spans. The deck sizes
+    /// itself to the road below, so anywhere within about half the road width works.
+    func bridgeReach(atPoint c: Int) -> Double {
+        max(24, roadWidth(atPoint: c) * 0.5)
     }
 
     /// Control point on the given pass at the crossing, inserting one exactly at the crossing
@@ -202,12 +208,61 @@ public extension TrackDefinition {
     /// Crossing a bridge sits on, if it's on one.
     func crossing(forBridge k: Int, in list: [RoadCrossing]) -> RoadCrossing? {
         guard bridges.indices.contains(k), controlPoints.indices.contains(bridges[k].controlPoint) else { return nil }
-        let p = controlPoints[bridges[k].controlPoint]
-        return list.filter { $0.point.distance(to: p) < 24 }.min { $0.point.distance(to: p) < $1.point.distance(to: p) }
+        let c = bridges[k].controlPoint, p = controlPoints[c], reach = bridgeReach(atPoint: c)
+        return list.filter { $0.point.distance(to: p) < reach }.min { $0.point.distance(to: p) < $1.point.distance(to: p) }
     }
 }
 
 // MARK: Patch shapes
+
+/// The outline of a sand patch as if it had been tipped out of a shovel: the drawn shape's edge
+/// pushed in and out by noise, with loose grains scattered just past it. The noise is sampled
+/// relative to the patch's center, so the look moves with the patch.
+public struct RaggedEdge: Sendable {
+    public let shape: PatchShape
+    let salt: Int
+    /// How far the edge wanders in or out of the drawn shape.
+    let amplitude: Double
+    /// Size of the edge's bumps.
+    let featureSize: Double
+    /// How far loose grains land past the edge.
+    let spill: Double
+
+    public init(shape: PatchShape, salt: Int) {
+        self.shape = shape
+        self.salt = salt
+        // Thinner patches get a gentler edge so they don't break apart.
+        let extent: Double
+        switch shape {
+        case let .circle(_, r): extent = r
+        case let .rect(_, s): extent = min(s.x, s.y) / 2
+        case let .capsule(_, _, r): extent = r
+        }
+        amplitude = clamp(extent * 0.22, 1.5, 9)
+        featureSize = clamp(extent * 0.45, 6, 18)
+        spill = 2 + amplitude * 0.8
+    }
+
+    /// Farthest a covered cell can be outside the drawn shape.
+    public var reach: Double { amplitude * 1.3 + spill + 1 }
+
+    /// Signed offset of the edge at `p`: positive pushes it outward.
+    func edgeOffset(at p: Vec2) -> Double {
+        (fractalNoise(p - shape.center, scale: featureSize, salt: salt) - 0.5) * 2.6 * amplitude
+    }
+
+    public func covers(_ p: Vec2, x: Int, y: Int) -> Bool {
+        let d = shape.distance(to: p)
+        guard d > -amplitude * 1.3 else { return true }
+        guard d < reach else { return false }
+        let past = d - edgeOffset(at: p)
+        if past <= 0 { return true }
+        guard past < spill else { return false }
+        // Grains thin out quickly away from the pile.
+        let t = 1 - past / spill
+        return hash01(x, y, salt &+ 7) < 0.45 * t * t
+    }
+}
 
 public enum PatchShapeKind: String, CaseIterable, Sendable {
     case circle, rect, capsule

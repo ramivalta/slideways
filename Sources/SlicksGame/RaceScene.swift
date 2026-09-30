@@ -9,7 +9,9 @@ final class RaceScene: GameScene {
     /// Draw order. Cars on a bridge deck render above it, cars below render under it.
     private enum Z {
         static let ground: CGFloat = 0
-        static let ramps: CGFloat = 0.5
+        static let looseSand: CGFloat = 0.5
+        /// Ramps stand on the ground, over any sand spilled around them.
+        static let ramps: CGFloat = 0.6
         static let skids: CGFloat = 1
         static let carShadow: CGFloat = 2
         static let car: CGFloat = 3
@@ -33,6 +35,7 @@ final class RaceScene: GameScene {
 
     private let world = SKNode()
     private let skids = SkidMarks()
+    private var looseSandLayer: LooseSandLayer?
     private let deckSkids = SkidMarks()
     private var carNodes: [SKSpriteNode] = []
     private var shadowNodes: [SKSpriteNode] = []
@@ -78,6 +81,13 @@ final class RaceScene: GameScene {
         ground.size = CGSize(width: track.width, height: track.height)
         ground.zPosition = 0
         world.addChild(ground)
+
+        if race.looseSand != nil {
+            let layer = LooseSandLayer(width: track.width, height: track.height, theme: track.definition.theme)
+            layer.zPosition = Z.looseSand
+            world.addChild(layer)
+            looseSandLayer = layer
+        }
 
         let worldSize = CGSize(width: track.width, height: track.height)
         skids.configure(worldSize: worldSize)
@@ -184,6 +194,7 @@ final class RaceScene: GameScene {
         for effect in sound.effects { SoundSystem.shared.play(effect) }
 
         syncCars()
+        if let sand = race.looseSand { looseSandLayer?.update(from: sand) }
         updateSkids()
         updateHUD()
         updateCountdown()
