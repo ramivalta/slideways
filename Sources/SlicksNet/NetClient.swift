@@ -25,6 +25,7 @@ public final class NetClient {
     public var onLobby: ((LobbyInfo) -> Void)?
     public var onStart: ((_ raceID: UInt32, _ setup: RaceSetup, _ slots: [Int]) -> Void)?
     public var onSnapshot: ((_ raceID: UInt32, _ ack: UInt32, _ state: [UInt8]) -> Void)?
+    public var onSand: ((_ raceID: UInt32, _ delta: [UInt8]) -> Void)?
     public var onRaceEnded: ((_ raceID: UInt32) -> Void)?
     /// Refused, disconnected, or never got through. The reason is shown to the player.
     public var onClose: ((String) -> Void)?
@@ -209,6 +210,8 @@ public final class NetClient {
             onStart?(raceID, setup, slots)
         case let .snapshot(raceID, ack, state):
             onSnapshot?(raceID, ack, state)
+        case let .sand(raceID, delta):
+            onSand?(raceID, delta)
         case let .endRace(raceID):
             onRaceEnded?(raceID)
         default:

@@ -219,7 +219,8 @@ public final class Car {
             pathIndex: pathIndex, progress: progress, lapsCompleted: lapsCompleted, lapTimes: lapTimes,
             lastLapMark: lastLapMark, finishTime: finishTime, slip: slip, isBraking: isBraking,
             isWheelspinning: isWheelspinning, inReverse: inReverse, surface: surface, wallHits: wallHits,
-            lastInput: lastInput, level: level, bridgeZone: bridgeZone
+            lastInput: lastInput, level: level, bridgeZone: bridgeZone,
+            height: height, verticalSpeed: verticalSpeed, isAirborne: isAirborne, sandOnTires: sandOnTires, jumps: jumps
         )
     }
 
@@ -245,6 +246,11 @@ public final class Car {
         lastInput = s.lastInput
         level = s.level
         bridgeZone = s.bridgeZone
+        height = s.height
+        verticalSpeed = s.verticalSpeed
+        isAirborne = s.isAirborne
+        sandOnTires = s.sandOnTires
+        jumps = s.jumps
     }
 
     /// Applies an impulse at a world-space offset from the car center (unit mass).

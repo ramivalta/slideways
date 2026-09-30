@@ -94,6 +94,8 @@ public final class HostRaceController: RaceController {
         self.host = host
         self.localSlots = localSlots
         remoteSlots = race.cars.compactMap(\.playerIndex).filter { !localSlots.contains($0) }
+        // Record sand changes so they can be sent to players.
+        race.looseSand?.keepsJournal = true
     }
 
     public var isFinished: Bool { race.phase == .finished }
@@ -130,9 +132,27 @@ public final class HostRaceController: RaceController {
         return race.drainImpacts()
     }
 
+    private var lastSandRNG: UInt64?
+
     private func sendSnapshot() {
+        // Sand first, so a player normally has the matching grid when the snapshot lands.
+        if let sand = race.looseSand {
+            let changed = sand.drainJournal()
+            if !changed.isEmpty || sand.rngState != lastSandRNG {
+                lastSandRNG = sand.rngState
+                let cells = changed.sorted().map { (index: $0, value: sand.amount[$0]) }
+                var start = 0
+                repeat {
+                    let chunk = Array(cells[start..<min(start + SandDelta.maxCells, cells.count)])
+                    var w = ByteWriter(capacity: 16 + chunk.count * 5)
+                    SandDelta(tick: race.tick, rngState: sand.rngState, cells: chunk).write(to: &w)
+                    host.sendSand(w.bytes)
+                    start += SandDelta.maxCells
+                } while start < cells.count
+            }
+        }
         var w = ByteWriter(capacity: 1600)
-        race.snapshot().write(to: &w)
+        race.snapshot(includingSand: false).write(to: &w)
         host.sendSnapshot(w.bytes)
         ticksSinceSnapshot = 0
         sinceFinishedSend = 0
@@ -180,6 +200,46 @@ public final class ClientRaceController: RaceController {
         self.localSlots = localSlots
         self.send = send
         offsets = Array(repeating: (.zero, 0), count: race.cars.count)
+        if let sand = race.looseSand {
+            // Track what prediction does to the sand so each correction can undo it.
+            sand.keepsJournal = true
+            hostSand = sand.amount
+            hostSandRNG = sand.rngState
+        }
+    }
+
+    // The host's loose sand, built from its deltas. Before replaying on top of a snapshot,
+    // every cell prediction touched (or the host changed) is set back to this.
+    private var hostSand: [Float]?
+    private var hostSandRNG: UInt64 = 0
+    private var hostSandChanged: Set<Int> = []
+
+    /// Applies loose sand changes from the host (they arrive reliably, in order).
+    public func receiveSand(_ bytes: [UInt8]) {
+        guard var grid = hostSand else { return }
+        var reader = ByteReader(bytes)
+        do {
+            let delta = try SandDelta(reading: &reader, cellCount: grid.count)
+            hostSand = nil // Avoid a copy while editing.
+            for c in delta.cells {
+                grid[c.index] = c.value
+                hostSandChanged.insert(c.index)
+            }
+            hostSand = grid
+            hostSandRNG = delta.rngState
+        } catch {
+            hostSand = grid
+            self.error = "the host sent loose sand this game can't use (\(error))"
+        }
+    }
+
+    /// Makes the race's sand the host's again: undoes prediction's changes and takes the host's.
+    private func resetSand() {
+        guard let sand = race.looseSand, let grid = hostSand else { return }
+        var cells = hostSandChanged
+        cells.formUnion(sand.drainJournal())
+        hostSandChanged.removeAll(keepingCapacity: true)
+        sand.apply(cells: cells.map { (index: $0, value: grid[$0]) }, rngState: hostSandRNG)
     }
 
     public convenience init(race: Race, raceID: UInt32, localSlots: [Int], client: NetClient) {
@@ -242,6 +302,7 @@ public final class ClientRaceController: RaceController {
         let drawn = race.cars.map { ($0.position + offsets[$0.id].position, $0.heading + offsets[$0.id].heading) }
 
         race.restore(snapshot)
+        resetSand()
         authoritativePhase = snapshot.phase
         snapshotsApplied += 1
         for car in race.cars {

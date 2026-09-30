@@ -324,6 +324,14 @@ public final class NetHost {
         return id
     }
 
+    /// Sends loose sand changes (an encoded `SandDelta`) to everyone in the race.
+    public func sendSand(_ delta: [UInt8]) {
+        guard let raceID else { return }
+        for c in clients where !c.slots.isEmpty {
+            c.peer.send(.sand(raceID: raceID, delta: delta))
+        }
+    }
+
     /// Sends race state to every client, each with its own input acknowledgement.
     public func sendSnapshot(_ state: [UInt8]) {
         guard let raceID else { return }

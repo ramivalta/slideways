@@ -48,6 +48,12 @@ public struct CarState: Codable, Sendable, Equatable {
     public var lastInput: CarInput
     public var level: Int
     public var bridgeZone: Int?
+    // Jumps and loose sand.
+    public var height: Double
+    public var verticalSpeed: Double
+    public var isAirborne: Bool
+    public var sandOnTires: Double
+    public var jumps: Int
 }
 
 /// A complete copy of a race's changing state at one tick. Restoring it into a race built
@@ -62,6 +68,13 @@ public struct RaceSnapshot: Codable, Sendable, Equatable {
     var firstFinishTime: Double?
     var allHumansDoneAt: Double?
     var finishCounter: Int
+    /// Fingerprint of the loose sand (checksum and RNG), when the track has it. Always
+    /// present, even when the sand itself isn't, so hashes cover it cheaply.
+    public var sandChecksum: UInt64?
+    public var sandRNG: UInt64?
+    /// The loose sand itself. Left out of snapshots sent over the network (the sand has its
+    /// own change stream) and when only a hash is wanted; `restore` then keeps the race's sand.
+    public var sand: LooseSand.State?
 
     /// 64-bit FNV-1a over the exact bit patterns of the state. Peers compare these per tick to
     /// catch desyncs; it doesn't depend on dictionary order or the Swift hash seed.
@@ -85,7 +98,10 @@ public struct RaceSnapshot: Codable, Sendable, Equatable {
             h.add(Int(c.surface.rawValue)); h.add(c.wallHits)
             h.add(c.lastInput.throttle); h.add(c.lastInput.brake); h.add(c.lastInput.steer)
             h.add(c.level); h.add(c.bridgeZone ?? -1)
+            h.add(c.height); h.add(c.verticalSpeed); h.add(c.isAirborne); h.add(c.sandOnTires); h.add(c.jumps)
         }
+        h.add(sandChecksum ?? 0)
+        h.add(sandRNG ?? 0)
         for id in drivers.keys.sorted() {
             let d = drivers[id]!
             h.add(id)

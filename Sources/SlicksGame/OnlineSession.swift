@@ -89,6 +89,10 @@ final class OnlineSession {
             guard let race = session?.clientRace, race.raceID == id else { return }
             race.receive(ack: ack, state: state)
         }
+        client.onSand = { [weak session] id, delta in
+            guard let race = session?.clientRace, race.raceID == id else { return }
+            race.receiveSand(delta)
+        }
         client.onRaceEnded = { [weak session] id in
             guard let session, session.clientRace?.raceID == id else { return }
             session.clientRace = nil
@@ -331,6 +335,15 @@ enum OnlineRules {
         guard d.bridges.count <= EditorLimits.maxBridges,
               d.bridges.allSatisfy({ pts.indices.contains($0.controlPoint) && ($0.length.map { $0.isFinite && (0...2000).contains($0) } ?? true) })
         else { return "bad bridge" }
+        func onMap(_ p: Vec2) -> Bool { p.x.isFinite && p.y.isFinite && abs(p.x) < 10_000 && abs(p.y) < 10_000 }
+        guard d.lines.count <= EditorLimits.maxLines * 2,
+              d.lines.allSatisfy({ $0.points.count <= EditorLimits.maxLinePoints * 2 && $0.points.allSatisfy(onMap)
+                  && $0.width.isFinite && (0...100).contains($0.width) })
+        else { return "bad paint lines" }
+        guard d.objects.count <= EditorLimits.maxObjects * 2,
+              d.objects.allSatisfy({ onMap($0.position) && $0.angle.isFinite
+                  && [$0.size.x, $0.size.y].allSatisfy { $0.isFinite && (0...1000).contains($0) } })
+        else { return "bad track objects" }
         return nil
     }
 }

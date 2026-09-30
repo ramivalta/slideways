@@ -10,6 +10,15 @@ private func scriptedInputs(tick: Int, slots: Int) -> [CarInput] {
     }
 }
 
+/// Riverside Park (it has a jump ramp) with a sand trap across the road, so every car jumps
+/// and drags sand around: both have to stay in sync.
+func sandyRiverside() -> TrackDefinition {
+    var def = BuiltInTracks.all.first { $0.id == "riverside-park" }!
+    def.id = "riverside-sandy"
+    def.patches.append(Patch(.sand, .circle(center: def.controlPoints[3], radius: 34), coversRoad: true))
+    return def
+}
+
 /// 1-based position of the first tick where two hash runs differ.
 private func firstDivergence(_ a: [UInt64], _ b: [UInt64]) -> Int {
     (Array(zip(a, b)).firstIndex { $0 != $1 } ?? min(a.count, b.count)) + 1
@@ -39,7 +48,7 @@ func netChecks() -> Int {
     settings.humanPlayers = 2
     settings.aiOpponents = 6
     settings.laps = 2
-    let def = BuiltInTracks.all.first { $0.id == "twin-bridges" }!
+    let def = sandyRiverside()
     let setup = settings.raceSetup(track: def, seed: 0xC0FFEE)
     check(setup.inputSlotCount == 2, "two humans need two input slots (got \(setup.inputSlotCount))")
 
@@ -70,10 +79,13 @@ func netChecks() -> Int {
     let original = run(race, setup: setup, limit: .max)
     check(race.phase == .finished, "scripted race never finished")
 
+    let finalSand = race.looseSand?.amount
     race.restore(snap)
     check(race.stateHash == snap.stateHash, "restore doesn't reproduce the snapshot")
+    check(race.looseSand?.amount == snap.sand?.amount, "restore doesn't put the loose sand back")
     let rewound = run(race, setup: setup, limit: .max)
     check(rewound == original, "replay after restore diverges at tick \(900 + firstDivergence(original, rewound))")
+    check(race.looseSand?.amount == finalSand, "loose sand differs after the replay")
 
     let decoded = try! JSONDecoder().decode(RaceSnapshot.self, from: JSONEncoder().encode(snap))
     check(decoded == snap, "snapshot changes when encoded and decoded")
@@ -83,7 +95,11 @@ func netChecks() -> Int {
     check(resumed == original, "fresh race resumed from a snapshot diverges")
 
     let finishers = race.cars.filter(\.isFinished).count
-    print("  \(a.count) ticks in lockstep, replayed \(original.count) ticks from tick 900, \(finishers)/\(race.cars.count) finished, snapshot \(try! JSONEncoder().encode(snap).count) bytes JSON")
+    let sandCells = finalSand?.filter { $0 > 0 }.count ?? 0
+    let jumps = race.cars.reduce(0) { $0 + $1.jumps }
+    check(sandCells > 0, "no loose sand moved, so sand replay went untested")
+    let wireSize = try! JSONEncoder().encode(race.snapshot(includingSand: false)).count
+    print("  \(a.count) ticks in lockstep, replayed \(original.count) ticks from tick 900, \(finishers)/\(race.cars.count) finished, \(jumps) jumps, \(sandCells) sand cells, snapshot \(wireSize) bytes JSON without sand")
     if problems == 0 { print("  online foundations OK") }
     return problems
 }

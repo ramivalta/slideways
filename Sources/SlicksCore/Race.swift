@@ -222,10 +222,15 @@ public final class Race {
 
     // MARK: Snapshots
 
-    public func snapshot() -> RaceSnapshot {
+    /// - Parameter includingSand: copy the loose sand grid too. Taking it is cheap, but the
+    ///   race's next change to the sand then copies the whole grid (2.3 MB), so leave it out
+    ///   when the snapshot is only for hashing or the network.
+    public func snapshot(includingSand: Bool = true) -> RaceSnapshot {
         RaceSnapshot(
             tick: tick, phase: phase, time: time, cars: cars.map(\.state), drivers: drivers,
-            firstFinishTime: firstFinishTime, allHumansDoneAt: allHumansDoneAt, finishCounter: finishCounter
+            firstFinishTime: firstFinishTime, allHumansDoneAt: allHumansDoneAt, finishCounter: finishCounter,
+            sandChecksum: looseSand?.checksum, sandRNG: looseSand?.rngState,
+            sand: includingSand ? looseSand?.state : nil
         )
     }
 
@@ -241,9 +246,10 @@ public final class Race {
         firstFinishTime = s.firstFinishTime
         allHumansDoneAt = s.allHumansDoneAt
         finishCounter = s.finishCounter
+        if let sand = s.sand { looseSand?.restore(sand) }
         impacts.removeAll(keepingCapacity: true)
     }
 
     /// Hash of the current state. Two machines running in sync get the same value every tick.
-    public var stateHash: UInt64 { snapshot().stateHash }
+    public var stateHash: UInt64 { snapshot(includingSand: false).stateHash }
 }

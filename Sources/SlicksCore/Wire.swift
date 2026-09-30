@@ -52,7 +52,9 @@ extension RaceSnapshot {
             w.f64(c.lastLapMark)
             w.optionalF64(c.finishTime)
             w.f64(c.slip)
-            w.u8((c.isBraking ? 1 : 0) | (c.isWheelspinning ? 2 : 0) | (c.inReverse ? 4 : 0))
+            w.u8((c.isBraking ? 1 : 0) | (c.isWheelspinning ? 2 : 0) | (c.inReverse ? 4 : 0) | (c.isAirborne ? 8 : 0))
+            w.f64(c.height); w.f64(c.verticalSpeed); w.f64(c.sandOnTires)
+            w.u16(UInt16(clamping: c.jumps))
             w.u8(c.surface.rawValue)
             w.u16(UInt16(clamping: c.wallHits))
             // Full precision: AI steering isn't quantized, and clients predict with these.
@@ -67,6 +69,12 @@ extension RaceSnapshot {
             w.u8(UInt8(clamping: id))
             w.f64(d.skill); w.f64(d.lane)
             w.f64(d.stuckTime); w.f64(d.reverseTime); w.f64(d.reverseSteer); w.f64(d.laneDrift)
+        }
+        // The sand grid travels separately (see `SandDelta`); only its fingerprint goes here.
+        w.bool(sandChecksum != nil)
+        if let sandChecksum, let sandRNG {
+            w.u64(sandChecksum)
+            w.u64(sandRNG)
         }
     }
 
@@ -102,6 +110,10 @@ extension RaceSnapshot {
             let finishTime = try r.optionalFinite()
             let slip = try r.finite()
             let flags = try r.u8()
+            let height = try r.finite(), verticalSpeed = try r.finite()
+            let sandOnTires = clamp(try r.finite(), 0, LooseSand.tireCapacity)
+            let jumps = Int(try r.u16())
+            guard abs(height) < 10_000, abs(verticalSpeed) < 100_000 else { throw invalid("height") }
             guard let surface = Surface(rawValue: try r.u8()) else { throw invalid("surface") }
             let wallHits = Int(try r.u16())
             let lastInput = CarInput(throttle: clamp(try r.finite(), 0, 1), brake: clamp(try r.finite(), 0, 1),
@@ -116,7 +128,8 @@ extension RaceSnapshot {
                 lapsCompleted: lapsCompleted, lapTimes: lapTimes, lastLapMark: lastLapMark,
                 finishTime: finishTime, slip: slip, isBraking: flags & 1 != 0, isWheelspinning: flags & 2 != 0,
                 inReverse: flags & 4 != 0, surface: surface, wallHits: wallHits, lastInput: lastInput,
-                level: level, bridgeZone: zone < 0 ? nil : zone
+                level: level, bridgeZone: zone < 0 ? nil : zone,
+                height: height, verticalSpeed: verticalSpeed, isAirborne: flags & 8 != 0, sandOnTires: sandOnTires, jumps: jumps
             ))
         }
         self.cars = cars
@@ -133,5 +146,87 @@ extension RaceSnapshot {
             drivers[id] = d
         }
         self.drivers = drivers
+        if try r.bool() {
+            guard race.looseSand != nil else { throw invalid("sand on a track without it") }
+            sandChecksum = try r.u64()
+            sandRNG = try r.u64()
+        } else {
+            sandChecksum = nil
+            sandRNG = nil
+        }
+        sand = nil
+    }
+}
+
+// MARK: Loose sand
+
+/// Loose sand cells that changed on the host since its last delta, with the sand's RNG.
+/// Deltas go reliably and in order, so a player applying them all has the host's grid.
+public struct SandDelta: Equatable, Sendable {
+    public var tick: Int
+    public var rngState: UInt64
+    /// Ascending cell indices with their new amounts (exact, so machines stay bit-identical).
+    public var cells: [(index: Int, value: Float)]
+
+    public init(tick: Int, rngState: UInt64, cells: [(index: Int, value: Float)]) {
+        self.tick = tick
+        self.rngState = rngState
+        self.cells = cells.sorted { $0.index < $1.index }
+    }
+
+    public static func == (a: SandDelta, b: SandDelta) -> Bool {
+        a.tick == b.tick && a.rngState == b.rngState && a.cells.count == b.cells.count
+            && zip(a.cells, b.cells).allSatisfy { $0.index == $1.index && $0.value.bitPattern == $1.value.bitPattern }
+    }
+
+    /// Most cells in one message; a bigger change is split (about 700 KB each at worst).
+    public static let maxCells = 120_000
+
+    /// Index gaps as varints (neighbouring cells change together, so gaps are small), then
+    /// the raw float bits: about 5 bytes a cell.
+    public func write(to w: inout ByteWriter) {
+        w.u32(UInt32(clamping: tick))
+        w.u64(rngState)
+        w.u32(UInt32(cells.count))
+        var previous = -1
+        for c in cells {
+            var gap = UInt64(c.index - previous - 1)
+            previous = c.index
+            repeat {
+                let byte = UInt8(gap & 0x7F)
+                gap >>= 7
+                w.u8(gap == 0 ? byte : byte | 0x80)
+            } while gap != 0
+            w.u32(c.value.bitPattern)
+        }
+    }
+
+    /// - Parameter cellCount: cells in the receiving race's grid; anything outside is rejected.
+    public init(reading r: inout ByteReader, cellCount: Int) throws {
+        tick = Int(try r.u32())
+        rngState = try r.u64()
+        let n = Int(try r.u32())
+        guard n <= Self.maxCells, n <= cellCount else { throw WireError.invalid("sand cell count") }
+        var cells: [(index: Int, value: Float)] = []
+        cells.reserveCapacity(n)
+        var previous = -1
+        for _ in 0..<n {
+            var gap: UInt64 = 0
+            var shift: UInt64 = 0
+            while true {
+                let b = try r.u8()
+                gap |= UInt64(b & 0x7F) << shift
+                if b & 0x80 == 0 { break }
+                shift += 7
+                guard shift < 35 else { throw WireError.invalid("sand index") }
+            }
+            let index = previous + 1 + Int(gap)
+            guard index < cellCount else { throw WireError.invalid("sand index") }
+            let value = Float(bitPattern: try r.u32())
+            guard value.isFinite, value >= 0, value <= 1 else { throw WireError.invalid("sand amount") }
+            cells.append((index, value))
+            previous = index
+        }
+        self.cells = cells
     }
 }

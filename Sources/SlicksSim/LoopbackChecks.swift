@@ -30,6 +30,8 @@ private final class TestClient {
     var setup: RaceSetup?
     var endedRace: UInt32?
     var snapshots = 0
+    var sandDeltas = 0
+    var sandBytes = 0
     var bot = AIDriver(skill: 0.7, lane: 0)
 
     init(_ target: NetClient.Target, name: String, secret: String, localPlayers: Int = 1, relay: String? = nil,
@@ -47,6 +49,11 @@ private final class TestClient {
             snapshots += 1
             if id == controller?.raceID { controller?.receive(ack: ack, state: state) }
         }
+        client.onSand = { [unowned self] id, delta in
+            sandDeltas += 1
+            sandBytes += delta.count
+            if id == controller?.raceID { controller?.receiveSand(delta) }
+        }
         client.onRaceEnded = { [unowned self] in endedRace = $0 }
         client.connect()
         client.networkConditions = conditions
@@ -60,7 +67,8 @@ private final class TestClient {
     func advance(_ dt: Double) {
         guard let c = controller, let slot = c.localSlots.first,
               let car = c.race.cars.first(where: { $0.playerIndex == slot }) else { return }
-        let input = c.race.phase == .racing ? bot.input(for: car, track: c.race.track, dt: dt, elapsed: c.race.time) : .none
+        let input = c.race.phase == .racing
+            ? bot.input(for: car, track: c.race.track, sand: c.race.looseSand, dt: dt, elapsed: c.race.time) : .none
         _ = c.advance(frameDt: dt, localInputs: [input])
     }
 }
@@ -153,7 +161,8 @@ func loopbackChecks() -> Int {
         for _ in 0..<1500 { race.step(dt: Race.tickDuration, humanInputs: [CarInput(throttle: 1, brake: 0, steer: 0.2), .none]) }
         race.handOverToAI(carID: race.cars.first { $0.playerIndex == 1 }!.id)
         for _ in 0..<10 { race.step(dt: Race.tickDuration, humanInputs: [.none, .none]) }
-        let snap = race.snapshot()
+        // The sand grid has its own stream; the wire snapshot carries only its fingerprint.
+        let snap = race.snapshot(includingSand: false)
         var w = ByteWriter()
         snap.write(to: &w)
         var r = ByteReader(w.bytes)
@@ -247,7 +256,8 @@ func loopbackChecks() -> Int {
     host.networkConditions = bad
     alice.client.networkConditions = bad
     bob.client.networkConditions = bad
-    let setup = RaceSettingsLite(humans: 3, ai: 4).setup(trackID: "frozen-lake", seed: 21)
+    // A jump ramp and sand across the road, so heights and loose sand get synced too.
+    let setup = RaceSettingsLite(humans: 3, ai: 4).setup(track: sandyRiverside(), seed: 21)
     let track = Track(definition: setup.track)
     let hostRace = Race(setup: setup, track: track)
     let aliceID = host.clients.first { $0.name == "Alice" }!.id
@@ -267,7 +277,8 @@ func loopbackChecks() -> Int {
     let started = Date()
     while !(alice.controller?.isFinished ?? true) && ticks < 200 * Race.tickRate {
         let hostCar = hostRace.cars.first { $0.playerIndex == 0 }!
-        let input = hostRace.phase == .racing ? hostBot.input(for: hostCar, track: track, dt: dt, elapsed: hostRace.time) : .none
+        let input = hostRace.phase == .racing
+            ? hostBot.input(for: hostCar, track: track, sand: hostRace.looseSand, dt: dt, elapsed: hostRace.time) : .none
         _ = hostCtl.advance(frameDt: dt, localInputs: [input])
         if bobHandoverTime == nil, hostRace.isComputerDriven(bobCar) { bobHandoverTime = hostRace.time }
         alice.advance(dt)
@@ -279,6 +290,15 @@ func loopbackChecks() -> Int {
         // Real time runs about 4x faster than the race here, so the network's delays count for more.
         pump(0.002)
         ticks += 1
+    }
+    // Keep both ends going briefly, as the results screen does: the last sand changes may
+    // still be being resent over the lossy network, and the host keeps resending its final
+    // state, which settles the client onto it.
+    let settle = Date(timeIntervalSinceNow: 1.5)
+    while Date() < settle {
+        _ = hostCtl.advance(frameDt: dt, localInputs: [.none])
+        alice.advance(dt)
+        pump(0.004)
     }
     if let c = alice.controller {
         let aliceRace = c.race
@@ -293,8 +313,14 @@ func loopbackChecks() -> Int {
         check(aliceRace.isComputerDriven(aliceRace.cars[bobCar.id]), "client doesn't know the car is AI-driven now")
         check(aliceRace.stateHash == hostRace.stateHash, "client's final state differs from the host's")
         check(aliceRace.standings.map(\.id) == hostRace.standings.map(\.id), "client and host disagree on the results")
-        print(String(format: "   lossy race: %d frames in %.1fs, %d snapshots applied, results %@", ticks, Date().timeIntervalSince(started),
-                     c.snapshotsApplied, hostRace.standings.map(\.name).joined(separator: ", ")))
+        // The whole sand grid, cell for cell, not just its checksum.
+        check(aliceRace.looseSand?.amount == hostRace.looseSand?.amount, "client's loose sand differs from the host's")
+        let sandCells = hostRace.looseSand?.amount.filter { $0 > 0 }.count ?? 0
+        let jumps = hostRace.cars.reduce(0) { $0 + $1.jumps }
+        check(sandCells > 0, "no loose sand moved, so sand sync went untested")
+        print(String(format: "   lossy race: %d frames in %.1fs, %d snapshots applied, %d jumps, %d sand cells (%d deltas, %d KB), results %@",
+                     ticks, Date().timeIntervalSince(started), c.snapshotsApplied, jumps, sandCells, alice.sandDeltas,
+                     alice.sandBytes / 1024, hostRace.standings.map(\.name).joined(separator: ", ")))
     }
     host.endRace()
     check(wait(4) { alice.endedRace != nil }, "client wasn't sent back to the lobby")
@@ -531,7 +557,10 @@ private struct RaceSettingsLite {
     var ai: Int
 
     func setup(trackID: String, seed: UInt64, ai aiOverride: Int? = nil) -> RaceSetup {
-        let def = BuiltInTracks.all.first { $0.id == trackID }!
+        setup(track: BuiltInTracks.all.first { $0.id == trackID }!, seed: seed, ai: aiOverride)
+    }
+
+    func setup(track def: TrackDefinition, seed: UInt64, ai aiOverride: Int? = nil) -> RaceSetup {
         let ai = aiOverride ?? self.ai
         var entrants = (0..<ai).map { Entrant(name: "AI\($0)", colorIndex: humans + $0, playerIndex: nil, aiSkill: 0.7) }
         entrants += (0..<humans).map { Entrant(name: "H\($0)", colorIndex: $0, playerIndex: $0) }

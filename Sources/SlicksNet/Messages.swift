@@ -4,7 +4,8 @@ import SlicksCore
 public enum NetProtocol {
     /// Bump whenever messages or the simulation change in a way older builds can't follow.
     /// 2: encrypted UDP transport with join codes.
-    public static let version: UInt16 = 2
+    /// 3: jumps and loose sand in race state.
+    public static let version: UInt16 = 3
     /// UDP.
     public static let defaultPort: UInt16 = 47800
     public static let bonjourType = "_slideways._udp"
@@ -67,13 +68,15 @@ public enum NetMessage: Equatable {
     case snapshot(raceID: UInt32, ack: UInt32, state: [UInt8])
     /// The host left the race screen; everyone goes back to the lobby.
     case endRace(raceID: UInt32)
+    /// Loose sand that changed (an encoded `SandDelta`). Reliable and in order.
+    case sand(raceID: UInt32, delta: [UInt8])
 
     // Either way.
     case ping(UInt64)
     case pong(UInt64)
 
     private enum Kind: UInt8 {
-        case hello = 1, input, welcome, lobby, start, snapshot, endRace, ping, pong
+        case hello = 1, input, welcome, lobby, start, snapshot, endRace, ping, pong, sand
     }
 
     public func encoded() -> [UInt8] {
@@ -101,6 +104,8 @@ public enum NetMessage: Equatable {
             w.u8(Kind.ping.rawValue); w.u64(t)
         case let .pong(t):
             w.u8(Kind.pong.rawValue); w.u64(t)
+        case let .sand(raceID, delta):
+            w.u8(Kind.sand.rawValue); w.u32(raceID); w.blob(Data(delta))
         }
         return w.bytes
     }
@@ -135,6 +140,9 @@ public enum NetMessage: Equatable {
             self = .ping(try r.u64())
         case .pong:
             self = .pong(try r.u64())
+        case .sand:
+            let id = try r.u32()
+            self = .sand(raceID: id, delta: [UInt8](try r.blob(maxLength: NetProtocol.maxFrame)))
         }
         guard r.isAtEnd else { throw WireError.invalid("trailing bytes") }
     }
