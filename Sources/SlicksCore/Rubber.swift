@@ -146,10 +146,70 @@ public final class Rubber {
     private func add(_ x: Int, _ y: Int, _ k: Double) {
         guard k > 0, x >= 0, y >= 0, x < columns, y < rows else { return }
         let i = y * columns + x
-        amount[i] += (1 - amount[i]) * Float(min(1, k))
+        store(i, amount[i] + (1 - amount[i]) * Float(min(1, k)), journal: true)
+    }
+
+    /// Writes one cell, keeping the checksum and change lists up to date.
+    private func store(_ i: Int, _ value: Float, journal: Bool) {
+        let old = amount[i]
+        guard value.bitPattern != old.bitPattern else { return }
+        checksum = checksum &- LooseSand.contribution(i, old) &+ LooseSand.contribution(i, value)
+        amount[i] = value
         if !changedFlags[i] {
             changedFlags[i] = true
             changed.append(i)
+        }
+        if journal, keepsJournal, !journalFlags[i] {
+            journalFlags[i] = true
+            journaled.append(i)
+        }
+    }
+
+    // MARK: Online play
+
+    /// Order-independent fingerprint of every cell, kept current as cells change, so state
+    /// hashes can include the rubber without scanning the grid.
+    public private(set) var checksum: UInt64 = 0
+
+    /// Record which cells change (separately from rendering's list), for sending to other
+    /// machines or for undoing a prediction. Off by default: offline races don't need it.
+    public var keepsJournal = false {
+        didSet {
+            if keepsJournal, journalFlags.isEmpty { journalFlags = [Bool](repeating: false, count: amount.count) }
+        }
+    }
+
+    private var journalFlags: [Bool] = []
+    private var journaled: [Int] = []
+
+    /// Cells changed by the simulation since the last call (needs `keepsJournal`).
+    public func drainJournal() -> [Int] {
+        defer {
+            for i in journaled { journalFlags[i] = false }
+            journaled.removeAll(keepingCapacity: true)
+        }
+        return journaled
+    }
+
+    /// Takes cell values from elsewhere (the host). Cells are redrawn but not journaled:
+    /// this isn't the simulation's doing.
+    public func apply(cells: [(index: Int, value: Float)]) {
+        for c in cells where amount.indices.contains(c.index) { store(c.index, c.value, journal: false) }
+    }
+
+    /// Everything about the rubber that changes during a race.
+    public struct State: Codable, Sendable, Equatable {
+        public var amount: [Float]
+    }
+
+    /// A copy for snapshots. Cheap to take (the array is shared until one side changes).
+    public var state: State { State(amount: amount) }
+
+    /// Puts the rubber back as it was in `s`, redrawing the cells that differ.
+    public func restore(_ s: State) {
+        guard s.amount.count == amount.count else { return }
+        for i in amount.indices where amount[i].bitPattern != s.amount[i].bitPattern {
+            store(i, s.amount[i], journal: true)
         }
     }
 }

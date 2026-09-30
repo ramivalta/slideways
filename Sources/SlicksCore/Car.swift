@@ -1,7 +1,7 @@
 import Foundation
 
 /// Tunable handling numbers. Units are track pixels and seconds.
-public struct CarSpec: Codable, Sendable {
+public struct CarSpec: Codable, Sendable, Equatable {
     public var maxSpeed: Double = 315
     public var acceleration: Double = 260
     public var brakeDeceleration: Double = 400
@@ -30,7 +30,7 @@ public struct CarSpec: Codable, Sendable {
     public var inertia: Double { (length * length + width * width) / 12 }
 }
 
-public struct CarInput: Sendable, Equatable {
+public struct CarInput: Codable, Sendable, Equatable {
     public var throttle: Double
     public var brake: Double
     /// -1 = full right, +1 = full left (counter-clockwise).
@@ -50,7 +50,7 @@ public final class Car {
     public let name: String
     public let colorIndex: Int
     public let isAI: Bool
-    /// For humans: which local player (0-3) controls this car.
+    /// For humans: input slot, i.e. the index into `Race.step(humanInputs:)`. See `Entrant.playerIndex`.
     public let playerIndex: Int?
     public var spec: CarSpec
 
@@ -216,6 +216,49 @@ public final class Car {
         }
         velocity = fwd * vf + side * vl
         position += velocity * dt
+    }
+
+    /// Everything about the car that changes during a race, for snapshots and state hashing.
+    public var state: CarState {
+        CarState(
+            spec: spec, position: position, velocity: velocity, heading: heading, angularVelocity: angularVelocity,
+            pathIndex: pathIndex, progress: progress, lapsCompleted: lapsCompleted, lapTimes: lapTimes,
+            lastLapMark: lastLapMark, finishTime: finishTime, slip: slip, isBraking: isBraking,
+            isWheelspinning: isWheelspinning, inReverse: inReverse, surface: surface, wallHits: wallHits,
+            lastInput: lastInput, level: level, bridgeZone: bridgeZone,
+            height: height, verticalSpeed: verticalSpeed, isAirborne: isAirborne, sandOnTires: sandOnTires, jumps: jumps,
+            slipstream: slipstream
+        )
+    }
+
+    /// Puts the car back exactly as it was when `state` was read.
+    func restore(_ s: CarState) {
+        spec = s.spec
+        position = s.position
+        velocity = s.velocity
+        heading = s.heading
+        angularVelocity = s.angularVelocity
+        pathIndex = s.pathIndex
+        progress = s.progress
+        lapsCompleted = s.lapsCompleted
+        lapTimes = s.lapTimes
+        lastLapMark = s.lastLapMark
+        finishTime = s.finishTime
+        slip = s.slip
+        isBraking = s.isBraking
+        isWheelspinning = s.isWheelspinning
+        inReverse = s.inReverse
+        surface = s.surface
+        wallHits = s.wallHits
+        lastInput = s.lastInput
+        level = s.level
+        bridgeZone = s.bridgeZone
+        height = s.height
+        verticalSpeed = s.verticalSpeed
+        isAirborne = s.isAirborne
+        sandOnTires = s.sandOnTires
+        jumps = s.jumps
+        slipstream = s.slipstream
     }
 
     /// Applies an impulse at a world-space offset from the car center (unit mass).

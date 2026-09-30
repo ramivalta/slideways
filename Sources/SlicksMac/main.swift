@@ -36,6 +36,10 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate {
 
     func applicationShouldTerminateAfterLastWindowClosed(_ sender: NSApplication) -> Bool { true }
 
+    func applicationWillTerminate(_ notification: Notification) {
+        GameCoordinator.shared.shutdownOnline()
+    }
+
     func applicationDidResignActive(_ notification: Notification) {
         Input.shared.releaseAll()
     }

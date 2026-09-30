@@ -1,9 +1,18 @@
 import SlicksCore
+import SlicksNet
 import SpriteKit
+
+/// How a race was started, which decides what pausing, restarting and leaving do.
+enum RaceMode {
+    case local
+    /// From the editor: restart re-races the same track, exit returns to the editor.
+    case testDrive
+    /// Can't pause; the host sends everyone back to the lobby afterwards.
+    case online(OnlineSession)
+}
 
 /// The race itself: whole track on one screen, HUD strip on top.
 final class RaceScene: GameScene {
-    private static let physicsStep = 1.0 / 120.0
     private static let hudHeight: CGFloat = 40
 
     /// Draw order. Cars on a bridge deck render above it, cars below render under it.
@@ -31,9 +40,10 @@ final class RaceScene: GameScene {
     }
 
     private unowned let coordinator: GameCoordinator
-    private let settings: RaceSettings
+    private let controller: RaceController
+    private let mode: RaceMode
     private let track: Track
-    private let race: Race
+    private var race: Race { controller.race }
 
     private let world = SKNode()
     private let skids = SkidMarks()
@@ -55,20 +65,27 @@ final class RaceScene: GameScene {
     private var isPausedByPlayer = false
 
     private var lastUpdate: TimeInterval?
-    private var accumulator = 0.0
     private let audio: RaceAudio
 
-    /// Set when test driving from the editor: the race uses this track and exits to the editor.
-    private let testTrack: Track?
+    private var isTestDrive: Bool {
+        if case .testDrive = mode { return true }
+        return false
+    }
 
-    init(coordinator: GameCoordinator, settings: RaceSettings, testTrack: Track? = nil) {
+    private var online: OnlineSession? {
+        if case let .online(session) = mode { return session }
+        return nil
+    }
+
+    /// - Parameter controller: steps the race; its track is what gets drawn.
+    init(coordinator: GameCoordinator, controller: RaceController, mode: RaceMode) {
         self.coordinator = coordinator
-        self.settings = settings
-        self.testTrack = testTrack
-        track = testTrack ?? TrackLibrary.shared.track(at: settings.trackIndex)
-        let seed = UInt64.random(in: 1...UInt64.max)
-        race = Race(track: track, entrants: settings.entrants(seed: seed), laps: settings.laps, seed: seed)
-        audio = RaceAudio(race: race)
+        self.controller = controller
+        self.mode = mode
+        track = controller.race.track
+        let isOnline: Bool
+        if case .online = mode { isOnline = true } else { isOnline = false }
+        audio = RaceAudio(race: controller.race, localSlots: isOnline ? Set(controller.localSlots) : nil)
         super.init()
     }
 
@@ -162,8 +179,8 @@ final class RaceScene: GameScene {
             }
             frontTires.append(tires)
 
-            if let p = car.playerIndex {
-                let tag = makeLabel("P\(p + 1)", size: 11, color: CarArt.color(car.colorIndex), align: .center)
+            if car.playerIndex != nil {
+                let tag = makeLabel(shortName(car, length: 8), size: 11, color: CarArt.color(car.colorIndex), align: .center)
                 tag.zPosition = Z.tags
                 world.addChild(tag)
                 playerTags[car.id] = tag
@@ -187,19 +204,23 @@ final class RaceScene: GameScene {
         guard let last = lastUpdate else { return }
         let frameDt = min(currentTime - last, 0.1)
 
-        let inputs = (0..<4).map { Input.shared.carInput(forPlayer: $0) }
+        var localInputs = controller.localSlots.indices.map { Input.shared.carInput(forPlayer: $0) }
+        #if DEBUG && os(macOS)
+        if DebugHarness.autopilot { localInputs = autopilotInputs(frameDt) }
+        #endif
         var impacts: [ImpactEvent] = []
-        if !isPausedByPlayer && race.phase != .finished {
-            accumulator += frameDt
-            while accumulator >= RaceScene.physicsStep {
-                race.step(dt: RaceScene.physicsStep, humanInputs: inputs)
-                accumulator -= RaceScene.physicsStep
-            }
-            impacts = race.drainImpacts()
+        // Online races can't pause: the host keeps running and clients must keep up.
+        if !isPausedByPlayer {
+            impacts = controller.advance(frameDt: frameDt, localInputs: localInputs)
             for impact in impacts { spawnSparks(impact) }
         }
+        if let client = controller as? ClientRaceController, let error = client.error {
+            online?.fail(error)
+            return
+        }
 
-        let sound = audio.update(race: race, impacts: impacts, humanInputs: inputs, paused: isPausedByPlayer, dt: frameDt)
+        let sound = audio.update(race: race, impacts: impacts, humanInputs: controller.slotInputs,
+                                 paused: isPausedByPlayer, dt: frameDt)
         SoundSystem.shared.setCars(sound.cars)
         for effect in sound.effects { SoundSystem.shared.play(effect) }
 
@@ -210,17 +231,47 @@ final class RaceScene: GameScene {
         updateHUD()
         updateCountdown()
 
-        if race.phase == .finished && !showingResults {
+        if controller.isFinished && !showingResults {
             showResults()
         }
     }
 
+    #if DEBUG && os(macOS)
+    private var autopilots: [Int: AIDriver] = [:]
+
+    /// The AI drives the local players (debug harness only).
+    private func autopilotInputs(_ dt: Double) -> [CarInput] {
+        controller.localSlots.map { slot in
+            guard race.phase == .racing, let car = race.cars.first(where: { $0.playerIndex == slot }) else { return .none }
+            var bot = autopilots[slot] ?? AIDriver(skill: 0.7, lane: 0)
+            let input = bot.input(for: car, track: track, dt: dt, elapsed: race.time)
+            autopilots[slot] = bot
+            return input
+        }
+    }
+
+    var debugShowingResults: Bool { showingResults }
+    var debugStandings: [String] { race.standings.map(\.name) }
+    #endif
+
+    /// Where to draw a car: the simulated pose plus any correction still being eased out.
+    private func drawnPose(_ car: Car) -> (position: Vec2, heading: Double) {
+        let offset = controller.displayOffset(carID: car.id)
+        return (car.position + offset.position, car.heading + offset.heading)
+    }
+
+    private func shortName(_ car: Car, length: Int = 6) -> String {
+        if car.isAI || online != nil { return String(car.name.prefix(length)) }
+        return "P\((car.playerIndex ?? 0) + 1)"
+    }
+
     private func syncCars() {
         for car in race.cars {
-            let p = CGPoint(x: car.position.x, y: car.position.y)
+            let pose = drawnPose(car)
+            let p = CGPoint(x: pose.position.x, y: pose.position.y)
             let node = carNodes[car.id]
             node.position = p
-            node.zRotation = car.heading
+            node.zRotation = pose.heading
             let shadow = shadowNodes[car.id]
             // Height reads as a slightly bigger kart with its shadow left further behind.
             let lift = CGFloat(car.height)
@@ -228,7 +279,7 @@ final class RaceScene: GameScene {
             let reach = 2 + lift * 0.7
             shadow.position = CGPoint(x: p.x + reach, y: p.y - reach)
             shadow.alpha = 0.35 * max(0.45, 1 - lift / 40)
-            shadow.zRotation = car.heading
+            shadow.zRotation = pose.heading
             let onDeck = car.level > 0
             node.zPosition = car.isAboveObstacles ? Z.jumpingCar : onDeck ? Z.deckCar : Z.car
             shadow.zPosition = onDeck ? Z.deckCarShadow : Z.carShadow
@@ -240,7 +291,7 @@ final class RaceScene: GameScene {
             for tire in frontTires[car.id] { tire.zRotation = steerAngles[car.id] }
             if let tag = playerTags[car.id] {
                 tag.position = CGPoint(x: p.x, y: p.y + 16)
-                // Show "P1" etc. until shortly after the start, and whenever the car is nearly stopped.
+                // Show "P1" (or the name online) until shortly after the start, and whenever the car is nearly stopped.
                 let visible = race.time < 3 || car.speed < 20
                 tag.alpha = visible ? 1 : max(0, tag.alpha - 0.05)
             }
@@ -250,10 +301,11 @@ final class RaceScene: GameScene {
     private func updateSkids() {
         guard race.phase == .racing || race.phase == .finished else { return }
         for car in race.cars {
-            let fwd = car.forward, left = car.left
+            let pose = drawnPose(car)
+            let fwd = Vec2(angle: pose.heading), left = fwd.perp
             // Rear tire contact patches (see CarArt geometry).
-            let rearL = car.position - fwd * 6.9 + left * 3.8
-            let rearR = car.position - fwd * 6.9 - left * 3.8
+            let rearL = pose.position - fwd * 6.9 + left * 3.8
+            let rearR = pose.position - fwd * 6.9 - left * 3.8
             let a = CGPoint(x: rearL.x, y: rearL.y), b = CGPoint(x: rearR.x, y: rearR.y)
             let sliding = Rubber.isMarking(car)
             let color = SkidMarks.color(for: car.surface, theme: track.definition.theme)
@@ -339,8 +391,7 @@ final class RaceScene: GameScene {
             let entry = hudEntries[pos]
             entry.swatch.color = CarArt.color(car.colorIndex)
             let status = car.isFinished ? "FIN" : "L\(race.currentLap(of: car))/\(race.laps)"
-            let name = car.isAI ? String(car.name.prefix(6)) : "P\((car.playerIndex ?? 0) + 1)"
-            let text = "\(pos + 1) \(name) \(status)"
+            let text = "\(pos + 1) \(shortName(car)) \(status)"
             if entry.label.text != text { entry.label.text = text }
             entry.label.fontColor = car.isAI ? .dim : .white
         }
@@ -372,20 +423,30 @@ final class RaceScene: GameScene {
         return node
     }
 
+    private func closeOverlay() {
+        isPausedByPlayer = false
+        overlay?.removeFromParent()
+        overlay = nil
+    }
+
     private func togglePause() {
-        if isPausedByPlayer {
-            isPausedByPlayer = false
-            overlay?.removeFromParent()
-            overlay = nil
-            return
-        }
-        isPausedByPlayer = true
+        if overlay != nil { return closeOverlay() }
         let panel = makePanel(height: 170)
-        let title = makeLabel("PAUSED", size: 36, color: .accent, align: .center)
+        let title: SKLabelNode
+        let help: SKLabelNode
+        if let online {
+            // The race keeps going underneath: nobody else is paused.
+            title = makeLabel("RACE IN PROGRESS", size: 30, color: .accent, align: .center)
+            let quit = online.isHost ? "Q end the race for everyone" : "Q leave the game"
+            help = makeLabel("Esc/Enter keep racing   \(quit)", size: 15, color: .white, align: .center)
+        } else {
+            isPausedByPlayer = true
+            title = makeLabel("PAUSED", size: 36, color: .accent, align: .center)
+            let quit = isTestDrive ? "Q back to editor" : "Q quit to menu"
+            help = makeLabel("Esc/Enter resume   R restart   \(quit)", size: 15, color: .white, align: .center)
+        }
         title.position = CGPoint(x: 0, y: 40)
         panel.addChild(title)
-        let quit = testTrack == nil ? "Q quit to menu" : "Q back to editor"
-        let help = makeLabel("Esc/Enter resume   R restart   \(quit)", size: 15, color: .white, align: .center)
         help.position = CGPoint(x: 0, y: -25)
         panel.addChild(help)
         addChild(panel)
@@ -434,13 +495,18 @@ final class RaceScene: GameScene {
                 time = "DNF"
             }
             let best = car.bestLap.map(formatTime) ?? "-"
-            let name = car.isAI ? car.name : "Player \((car.playerIndex ?? 0) + 1)"
-            let row = makeLabel(columns("\(i + 1).", name, time, best), size: 15, color: car.isAI ? .white : .accent)
+            let row = makeLabel(columns("\(i + 1).", car.name, time, best), size: 15, color: car.isAI ? .white : .accent)
             row.position = CGPoint(x: -250, y: y)
             panel.addChild(row)
         }
 
-        let help = makeLabel("Enter race again   Esc \(testTrack == nil ? "menu" : "editor")", size: 14, color: .dim, align: .center)
+        let helpText: String
+        if let online {
+            helpText = online.isHost ? "Enter back to the lobby   Esc end the game" : "Waiting for the host...   Esc leave the game"
+        } else {
+            helpText = "Enter race again   Esc \(isTestDrive ? "editor" : "menu")"
+        }
+        let help = makeLabel(helpText, size: 14, color: .dim, align: .center)
         help.position = CGPoint(x: 0, y: -top + 26)
         panel.addChild(help)
         addChild(panel)
@@ -450,16 +516,25 @@ final class RaceScene: GameScene {
     // MARK: Keys
 
     private func restart() {
-        if let testTrack {
-            coordinator.present(RaceScene(coordinator: coordinator, settings: settings, testTrack: testTrack))
-        } else {
-            coordinator.startRace()
+        if let online {
+            // Online, "again" means back to the lobby, and only the host decides that.
+            if online.isHost { online.returnToLobby() }
+            return
         }
+        #if os(macOS)
+        if isTestDrive { return coordinator.raceTestTrack(track) }
+        #endif
+        coordinator.startRace()
     }
 
     private func exit() {
+        if let online {
+            // The host leaving mid-race sends everyone to the lobby; afterwards it ends the game.
+            if online.isHost && !showingResults { return online.returnToLobby() }
+            return online.leave()
+        }
         #if os(macOS)
-        if testTrack != nil { return coordinator.returnToEditor() }
+        if isTestDrive { return coordinator.returnToEditor() }
         #endif
         coordinator.showMenu()
     }
@@ -474,10 +549,10 @@ final class RaceScene: GameScene {
             }
             return
         }
-        if isPausedByPlayer {
+        if overlay != nil {
             switch key {
-            case .escape, .enter, .p: togglePause()
-            case .r: restart()
+            case .escape, .enter, .p: closeOverlay()
+            case .r where online == nil: restart()
             case .q: exit()
             default: break
             }

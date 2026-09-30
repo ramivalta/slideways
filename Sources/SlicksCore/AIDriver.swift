@@ -2,7 +2,7 @@ import Foundation
 
 /// Computer driver: follows the centerline with a speed-dependent lookahead and brakes
 /// for upcoming corners based on the car's grip.
-public struct AIDriver: Sendable {
+public struct AIDriver: Codable, Sendable, Equatable {
     /// 0...1, scales cornering speed and reaction.
     public var skill: Double
     /// Preferred lateral offset from the centerline, as a fraction of half the road width.
@@ -17,7 +17,8 @@ public struct AIDriver: Sendable {
         self.lane = clamp(lane, -0.6, 0.6)
     }
 
-    mutating func input(for car: Car, track: Track, sand: LooseSand? = nil, rubber: Rubber? = nil, dt: Double, elapsed: Double) -> CarInput {
+    /// Public so tests can drive "human" cars with the AI's judgment.
+    public mutating func input(for car: Car, track: Track, sand: LooseSand? = nil, rubber: Rubber? = nil, dt: Double, elapsed: Double) -> CarInput {
         let n = track.sampleCount
         let speed = car.speed
         let spec = car.spec

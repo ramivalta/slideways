@@ -4,7 +4,7 @@ import SpriteKit
 /// Race setup screen, fully keyboard/gamepad-free navigable with arrows and Enter.
 final class MenuScene: GameScene {
     private enum Row: CaseIterable {
-        case track, laps, players, opponents, skill, sound, start
+        case track, laps, players, opponents, skill, sound, start, online
         #if os(macOS)
         case editor
         #endif
@@ -13,13 +13,19 @@ final class MenuScene: GameScene {
             #if os(macOS)
             if self == .editor { return true }
             #endif
-            return self == .start
+            return self == .start || self == .online
         }
     }
 
-    private static let skillLevels: [(name: String, value: Double)] = [
+    static let skillLevels: [(name: String, value: Double)] = [
         ("Easy", 0.45), ("Normal", 0.75), ("Hard", 0.95),
     ]
+
+    static func skillIndex(_ skill: Double) -> Int {
+        skillLevels.enumerated().min { abs($0.element.value - skill) < abs($1.element.value - skill) }?.offset ?? 1
+    }
+
+    static func skillName(_ skill: Double) -> String { skillLevels[skillIndex(skill)].name }
 
     private unowned let coordinator: GameCoordinator
     private var settings: RaceSettings
@@ -40,14 +46,15 @@ final class MenuScene: GameScene {
         let title = makeLabel(GameInfo.title.uppercased(), size: 60, color: .accent, align: .center)
         title.position = CGPoint(x: 480, y: 568)
         addChild(title)
-        let subtitle = makeLabel("top-down slidin' mayhem for up to 4 players", size: 14, color: .dim, align: .center)
+        let subtitle = makeLabel("top-down slidin' mayhem: 4 players per Mac, 8 online", size: 14, color: .dim, align: .center)
         subtitle.position = CGPoint(x: 480, y: 524)
         addChild(subtitle)
 
+        // Nine rows with the online and editor entries: tighter spacing keeps them clear of the help text.
+        let spacing: CGFloat = Row.allCases.count > 8 ? 35 : 40
         for (i, row) in Row.allCases.enumerated() {
             let l = makeLabel("", size: 20)
-            // Eight rows with the editor entry: tighter spacing keeps them clear of the help text.
-            l.position = CGPoint(x: 60, y: 456 - CGFloat(i) * 40 - (row.isAction ? 12 : 0))
+            l.position = CGPoint(x: 60, y: 456 - CGFloat(i) * spacing - (row.isAction ? 12 : 0))
             addChild(l)
             rowLabels[row] = l
         }
@@ -77,10 +84,7 @@ final class MenuScene: GameScene {
         refresh()
     }
 
-    private var skillIndex: Int {
-        let idx = MenuScene.skillLevels.enumerated().min { abs($0.element.value - settings.aiSkill) < abs($1.element.value - settings.aiSkill) }
-        return idx?.offset ?? 1
-    }
+    private var skillIndex: Int { MenuScene.skillIndex(settings.aiSkill) }
 
     private var volumeText: String {
         let v = SoundSystem.shared.volume
@@ -98,6 +102,7 @@ final class MenuScene: GameScene {
             .skill: "AI SKILL   < \(MenuScene.skillLevels[skillIndex].name) >",
             .sound: "SOUND      < \(volumeText) >",
             .start: "START RACE",
+            .online: "ONLINE",
         ]
         #if os(macOS)
         values[.editor] = TrackStore.isCustom(def.id) ? "EDIT THIS TRACK" : "TRACK EDITOR"
@@ -132,6 +137,10 @@ final class MenuScene: GameScene {
             if isRepeat { return }
             SoundSystem.shared.play(.menuSelect)
             coordinator.settings = settings
+            if selected == .online {
+                settings.save()
+                return coordinator.showOnlineMenu()
+            }
             #if os(macOS)
             if selected == .editor {
                 // Custom tracks open for editing; with a built-in selected, start fresh.

@@ -58,7 +58,8 @@ public struct Vec2: Codable, Hashable, Sendable {
 
 /// Small deterministic RNG so races and AI personalities are reproducible.
 public struct SplitMix64: RandomNumberGenerator, Sendable {
-    private var state: UInt64
+    /// `SplitMix64(seed: state)` continues exactly where this one is (online sync uses this).
+    public private(set) var state: UInt64
     public init(seed: UInt64) { state = seed }
     public mutating func next() -> UInt64 {
         state &+= 0x9E37_79B9_7F4A_7C15

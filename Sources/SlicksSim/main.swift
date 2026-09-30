@@ -7,8 +7,19 @@ import UniformTypeIdentifiers
 
 // Headless checks for tracks, physics and AI.
 // Usage: swift run -c release SlicksSim [outputDir] [trackId]
+//        swift run -c release SlicksSim --hash   (determinism fingerprints, see NetChecks.swift)
+//        swift run -c release SlicksSim --net    (online checks only)
 
 let args = CommandLine.arguments
+if args.dropFirst().first == "--hash" {
+    printDeterminismHashes()
+    exit(0)
+}
+if args.dropFirst().first == "--net" {
+    let problems = netChecks() + loopbackChecks() + portMapperChecks()
+    print(problems == 0 ? "ALL OK" : "\(problems) problem(s)")
+    exit(problems == 0 ? 0 : 1)
+}
 let outDir = URL(fileURLWithPath: args.count > 1 ? args[1] : "/tmp/slideways-sim")
 let onlyTrack = args.count > 2 ? args[2] : nil
 try? FileManager.default.createDirectory(at: outDir, withIntermediateDirectories: true)
@@ -78,6 +89,9 @@ failures += editorChecks()
 failures += looseSandCheck()
 failures += slipstreamCheck()
 failures += rubberCheck()
+failures += netChecks()
+failures += loopbackChecks()
+failures += portMapperChecks()
 
 /// Crash test: floor it head-on into a wall like a player would, keep the throttle pinned and
 /// steer left after the hit. The car should drive away forward and turn left, with no lingering
