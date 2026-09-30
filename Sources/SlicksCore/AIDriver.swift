@@ -11,13 +11,24 @@ public struct AIDriver: Sendable {
     var reverseTime = 0.0
     var reverseSteer = 0.0
     var laneDrift = 0.0
+    /// While routing back to the road: closest to it so far, and how long since that improved.
+    var routeBest = Float.infinity
+    var routeStall = 0.0
 
     public init(skill: Double, lane: Double) {
         self.skill = clamp(skill, 0, 1)
         self.lane = clamp(lane, -0.6, 0.6)
     }
 
-    mutating func input(for car: Car, track: Track, sand: LooseSand? = nil, dt: Double, elapsed: Double) -> CarInput {
+    /// Top speed while picking a way back to the road around walls.
+    static let routeSpeed = 90.0
+    /// When routing, a waypoint further round than this (radians) is reversed toward.
+    static let turnAroundAngle = 2.0
+    /// Seconds without getting closer to the road along the route before backing up.
+    static let routeStallTime = 1.5
+
+    mutating func input(for car: Car, track: Track, sand: LooseSand? = nil, roads: RoadFinder? = nil,
+                        dt: Double, elapsed: Double) -> CarInput {
         let n = track.sampleCount
         let speed = car.speed
         let spec = car.spec
@@ -31,7 +42,16 @@ public struct AIDriver: Sendable {
         let laneOffset = clamp(lane + laneDrift, -0.65, 0.65) * track.halfWidths[ti]
         // Tighten the line toward the centerline in corners so we don't clip the inside curb.
         let cornerFactor = clamp(1 - track.curvature[ti] * 40, 0.2, 1)
-        let target = track.path[ti] + track.normals[ti] * (laneOffset * cornerFactor)
+        var target = track.path[ti] + track.normals[ti] * (laneOffset * cornerFactor)
+        // Knocked off the road somewhere a wall stands between us and the line (behind the
+        // tire barrier, say): follow the route around the walls back to the road instead.
+        var routing = false
+        if let roads, car.level == 0, car.bridgeZone == nil, !car.isAirborne,
+           !track.isOnRoad(car.position), track.wallBetween(car.position, target),
+           let waypoint = roads.waypoint(from: car.position) {
+            target = waypoint
+            routing = true
+        }
         let toTarget = target - car.position
         let angleError = wrapAngle(toTarget.angle - car.heading)
         var steer = clamp(angleError * 2.8, -1, 1)
@@ -65,6 +85,7 @@ public struct AIDriver: Sendable {
         }
         // Big heading errors (spun out, off line) call for a slower approach.
         desired *= clamp(1.15 - abs(angleError) * 0.6, 0.35, 1)
+        if routing { desired = min(desired, AIDriver.routeSpeed) }
 
         var throttle = 1.0
         var brake = 0.0
@@ -76,6 +97,28 @@ public struct AIDriver: Sendable {
             throttle = 0.3
         }
 
+        if routing, let left = roads?.remaining(from: car.position) {
+            // Scraping along a wall still counts as moving, so going nowhere along the route
+            // counts as stuck too.
+            if left < routeBest - 1 {
+                routeBest = left
+                routeStall = 0
+            } else {
+                routeStall += dt
+            }
+            // The way back is behind us, or we're pinned: back up swinging the nose round
+            // toward it, then drive on (a three-point turn).
+            if reverseTime <= 0, abs(angleError) > AIDriver.turnAroundAngle || routeStall > AIDriver.routeStallTime {
+                reverseTime = 0.6
+                reverseSteer = angleError > 0 ? -1 : 1
+                stuckTime = 0
+                routeStall = 0
+                routeBest = left
+            }
+        } else {
+            routeBest = .infinity
+            routeStall = 0
+        }
         // Stuck against a wall or another car: back out with opposite lock.
         if elapsed > 1, reverseTime <= 0 {
             if speed < 18 {

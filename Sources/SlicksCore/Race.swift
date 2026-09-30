@@ -40,6 +40,8 @@ public final class Race {
     public let looseSand: LooseSand?
 
     private var drivers: [Int: AIDriver] = [:]
+    /// Routes back to the road for AI cars knocked behind walls. Nil without AI cars.
+    private let roadFinder: RoadFinder?
     private var firstFinishTime: Double?
     private var allHumansDoneAt: Double?
     private var finishCounter = 0
@@ -66,6 +68,7 @@ public final class Race {
             let lane = Double.random(in: -0.45...0.45, using: &rng)
             drivers[car.id] = AIDriver(skill: e.aiSkill, lane: lane)
         }
+        roadFinder = drivers.isEmpty ? nil : RoadFinder(track: track)
     }
 
     public var hasHumans: Bool { cars.contains { !$0.isAI } }
@@ -90,7 +93,7 @@ public final class Race {
             var input = CarInput.none
             if phase != .countdown {
                 if var driver = drivers[car.id] {
-                    input = driver.input(for: car, track: track, sand: looseSand, dt: dt, elapsed: time)
+                    input = driver.input(for: car, track: track, sand: looseSand, roads: roadFinder, dt: dt, elapsed: time)
                     drivers[car.id] = driver
                 } else if let p = car.playerIndex, p < humanInputs.count {
                     input = humanInputs[p]
