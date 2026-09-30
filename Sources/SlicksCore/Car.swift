@@ -89,6 +89,9 @@ public final class Car {
     /// Sand stuck to the rear tires after driving through a trap, in cells' worth (up to
     /// `LooseSand.tireCapacity`). Shed onto the road over the next few car lengths.
     public internal(set) var sandOnTires = 0.0
+    /// Drafting benefit from running in other cars' wakes: 0 in clean air, up to
+    /// `Slipstream.maxDraft` behind a line of cars. See `Slipstream`.
+    public internal(set) var slipstream = 0.0
 
     /// Height above the ground: rising up a ramp or flying off one. See `Jumps`.
     public internal(set) var height = 0.0
@@ -175,7 +178,10 @@ public final class Car {
         if throttle > 0 {
             // The engine pulls the same whether the car is rolling forward or was knocked
             // backward by a crash, so the gas always drives it away.
-            let push = spec.acceleration * throttle * clamp(1 - vf / spec.maxSpeed, 0, 1)
+            // Drafting behind other cars means less air to push through, so the engine
+            // runs out of pull at a higher speed.
+            let topSpeed = spec.maxSpeed * (1 + Slipstream.topSpeedGain * slipstream)
+            let push = spec.acceleration * throttle * clamp(1 - vf / topSpeed, 0, 1)
             vf += push * props.traction * dt
             // Hard launches (and flooring it while rolling backward) spin the rear tires.
             isWheelspinning = push > Car.wheelspinAcceleration

@@ -110,6 +110,7 @@ public final class Race {
             phase = .racing
         }
 
+        Slipstream.update(cars, dt: dt)
         for car in cars {
             var input = CarInput.none
             if phase != .countdown {

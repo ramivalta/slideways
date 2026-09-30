@@ -87,6 +87,7 @@ func skidpad() {
 skidpad()
 failures += editorChecks()
 failures += looseSandCheck()
+failures += slipstreamCheck()
 failures += netChecks()
 failures += loopbackChecks()
 failures += portMapperChecks()
