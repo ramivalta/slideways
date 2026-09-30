@@ -29,6 +29,8 @@ cat > "$BUNDLE/Contents/Info.plist" <<PLIST
     <key>LSApplicationCategoryType</key><string>public.app-category.racing-games</string>
     <key>NSHighResolutionCapable</key><true/>
     <key>GCSupportsControllerUserInteraction</key><true/>
+    <key>NSLocalNetworkUsageDescription</key><string>${APP_NAME} finds and hosts online races with players on your network.</string>
+    <key>NSBonjourServices</key><array><string>_slideways._udp</string></array>
 </dict>
 </plist>
 PLIST

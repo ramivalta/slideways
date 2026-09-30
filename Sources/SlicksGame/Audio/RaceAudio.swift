@@ -17,8 +17,19 @@ public final class RaceAudio {
     private var endFade = 1.0
     static let endFadeDuration = 0.8
 
-    public init(race: Race) {
+    /// Input slots of the players at this machine; nil means every human is local.
+    private let localSlots: Set<Int>?
+
+    /// - Parameter localSlots: online, the slots played here. Other humans sound like AI karts
+    ///   and don't get lap chimes.
+    public init(race: Race, localSlots: Set<Int>? = nil) {
         laps = race.cars.map(\.lapsCompleted)
+        self.localSlots = localSlots
+    }
+
+    private func isLocalPlayer(_ car: Car) -> Bool {
+        guard !car.isAI, let slot = car.playerIndex else { return false }
+        return localSlots?.contains(slot) ?? true
     }
 
     /// - Parameters:
@@ -46,13 +57,13 @@ public final class RaceAudio {
         // Lap and finish chimes, for players only.
         for car in race.cars {
             defer { laps[car.id] = car.lapsCompleted }
-            guard !car.isAI, car.lapsCompleted > laps[car.id] else { continue }
+            guard isLocalPlayer(car), car.lapsCompleted > laps[car.id] else { continue }
             effects.append(car.isFinished ? .finish : .lap)
         }
 
         effects += impactEffects(impacts, time: race.time, width: Double(track.width))
 
-        let hasHumans = race.hasHumans
+        let hasHumans = race.cars.contains(where: isLocalPlayer)
         let cars = race.cars.map { car -> CarSound in
             var s = CarSound()
             let input: CarInput
@@ -84,7 +95,7 @@ public final class RaceAudio {
                 break
             }
 
-            let isPlayer = !car.isAI
+            let isPlayer = isLocalPlayer(car)
             s.engineGain = isPlayer ? 1 : hasHumans ? Self.aiEngineGain : Self.aiEngineGain * 1.5
             s.tireGain = isPlayer ? 1 : Self.aiTireGain
             s.pan = (car.position.x / Double(track.width) * 2 - 1) * 0.75

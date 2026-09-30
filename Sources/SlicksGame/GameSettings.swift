@@ -37,18 +37,29 @@ public struct RaceSettings: Codable, Sendable, Equatable {
 
     /// Builds the starting grid: humans at the back, AI ahead of them like the original.
     public func entrants(seed: UInt64) -> [Entrant] {
+        entrants(seed: seed, humans: (0..<humanPlayers).map { "Player \($0 + 1)" })
+    }
+
+    /// Grid with these human drivers, who get input slots and liveries in order. AI fill the
+    /// rest up to `aiOpponents`, never past the car limit.
+    public func entrants(seed: UInt64, humans: [String]) -> [Entrant] {
         var rng = SplitMix64(seed: seed)
         var list: [Entrant] = []
         let names = RaceSettings.aiNames.shuffled(using: &rng)
-        for i in 0..<aiOpponents {
+        for i in 0..<min(aiOpponents, GameInfo.maxCars - humans.count) {
             let jitter = Double.random(in: -0.12...0.12, using: &rng)
-            list.append(Entrant(name: names[i % names.count], colorIndex: humanPlayers + i, playerIndex: nil,
+            list.append(Entrant(name: names[i % names.count], colorIndex: humans.count + i, playerIndex: nil,
                                 aiSkill: clamp(aiSkill + jitter, 0, 1)))
         }
-        for p in 0..<humanPlayers {
-            list.append(Entrant(name: "Player \(p + 1)", colorIndex: p, playerIndex: p))
+        for (p, name) in humans.enumerated() {
+            list.append(Entrant(name: name, colorIndex: p, playerIndex: p))
         }
         return list
+    }
+
+    /// A race on `track` with these settings. Humans get input slots 0..<humanPlayers.
+    public func raceSetup(track: TrackDefinition, seed: UInt64) -> RaceSetup {
+        RaceSetup(track: track, entrants: entrants(seed: seed), laps: laps, seed: seed)
     }
 }
 
