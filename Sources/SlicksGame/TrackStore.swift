@@ -80,7 +80,7 @@ public enum EditorLimits {
     public static let roadWidth: ClosedRange<Double> = 40...160
     public static let barrierDistance: ClosedRange<Double> = 2...120
     public static let barrierThickness: ClosedRange<Double> = 3...24
-    public static let bridgeLength: ClosedRange<Double> = 20...400
+    public static let bridgeLength: ClosedRange<Double> = 20...500
     public static let patchSize: ClosedRange<Double> = 3...960
     public static let maxBridges = 16
     public static let maxPatches = 200
