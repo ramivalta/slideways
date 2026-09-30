@@ -63,6 +63,17 @@ public struct RaceSettings: Codable, Sendable, Equatable {
     }
 }
 
+/// Window preferences. Persisted between launches.
+public enum DisplaySettings {
+    private static let fullScreenKey = "display.fullScreen"
+
+    /// Whether the window was last in full screen, so the next launch opens the same way.
+    public static var fullScreen: Bool {
+        get { UserDefaults.standard.bool(forKey: fullScreenKey) }
+        set { UserDefaults.standard.set(newValue, forKey: fullScreenKey) }
+    }
+}
+
 /// Built-in tracks followed by the player's custom tracks. Builds tracks once and keeps them.
 public final class TrackLibrary {
     public static let shared = TrackLibrary()
