@@ -1,9 +1,11 @@
 import Foundation
 
-public struct Entrant: Sendable {
+public struct Entrant: Codable, Sendable, Equatable {
     public var name: String
     public var colorIndex: Int
-    /// Local player slot (0-3) for humans, nil for computer drivers.
+    /// Input slot for humans (index into `Race.step(humanInputs:)`), nil for computer drivers.
+    /// In a local race it's the keyboard/controller player (0-3). Online the host hands out
+    /// slots across all machines, and each machine maps its local players onto its slots.
     public var playerIndex: Int?
     public var spec: CarSpec
     public var aiSkill: Double
@@ -19,12 +21,15 @@ public struct Entrant: Sendable {
 
 /// One race on one track. Runs on a fixed timestep; the view layer only reads from it.
 public final class Race {
-    public enum Phase: Equatable, Sendable {
+    public enum Phase: Int, Codable, Equatable, Sendable {
         case countdown
         case racing
         case finished
     }
 
+    /// Simulation steps per second. Every machine in an online race must step at this rate.
+    public static let tickRate = 120
+    public static let tickDuration = 1.0 / Double(tickRate)
     public static let countdownDuration = 3.0
     /// After the leader finishes, the rest have this long before the race is called.
     public static let finishGrace = 25.0
@@ -33,6 +38,8 @@ public final class Race {
     public let laps: Int
     public private(set) var cars: [Car]
     public private(set) var phase: Phase = .countdown
+    /// Steps taken so far. Online messages (inputs, snapshots, hashes) are keyed by tick.
+    public private(set) var tick = 0
     /// Seconds since the green light. Negative during the countdown.
     public private(set) var time: Double = -Race.countdownDuration
     public private(set) var impacts: [ImpactEvent] = []
@@ -68,7 +75,24 @@ public final class Race {
         }
     }
 
+    /// Starts the race described by `setup`. `track` must be built from `setup.track`
+    /// (callers usually have it cached, since building a track is slow).
+    public convenience init(setup: RaceSetup, track: Track) {
+        precondition(track.definition == setup.track, "track wasn't built from the setup's definition")
+        self.init(track: track, entrants: setup.entrants, laps: setup.laps, seed: setup.seed)
+    }
+
     public var hasHumans: Bool { cars.contains { !$0.isAI } }
+
+    /// Whether a computer is steering the car: AI entrants, and humans who left mid-race.
+    public func isComputerDriven(_ car: Car) -> Bool { drivers[car.id] != nil }
+
+    /// Hands a human's car to a computer driver, e.g. when they disconnect from an online race.
+    /// The car keeps its place, name and lap times.
+    public func handOverToAI(carID: Int, skill: Double = 0.75) {
+        guard cars.indices.contains(carID), drivers[carID] == nil else { return }
+        drivers[carID] = AIDriver(skill: skill, lane: 0)
+    }
 
     /// Takes and clears the impact events produced since the last call.
     public func drainImpacts() -> [ImpactEvent] {
@@ -80,6 +104,7 @@ public final class Race {
     /// - Parameter humanInputs: indexed by local player slot.
     public func step(dt: Double, humanInputs: [CarInput]) {
         guard phase != .finished else { return }
+        tick += 1
         time += dt
         if phase == .countdown && time >= 0 {
             phase = .racing
@@ -165,7 +190,9 @@ public final class Race {
             phase = .finished
             return
         }
-        if hasHumans, cars.filter({ !$0.isAI }).allSatisfy(\.isFinished) {
+        // Only people still at the wheel count: a departed player's car doesn't hold the race open.
+        let humans = cars.filter { !$0.isAI && drivers[$0.id] == nil }
+        if !humans.isEmpty, humans.allSatisfy(\.isFinished) {
             // Give the view a moment to show the last human crossing the line.
             if allHumansDoneAt == nil { allHumansDoneAt = time }
             if let t = allHumansDoneAt, time - t > 2 {
@@ -193,4 +220,37 @@ public final class Race {
     public func currentLap(of car: Car) -> Int {
         min(laps, car.lapsCompleted + 1)
     }
+
+    // MARK: Snapshots
+
+    /// - Parameter includingSand: copy the loose sand grid too. Taking it is cheap, but the
+    ///   race's next change to the sand then copies the whole grid (2.3 MB), so leave it out
+    ///   when the snapshot is only for hashing or the network.
+    public func snapshot(includingSand: Bool = true) -> RaceSnapshot {
+        RaceSnapshot(
+            tick: tick, phase: phase, time: time, cars: cars.map(\.state), drivers: drivers,
+            firstFinishTime: firstFinishTime, allHumansDoneAt: allHumansDoneAt, finishCounter: finishCounter,
+            sandChecksum: looseSand?.checksum, sandRNG: looseSand?.rngState,
+            sand: includingSand ? looseSand?.state : nil
+        )
+    }
+
+    /// Rewinds (or fast-forwards) to a snapshot taken from this race or one built from the
+    /// same setup. Pending impact events are dropped: they belonged to the replaced timeline.
+    public func restore(_ s: RaceSnapshot) {
+        precondition(s.cars.count == cars.count, "snapshot is from a race with a different grid")
+        tick = s.tick
+        phase = s.phase
+        time = s.time
+        for (car, state) in zip(cars, s.cars) { car.restore(state) }
+        drivers = s.drivers
+        firstFinishTime = s.firstFinishTime
+        allHumansDoneAt = s.allHumansDoneAt
+        finishCounter = s.finishCounter
+        if let sand = s.sand { looseSand?.restore(sand) }
+        impacts.removeAll(keepingCapacity: true)
+    }
+
+    /// Hash of the current state. Two machines running in sync get the same value every tick.
+    public var stateHash: UInt64 { snapshot(includingSand: false).stateHash }
 }

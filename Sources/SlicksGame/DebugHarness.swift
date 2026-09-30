@@ -3,6 +3,8 @@ import AppKit
 import Foundation
 import ImageIO
 import SlicksCore
+import SlicksLink
+import SlicksNet
 import SpriteKit
 import UniformTypeIdentifiers
 
@@ -12,6 +14,8 @@ public enum DebugHarness {
     @MainActor
     public static func runIfRequested(view: SKView) {
         guard let dir = ProcessInfo.processInfo.environment["SLIDEWAYS_SNAPSHOT_DIR"] else { return }
+        // Line-buffered, so logs survive the process being killed.
+        setvbuf(stdout, nil, _IOLBF, 0)
         let out = URL(fileURLWithPath: dir)
         try? FileManager.default.createDirectory(at: out, withIntermediateDirectories: true)
         let track = Int(ProcessInfo.processInfo.environment["SLIDEWAYS_TRACK"] ?? "") ?? 1
@@ -35,6 +39,9 @@ public enum DebugHarness {
         if ProcessInfo.processInfo.environment["SLIDEWAYS_EDITOR_TEST"] != nil {
             return runEditorScript(view: view, snap: snap, after: after)
         }
+        if let role = ProcessInfo.processInfo.environment["SLIDEWAYS_NET_TEST"] {
+            return runOnlineScript(role: role, snap: snap, after: after)
+        }
 
         after(1) { snap("menu") }
         after(1.5) {
@@ -52,6 +59,147 @@ public enum DebugHarness {
         }
         after(34) { snap("results") }
         after(35) { NSApplication.shared.terminate(nil) }
+    }
+
+    /// `SLIDEWAYS_AUTOPILOT`: local players are driven by the AI, so scripted races finish.
+    static let autopilot = ProcessInfo.processInfo.environment["SLIDEWAYS_AUTOPILOT"] != nil
+
+    /// Two instances race each other: `SLIDEWAYS_NET_TEST=host` in one and `=join` in the other
+    /// (joins 127.0.0.1, or `SLIDEWAYS_NET_JOIN`). Snapshots the online menu, lobby, race and
+    /// results on both, then quits. Pair with `SLIDEWAYS_AUTOPILOT` and `SLIDEWAYS_NET_LAG_MS`.
+    @MainActor
+    static func runOnlineScript(role: String, snap: @escaping (String) -> Void,
+                                after: @escaping (Double, @escaping () -> Void) -> Void) {
+        let coordinator = GameCoordinator.shared
+        let scene = { coordinator.currentScene }
+        let prefix = role == "host" ? "host" : "join"
+        var shots: Set<String> = []
+        func once(_ name: String) {
+            guard shots.insert(name).inserted else { return }
+            snap("\(prefix)-\(name)")
+        }
+        after(0.5) { coordinator.showOnlineMenu() }
+        after(2.5) { once("1-online-menu") }
+        let env = ProcessInfo.processInfo.environment
+        let relay = env["SLIDEWAYS_RELAY"]
+        // The host writes its join code here; the joiner reads it, like a friend reading it out.
+        let codeFile = URL(fileURLWithPath: env["SLIDEWAYS_SNAPSHOT_DIR"] ?? "/tmp").appendingPathComponent("joincode.txt")
+        let browser = HostBrowser()
+        after(3) {
+            if role == "host" {
+                coordinator.hostOnline(name: "Hosty", localPlayers: 1, requireCode: env["SLIDEWAYS_NET_OPEN"] == nil, relayServer: relay)
+                if let s = coordinator.online {
+                    s.persistsSettings = false
+                    var settings = s.settings
+                    settings.trackIndex = Int(env["SLIDEWAYS_TRACK"] ?? "") ?? 1
+                    settings.laps = 1
+                    settings.aiOpponents = 3
+                    s.settings = settings
+                }
+                return
+            }
+            if env["SLIDEWAYS_NET_JOIN"] == "lan" { browser.start() }
+            func tryJoin(_ attempt: Int) {
+                guard let code = try? String(contentsOf: codeFile, encoding: .utf8), code.count >= 4 else {
+                    if attempt < 40 { after(0.25) { tryJoin(attempt + 1) } } else { print("online test: no join code from host") }
+                    return
+                }
+                let c = RoomCode.normalize(code) ?? ""
+                let room = String(c.prefix(4)), secret = c.count == 8 ? String(c.suffix(4)) : ""
+                // Wrong code on purpose, to see the refusal.
+                let used = env["SLIDEWAYS_NET_BADCODE"] != nil ? "ZZZZ" : secret
+                print("online test: joining with code \(room)-\(used) via \(env["SLIDEWAYS_NET_JOIN"] ?? "address")")
+                switch env["SLIDEWAYS_NET_JOIN"] ?? "127.0.0.1" {
+                case "code":
+                    coordinator.joinOnline(.room(room, nearby: []), label: "game \(room)", secret: used, relayServer: relay,
+                                           name: "Joiny", localPlayers: 1)
+                case "lan":
+                    guard let found = browser.host(room: room) else {
+                        if attempt < 40 { after(0.25) { tryJoin(attempt + 1) } } else { print("online test: game not listed") }
+                        return
+                    }
+                    coordinator.joinOnline(.room(room, nearby: found.addresses), label: found.name, secret: used, relayServer: nil,
+                                           name: "Joiny", localPlayers: 1)
+                case let address:
+                    coordinator.joinOnline(.address(address), label: address, secret: used, relayServer: nil,
+                                           name: "Joiny", localPlayers: 1)
+                }
+            }
+            tryJoin(0)
+        }
+
+        // Poll the flow and snapshot each stage as it's reached.
+        var started = Date()
+        var raceSeen = false
+        var resultsAt: Date?
+        var lobbyAgainAt: Date?
+        var lastSceneName = ""
+        var lastCode = ""
+        var lastStatus: [String] = []
+        if role == "host" { try? FileManager.default.removeItem(at: codeFile) }
+        func poll() {
+            after(0.25, poll)
+            do {
+                let session = coordinator.online
+                if role == "host", let host = session?.netHost, host.joinCode != lastCode {
+                    lastCode = host.joinCode
+                    try? host.joinCode.write(to: codeFile, atomically: true, encoding: .utf8)
+                    print("online test: join code \(host.joinCode)")
+                }
+                if role == "host", let lines = session?.internetStatus.map(\.text), lines != lastStatus {
+                    lastStatus = lines
+                    print("online test: internet status \(lines)")
+                }
+                let sceneName = scene().map { String(describing: type(of: $0)) } ?? "none"
+                if sceneName != lastSceneName {
+                    lastSceneName = sceneName
+                    print("online test: now on \(sceneName), session \(session == nil ? "none" : "open"), status \(session?.status ?? "-")")
+                }
+                if scene() is LobbyScene {
+                    let players = session?.lobby?.players.count ?? 0
+                    if !raceSeen {
+                        once(players >= 2 ? "2-lobby-full" : "2-lobby")
+                        if role == "host", players >= 2, session?.lobby?.inRace == false, Date().timeIntervalSince(started) > 5 {
+                            print("online test: starting race with \(session?.lobby?.players.map(\.name) ?? [])")
+                            session?.startRace()
+                        }
+                    } else {
+                        if lobbyAgainAt == nil { lobbyAgainAt = Date() }
+                        if Date().timeIntervalSince(lobbyAgainAt!) > 1.5 {
+                            once("6-back-in-lobby")
+                            after(1) { NSApplication.shared.terminate(nil) }
+                        }
+                    }
+                } else if let race = scene() as? RaceScene {
+                    if !raceSeen { raceSeen = true; started = Date() }
+                    let t = Date().timeIntervalSince(started)
+                    if t > 2 { once("3-countdown") }
+                    if t > 7 { once("4-racing") }
+                    // SLIDEWAYS_NET_QUIT_AT: vanish mid-race to test the other side's handling.
+                    if let quit = Double(ProcessInfo.processInfo.environment["SLIDEWAYS_NET_QUIT_AT"] ?? ""), t > quit {
+                        print("online test: quitting mid-race")
+                        exit(0)
+                    }
+                    if race.debugShowingResults {
+                        if resultsAt == nil {
+                            resultsAt = Date()
+                            print("online test: results \(race.debugStandings)")
+                        }
+                        if Date().timeIntervalSince(resultsAt!) > 1.5 { once("5-results") }
+                        if role == "host", Date().timeIntervalSince(resultsAt!) > 3 { session?.returnToLobby() }
+                    }
+                } else if scene() is OnlineScene, raceSeen || session == nil && Date().timeIntervalSince(started) > 8 {
+                    once("7-online-menu-after")
+                    print("online test: ended up back on the online menu")
+                    after(1) { NSApplication.shared.terminate(nil) }
+                }
+            }
+        }
+        after(1, poll)
+        after(120) {
+            print("online test: timed out")
+            NSApplication.shared.terminate(nil)
+        }
     }
 
     /// Walks the level editor through each tool with synthetic pointer input.

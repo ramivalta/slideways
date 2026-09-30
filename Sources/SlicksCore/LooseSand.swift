@@ -195,11 +195,86 @@ public final class LooseSand {
 
     private func set(_ i: Int, _ value: Float) {
         // Sweeping leaves specks that would never quite reach zero; tidy those away.
-        amount[i] = value < amount[i] && value < 0.002 ? 0 : value
+        store(i, value < amount[i] && value < 0.002 ? 0 : value, journal: true)
+    }
+
+    /// Writes one cell, keeping the checksum and change lists up to date.
+    private func store(_ i: Int, _ value: Float, journal: Bool) {
+        let old = amount[i]
+        guard value.bitPattern != old.bitPattern else { return }
+        checksum = checksum &- Self.contribution(i, old) &+ Self.contribution(i, value)
+        amount[i] = value
         if !changedFlags[i] {
             changedFlags[i] = true
             changed.append(i)
         }
+        if journal, keepsJournal, !journalFlags[i] {
+            journalFlags[i] = true
+            journaled.append(i)
+        }
+    }
+
+    // MARK: Online play
+
+    /// Order-independent fingerprint of every cell, kept current as cells change, so state
+    /// hashes can include the sand without scanning 576,000 cells.
+    public private(set) var checksum: UInt64 = 0
+
+    /// The random numbers spraying uses; part of the state that has to match between machines.
+    public var rngState: UInt64 { rng.state }
+
+    /// Record which cells change (separately from rendering's list), for sending to other
+    /// machines or for undoing a prediction. Off by default: offline races don't need it.
+    public var keepsJournal = false {
+        didSet {
+            if keepsJournal, journalFlags.isEmpty { journalFlags = [Bool](repeating: false, count: amount.count) }
+        }
+    }
+
+    private var journalFlags: [Bool] = []
+    private var journaled: [Int] = []
+
+    /// Cells changed by the simulation since the last call (needs `keepsJournal`).
+    public func drainJournal() -> [Int] {
+        defer {
+            for i in journaled { journalFlags[i] = false }
+            journaled.removeAll(keepingCapacity: true)
+        }
+        return journaled
+    }
+
+    /// Takes cell values and the RNG from elsewhere (the host). Cells are redrawn but not
+    /// journaled: this isn't the simulation's doing.
+    public func apply(cells: [(index: Int, value: Float)], rngState: UInt64) {
+        for c in cells where amount.indices.contains(c.index) { store(c.index, c.value, journal: false) }
+        rng = SplitMix64(seed: rngState)
+    }
+
+    /// Everything about the sand that changes during a race.
+    public struct State: Codable, Sendable, Equatable {
+        public var amount: [Float]
+        public var rngState: UInt64
+    }
+
+    /// A copy for snapshots. Cheap to take (the array is shared until one side changes).
+    public var state: State { State(amount: amount, rngState: rng.state) }
+
+    /// Puts the sand back as it was in `s`, redrawing the cells that differ.
+    public func restore(_ s: State) {
+        guard s.amount.count == amount.count else { return }
+        for i in amount.indices where amount[i].bitPattern != s.amount[i].bitPattern {
+            store(i, s.amount[i], journal: true)
+        }
+        rng = SplitMix64(seed: s.rngState)
+    }
+
+    /// A cell's share of the checksum: zero for empty cells, so all-empty sums to zero.
+    static func contribution(_ i: Int, _ value: Float) -> UInt64 {
+        guard value != 0 else { return 0 }
+        var z = UInt64(truncatingIfNeeded: i) << 32 | UInt64(value.bitPattern)
+        z = (z ^ (z >> 30)) &* 0xBF58_476D_1CE4_E5B9
+        z = (z ^ (z >> 27)) &* 0x94D0_49BB_1331_11EB
+        return z ^ (z >> 31)
     }
 }
 
