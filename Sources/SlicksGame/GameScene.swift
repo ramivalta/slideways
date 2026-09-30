@@ -92,6 +92,28 @@ public final class GameCoordinator {
         return t
     }
 
+    /// Ramps layer, or nil if the track has none.
+    func rampTexture(for track: Track) -> SKTexture? {
+        let key = track.definition.id + "#ramps"
+        if let t = textures[key] { return t }
+        guard let image = TrackRenderer.makeRampImage(for: track.definition) else { return nil }
+        let t = SKTexture(cgImage: image)
+        t.filteringMode = .linear
+        textures[key] = t
+        return t
+    }
+
+    /// Trees and buildings layer, or nil if the track has none.
+    func objectTexture(for track: Track) -> SKTexture? {
+        let key = track.definition.id + "#objects"
+        if let t = textures[key] { return t }
+        guard let image = TrackRenderer.makeObjectImage(for: track.definition) else { return nil }
+        let t = SKTexture(cgImage: image)
+        t.filteringMode = .linear
+        textures[key] = t
+        return t
+    }
+
     /// Cached pixel-art texture for a track.
     func texture(for track: Track) -> SKTexture {
         if let t = textures[track.definition.id] { return t }

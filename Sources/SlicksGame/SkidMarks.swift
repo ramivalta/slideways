@@ -102,7 +102,9 @@ final class SkidMarks: SKNode {
             : SKColor(red: 0.18, green: 0.3, blue: 0.1, alpha: 0.5)
         case .sand: SKColor(red: 0.55, green: 0.42, blue: 0.24, alpha: 0.45)
         case .ice: SKColor(white: 1, alpha: 0.4)
-        case .wall: nil
+        case .mud: SKColor(red: 0.24, green: 0.16, blue: 0.09, alpha: 0.55)
+        // Water closes behind the car; it splashes instead.
+        case .wall, .water: nil
         }
     }
 }

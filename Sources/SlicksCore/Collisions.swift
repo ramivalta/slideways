@@ -21,7 +21,8 @@ enum Collisions {
             let (front, rear) = car.collisionCircles
             for circle in [front, rear] {
                 let offsetFromCenter = circle - car.position
-                guard let contact = track.wallContact(center: circle, radius: r, level: car.level) else { continue }
+                guard let contact = track.wallContact(center: circle, radius: r, level: car.level,
+                                                      aboveObstacles: car.isAboveObstacles) else { continue }
                 touched = true
                 let n = contact.normal
                 car.position += n * contact.depth

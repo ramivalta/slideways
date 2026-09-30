@@ -25,6 +25,10 @@ public struct TrackDefinition: Codable, Sendable, Identifiable, Equatable {
     public var patches: [Patch]
     /// Places where the road crosses itself on two levels.
     public var bridges: [BridgeDefinition]
+    /// Paint on the ground, drawn in order. No effect on driving.
+    public var lines: [PaintLine]
+    /// Trees and buildings.
+    public var objects: [TrackObject]
 
     public init(
         id: String,
@@ -40,7 +44,9 @@ public struct TrackDefinition: Codable, Sendable, Identifiable, Equatable {
         barrierDistance: Double? = nil,
         barrierThickness: Double = 7,
         patches: [Patch] = [],
-        bridges: [BridgeDefinition] = []
+        bridges: [BridgeDefinition] = [],
+        lines: [PaintLine] = [],
+        objects: [TrackObject] = []
     ) {
         self.id = id
         self.name = name
@@ -56,6 +62,8 @@ public struct TrackDefinition: Codable, Sendable, Identifiable, Equatable {
         self.barrierThickness = barrierThickness
         self.patches = patches
         self.bridges = bridges
+        self.lines = lines
+        self.objects = objects
     }
 
     /// Tracks saved before a field existed still load: missing optional parts get defaults.
@@ -75,6 +83,8 @@ public struct TrackDefinition: Codable, Sendable, Identifiable, Equatable {
         barrierThickness = try c.decodeIfPresent(Double.self, forKey: .barrierThickness) ?? 7
         patches = try c.decodeIfPresent([Patch].self, forKey: .patches) ?? []
         bridges = try c.decodeIfPresent([BridgeDefinition].self, forKey: .bridges) ?? []
+        lines = try c.decodeIfPresent([PaintLine].self, forKey: .lines) ?? []
+        objects = try c.decodeIfPresent([TrackObject].self, forKey: .objects) ?? []
     }
 
     /// Road width at a control point.

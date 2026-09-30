@@ -9,6 +9,7 @@ final class RaceScene: GameScene {
     /// Draw order. Cars on a bridge deck render above it, cars below render under it.
     private enum Z {
         static let ground: CGFloat = 0
+        static let ramps: CGFloat = 0.5
         static let skids: CGFloat = 1
         static let carShadow: CGFloat = 2
         static let car: CGFloat = 3
@@ -16,6 +17,11 @@ final class RaceScene: GameScene {
         static let deckSkids: CGFloat = 5.5
         static let deckCarShadow: CGFloat = 6
         static let deckCar: CGFloat = 7
+        static let splash: CGFloat = 7.2
+        /// Cars in the air fly over bridge decks too.
+        static let jumpingCar: CGFloat = 7.3
+        /// Trees and buildings stand above everything on the ground: cars pass under canopies.
+        static let objects: CGFloat = 7.5
         static let tags: CGFloat = 8
         static let sparks: CGFloat = 9
     }
@@ -79,6 +85,13 @@ final class RaceScene: GameScene {
         skids.zPosition = Z.skids
         world.addChild(skids)
 
+        if let texture = coordinator.rampTexture(for: track) {
+            let ramps = SKSpriteNode(texture: texture, size: worldSize)
+            ramps.anchorPoint = .zero
+            ramps.zPosition = Z.ramps
+            world.addChild(ramps)
+        }
+
         for bridge in track.bridges {
             let rect = TrackRenderer.deckRect(bridge)
             let deck = SKSpriteNode(texture: coordinator.deckTexture(for: track, bridge: bridge), size: rect.size)
@@ -89,6 +102,13 @@ final class RaceScene: GameScene {
         }
         deckSkids.zPosition = Z.deckSkids
         world.addChild(deckSkids)
+
+        if let texture = coordinator.objectTexture(for: track) {
+            let objects = SKSpriteNode(texture: texture, size: worldSize)
+            objects.anchorPoint = .zero
+            objects.zPosition = Z.objects
+            world.addChild(objects)
+        }
 
         let spriteSize = CarArt.spriteSize()
         for car in race.cars {
@@ -180,10 +200,15 @@ final class RaceScene: GameScene {
             node.position = p
             node.zRotation = car.heading
             let shadow = shadowNodes[car.id]
-            shadow.position = CGPoint(x: p.x + 2, y: p.y - 2)
+            // Height reads as a slightly bigger kart with its shadow left further behind.
+            let lift = CGFloat(car.height)
+            node.setScale(1 + lift * 0.012)
+            let reach = 2 + lift * 0.7
+            shadow.position = CGPoint(x: p.x + reach, y: p.y - reach)
+            shadow.alpha = 0.35 * max(0.45, 1 - lift / 40)
             shadow.zRotation = car.heading
             let onDeck = car.level > 0
-            node.zPosition = onDeck ? Z.deckCar : Z.car
+            node.zPosition = car.isAboveObstacles ? Z.jumpingCar : onDeck ? Z.deckCar : Z.car
             shadow.zPosition = onDeck ? Z.deckCarShadow : Z.carShadow
 
             // Ease the wheels toward the steering input so digital keys don't snap them.
@@ -208,7 +233,7 @@ final class RaceScene: GameScene {
             let rearL = car.position - fwd * 6.9 + left * 3.8
             let rearR = car.position - fwd * 6.9 - left * 3.8
             let a = CGPoint(x: rearL.x, y: rearL.y), b = CGPoint(x: rearR.x, y: rearR.y)
-            let sliding = car.slip > 22 || (car.isBraking && car.speed > 70) || car.isWheelspinning
+            let sliding = !car.isAirborne && (car.slip > 22 || (car.isBraking && car.speed > 70) || car.isWheelspinning)
             let color = SkidMarks.color(for: car.surface, theme: track.definition.theme)
             if sliding, let color, let prev = lastWheels[car.id] {
                 let moved = hypot(a.x - prev.0.x, a.y - prev.0.y)
@@ -220,6 +245,9 @@ final class RaceScene: GameScene {
                 }
             } else {
                 lastWheels[car.id] = sliding ? (a, b) : nil
+            }
+            if car.surface == .water, !car.isAirborne, car.speed > 40, Double.random(in: 0..<1) < car.speed / 500 {
+                spawnSplash(at: Bool.random() ? rearL : rearR, car: car)
             }
         }
         skids.tick()
@@ -240,6 +268,22 @@ final class RaceScene: GameScene {
                 .removeFromParent(),
             ]))
         }
+    }
+
+    /// Spray thrown up behind and to the side of a wheel driving through water.
+    private func spawnSplash(at p: Vec2, car: Car) {
+        let s = SKSpriteNode(color: SKColor(red: 0.8, green: 0.9, blue: 1, alpha: 1), size: CGSize(width: 2, height: 2))
+        s.position = CGPoint(x: p.x, y: p.y)
+        s.zPosition = Z.splash
+        s.alpha = 0.85
+        world.addChild(s)
+        let back = -car.velocity.normalized
+        let side = car.left * Double.random(in: -1...1)
+        let d = (back * 0.6 + side).normalized * Double.random(in: 5...12)
+        s.run(.sequence([
+            .group([.moveBy(x: d.x, y: d.y, duration: 0.35), .fadeOut(withDuration: 0.35), .scale(to: 1.8, duration: 0.35)]),
+            .removeFromParent(),
+        ]))
     }
 
     // MARK: HUD

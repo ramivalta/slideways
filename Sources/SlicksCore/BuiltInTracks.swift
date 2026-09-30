@@ -4,7 +4,71 @@ import Foundation
 public enum BuiltInTracks {
     public static let all: [TrackDefinition] = [
         provingGrounds, overpass, hairpinValley, twinBridges, cloverleaf, figureEight, desertDunes, frozenLake, canyon,
+        riversidePark,
     ]
+
+    /// Parkland circuit dressed up with scenery: pit garages and a painted grid on the start
+    /// straight, grandstands, trees (some solid, some to drive under), a river ford and mud.
+    static let riversidePark: TrackDefinition = {
+        let start = Vec2(420, 90)
+        // Grid box marks just ahead of each slot, as laid out by `Track.gridSlots`.
+        var grid: [PaintLine] = []
+        for k in 0..<8 {
+            let row = Double(k / 2)
+            let left = k % 2 == 0
+            let x = start.x - 24 - row * 32 - (left ? 0 : 8) + 13
+            let y = start.y + (left ? 18.5 : -18.5)
+            grid.append(PaintLine(points: [Vec2(x, y - 8), Vec2(x, y + 8)], width: 2, color: .white))
+        }
+        return TrackDefinition(
+            id: "riverside-park",
+            name: "Riverside Park",
+            controlPoints: [
+                start, Vec2(640, 90), Vec2(800, 110), Vec2(880, 200), Vec2(870, 320), Vec2(790, 380),
+                Vec2(680, 370), Vec2(600, 420), Vec2(620, 500), Vec2(560, 545), Vec2(420, 540),
+                Vec2(300, 500), Vec2(250, 420), Vec2(170, 400), Vec2(90, 330), Vec2(90, 200),
+                Vec2(160, 110), Vec2(280, 90),
+            ],
+            defaultLaps: 4,
+            patches: [
+                // Pit lane between the garages and the start straight.
+                Patch(.asphalt, .rect(origin: Vec2(270, 33), size: Vec2(380, 12))),
+                // The river, with a ford across the back straight.
+                Patch(.water, .capsule(from: Vec2(0, 262), to: Vec2(200, 282), radius: 15), coversRoad: true),
+                Patch(.water, .capsule(from: Vec2(200, 282), to: Vec2(330, 300), radius: 15)),
+                Patch(.water, .circle(center: Vec2(370, 300), radius: 44)),
+                // Churned-up mud on the outside of the last hairpin.
+                Patch(.mud, .circle(center: Vec2(660, 560), radius: 50)),
+                Patch(.sand, .circle(center: Vec2(935, 90), radius: 60)),
+            ],
+            lines: grid + [
+                // Pit lane edge and the pit entry and exit.
+                PaintLine(points: [Vec2(270, 45), Vec2(650, 45)], width: 2, color: .white),
+                PaintLine(points: [Vec2(650, 45), Vec2(700, 52)], width: 2, color: .yellow),
+                PaintLine(points: [Vec2(270, 45), Vec2(220, 54)], width: 2, color: .yellow),
+            ],
+            objects: [
+                // Jump over the river ford on the way down the left side.
+                TrackObject(.ramp, at: Vec2(88, 316), size: Vec2(76, 28), angle: .pi),
+                TrackObject(.pitBuilding, at: Vec2(460, 19), size: Vec2(180, 26), angle: .pi),
+                TrackObject(.grandstand, at: Vec2(470, 170), size: Vec2(160, 34)),
+                TrackObject(.grandstand, at: Vec2(760, 250), size: Vec2(110, 30), angle: -.pi / 2),
+                // Solid trees on the outside of corners.
+                TrackObject(.tree, at: Vec2(930, 430), size: Vec2(34, 34)),
+                TrackObject(.tree, at: Vec2(905, 480), size: Vec2(24, 24)),
+                TrackObject(.tree, at: Vec2(40, 440), size: Vec2(30, 30)),
+                TrackObject(.pine, at: Vec2(30, 120), size: Vec2(26, 26)),
+                TrackObject(.pine, at: Vec2(60, 60), size: Vec2(20, 20)),
+                TrackObject(.tree, at: Vec2(200, 570), size: Vec2(36, 36)),
+                // Decorative canopies over the infield and the river bank.
+                TrackObject(.tree, at: Vec2(300, 360), size: Vec2(44, 44), solid: false),
+                TrackObject(.tree, at: Vec2(430, 360), size: Vec2(30, 30), solid: false),
+                TrackObject(.palm, at: Vec2(400, 250), size: Vec2(26, 26), solid: false),
+                TrackObject(.tree, at: Vec2(520, 300), size: Vec2(40, 40), solid: false),
+                TrackObject(.pine, at: Vec2(700, 470), size: Vec2(22, 22), solid: false),
+            ]
+        )
+    }()
 
     /// Lopsided figure eight: a big right lobe, a tight left lobe, and a bridge where they cross.
     static let overpass = TrackDefinition(

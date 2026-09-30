@@ -8,7 +8,7 @@ import SpriteKit
 /// vector overlay (centerline, points, patch outlines, crossings) gives instant feedback.
 final class EditorScene: GameScene {
     enum Tool: CaseIterable {
-        case select, road, patch, bridge
+        case select, road, patch, bridge, line, object
 
         var title: String {
             switch self {
@@ -16,6 +16,8 @@ final class EditorScene: GameScene {
             case .road: "Road"
             case .patch: "Patch"
             case .bridge: "Bridge"
+            case .line: "Line"
+            case .object: "Object"
             }
         }
 
@@ -25,15 +27,19 @@ final class EditorScene: GameScene {
             case .road: "R"
             case .patch: "P"
             case .bridge: "B"
+            case .line: "L"
+            case .object: "O"
             }
         }
 
         var hint: String {
             switch self {
-            case .select: "Drag road points and patches to move them, drag empty space to pan. Right-click deletes. Scroll or pinch to zoom."
+            case .select: "Drag road points, patches, lines and objects to move them, drag empty space to pan. Right-click deletes. Scroll or pinch to zoom."
             case .road: "Click to add a road point where the road should bend, drag points to reshape. Right-click a point to delete it."
             case .patch: "Drag on the map to draw a patch (a click gives a default size). Drag a patch to move it, its handles to resize."
             case .bridge: "Click where the road crosses itself to build a bridge. Click it again to swap which road goes over. Right-click removes."
+            case .line: "Click to start a paint line and click to add points. Click the last point, Enter or right-click to finish."
+            case .object: "Click to place a tree or building, drag to move it. Drag its handles to resize or turn it. Right-click deletes."
             }
         }
     }
@@ -42,12 +48,23 @@ final class EditorScene: GameScene {
         case none
         case point(Int)
         case patch(Int)
+        case line(Int)
+        case object(Int)
     }
 
     enum PatchHandle: Equatable {
         case radius
         case corner(Int)
         case end(Int)
+    }
+
+    enum ObjectHandle: Equatable {
+        /// Tree canopy size.
+        case radius
+        /// Back right corner of a building: sets its length and depth.
+        case corner
+        /// In front of a building: turns it.
+        case rotate
     }
 
     private enum Hover: Equatable {
@@ -58,6 +75,10 @@ final class EditorScene: GameScene {
         case crossing(Int)
         case insert(index: Int, position: Vec2)
         case widthHandle(side: Int)
+        case line(Int)
+        case lineVertex(Int)
+        case object(Int)
+        case objectHandle(ObjectHandle)
     }
 
     private enum Drag {
@@ -68,6 +89,10 @@ final class EditorScene: GameScene {
         case create(start: Vec2)
         /// Dragging a road edge handle of the selected point, along the road's normal there.
         case width(index: Int, normal: Vec2)
+        case line(index: Int, start: Vec2, original: PaintLine)
+        case lineVertex(index: Int, vertex: Int)
+        case object(index: Int, grab: Vec2)
+        case objectHandle(index: Int, handle: ObjectHandle, original: TrackObject)
     }
 
     private enum Layout {
@@ -121,6 +146,17 @@ final class EditorScene: GameScene {
     private var patchKind: PatchShapeKind = .circle
     private var patchCoversRoad = false
     private var capsuleRadius = 8.0
+
+    /// Line being drawn with the line tool: clicks add points to it until it's finished.
+    private var drawingLine: Int?
+    /// Settings for new lines and objects.
+    private var lineColor: PaintColor = .white
+    private var lineWidth = 2.0
+    private var objectKind: TrackObjectKind = .tree
+    private var treeSize = TrackObjectKind.tree.defaultSize.x
+    private var treeSolid = true
+    /// Mouse position on the map, for the line rubber band and the object placement ghost.
+    private var cursorWorld: Vec2?
 
     private var snapToGrid = false
     private var panelVisible = true
@@ -245,7 +281,7 @@ final class EditorScene: GameScene {
         add("Test >", 54, "Race this track right now, then come back (T)") { [unowned self] in testDrive() }
         x += 6
         for t in Tool.allCases {
-            toolButtons[t] = add(t.title, 56, "\(t.title) tool (\(t.shortcut)): \(t.hint)") { [unowned self] in setTool(t) }
+            toolButtons[t] = add(t.title, 50, "\(t.title) tool (\(t.shortcut)): \(t.hint)") { [unowned self] in setTool(t) }
         }
         x += 6
         undoButton = add("Undo", 44, "Undo (Cmd+Z)") { [unowned self] in undo() }
@@ -337,6 +373,7 @@ final class EditorScene: GameScene {
     private func undo() {
         closeChange()
         guard let prev = undoStack.popLast() else { return flash("Nothing to undo") }
+        drawingLine = nil
         redoStack.append(def)
         def = prev
         definitionChanged()
@@ -345,6 +382,7 @@ final class EditorScene: GameScene {
     private func redo() {
         closeChange()
         guard let next = redoStack.popLast() else { return flash("Nothing to redo") }
+        drawingLine = nil
         undoStack.append(def)
         def = next
         definitionChanged()
@@ -355,8 +393,11 @@ final class EditorScene: GameScene {
         switch selection {
         case let .point(i) where !def.controlPoints.indices.contains(i): selection = .none
         case let .patch(i) where !def.patches.indices.contains(i): selection = .none
+        case let .line(i) where !def.lines.indices.contains(i): selection = .none
+        case let .object(i) where !def.objects.indices.contains(i): selection = .none
         default: break
         }
+        if let k = drawingLine, !def.lines.indices.contains(k) { drawingLine = nil }
         requestRebuild()
         // Drags get the quick preview immediately. Clicks wait a moment, since a fast exact
         // build would otherwise flash the flat preview for a frame or two.
@@ -392,6 +433,7 @@ final class EditorScene: GameScene {
         hover = .none
         drag = nil
         pendingPatch = nil
+        drawingLine = nil
         editingName = false
         requestRebuild()
         showQuickPreview()
@@ -508,6 +550,46 @@ final class EditorScene: GameScene {
         return handles(of: def.patches[i].shape).first { $0.1.distance(to: w) < tol }?.0
     }
 
+    /// Topmost paint line under `w`.
+    private func lineIndex(at w: Vec2) -> Int? {
+        let tol = tolerance(4)
+        return def.lines.indices.reversed().first { def.lines[$0].distance(to: w) <= def.lines[$0].width / 2 + tol }
+    }
+
+    /// Point of the selected line under `w`.
+    private func lineVertex(at w: Vec2) -> Int? {
+        guard case let .line(i) = selection, def.lines.indices.contains(i) else { return nil }
+        let tol = tolerance(7)
+        return def.lines[i].points.indices.reversed().first { def.lines[i].points[$0].distance(to: w) < tol }
+    }
+
+    /// Topmost object under `w`. Trees are drawn over buildings, so they win.
+    private func objectIndex(at w: Vec2) -> Int? {
+        let tol = tolerance(2)
+        func hit(_ o: TrackObject) -> Bool {
+            o.kind.isTree ? o.position.distance(to: w) <= o.radius + tol : o.covers(w)
+        }
+        let order = def.objects.indices.reversed()
+        return order.first { def.objects[$0].kind.isTree && hit(def.objects[$0]) }
+            ?? order.first { !def.objects[$0].kind.isTree && hit(def.objects[$0]) }
+    }
+
+    /// Distance of a building's turn handle in front of it.
+    private static let rotateHandleGap = 14.0
+
+    private func objectHandles(of o: TrackObject) -> [(ObjectHandle, Vec2)] {
+        if o.kind.isTree { return [(.radius, o.position + Vec2(o.radius, 0))] }
+        let side = turnHandleSide(o)
+        return [(.corner, o.world(Vec2(o.size.x / 2, -side * o.size.y / 2))),
+                (.rotate, o.world(Vec2(0, side * (o.size.y / 2 + Self.rotateHandleGap))))]
+    }
+
+    private func objectHandle(at w: Vec2) -> ObjectHandle? {
+        guard case let .object(i) = selection, def.objects.indices.contains(i) else { return nil }
+        let tol = tolerance(8)
+        return objectHandles(of: def.objects[i]).first { $0.1.distance(to: w) < tol }?.0
+    }
+
     private func crossingIndex(at w: Vec2) -> Int? {
         let tol = max(def.roadWidth / 2, tolerance(14))
         var best: Int?, bestD = Double.infinity
@@ -558,8 +640,19 @@ final class EditorScene: GameScene {
         case .select:
             if let s = widthHandle(at: w) { return .widthHandle(side: s) }
             if let h = handle(at: w) { return .handle(h) }
+            if let h = objectHandle(at: w) { return .objectHandle(h) }
+            if let v = lineVertex(at: w) { return .lineVertex(v) }
             if let i = pointIndex(at: w) { return .point(i) }
+            if let i = objectIndex(at: w) { return .object(i) }
+            if let i = lineIndex(at: w) { return .line(i) }
             if let i = patchIndex(at: w) { return .patch(i) }
+        case .line:
+            if drawingLine != nil { return .none }
+            if let v = lineVertex(at: w) { return .lineVertex(v) }
+            if let i = lineIndex(at: w) { return .line(i) }
+        case .object:
+            if let h = objectHandle(at: w) { return .objectHandle(h) }
+            if let i = objectIndex(at: w) { return .object(i) }
         case .road:
             if let s = widthHandle(at: w) { return .widthHandle(side: s) }
             if let i = pointIndex(at: w) { return .point(i) }
@@ -595,9 +688,19 @@ final class EditorScene: GameScene {
         case .select:
             if let h = handle(at: w), case let .patch(i) = selection {
                 drag = .handle(index: i, handle: h, original: def.patches[i].shape)
+            } else if let h = objectHandle(at: w), case let .object(i) = selection {
+                drag = .objectHandle(index: i, handle: h, original: def.objects[i])
+            } else if let v = lineVertex(at: w), case let .line(i) = selection {
+                drag = .lineVertex(index: i, vertex: v)
             } else if let i = pointIndex(at: w) {
                 select(.point(i))
                 drag = .point(index: i, grab: def.controlPoints[i] - w)
+            } else if let i = objectIndex(at: w) {
+                select(.object(i))
+                drag = .object(index: i, grab: def.objects[i].position - w)
+            } else if let i = lineIndex(at: w) {
+                select(.line(i))
+                drag = .line(index: i, start: w, original: def.lines[i])
             } else if let i = patchIndex(at: w) {
                 select(.patch(i))
                 drag = .patch(index: i, start: w, original: def.patches[i].shape)
@@ -634,7 +737,112 @@ final class EditorScene: GameScene {
             }
         case .bridge:
             bridgeClick(at: w)
+        case .line:
+            lineClick(at: w)
+        case .object:
+            if let h = objectHandle(at: w), case let .object(i) = selection {
+                drag = .objectHandle(index: i, handle: h, original: def.objects[i])
+            } else if let i = objectIndex(at: w) {
+                select(.object(i))
+                drag = .object(index: i, grab: def.objects[i].position - w)
+            } else if def.objects.count >= EditorLimits.maxObjects {
+                flash("That's a lot of objects. Delete some before adding more.")
+            } else {
+                // Placing the object and dragging it into place is one undo step.
+                let object = newObject(at: EditorLimits.clampToMap(snap(w)))
+                closeChange()
+                performContinuing { $0.objects.append(object) }
+                select(.object(def.objects.count - 1))
+                drag = .object(index: def.objects.count - 1, grab: object.position - w)
+                dragMoved = true
+            }
         }
+    }
+
+    private func lineClick(at w: Vec2) {
+        let pos = EditorLimits.clampToMap(snap(w))
+        if let k = drawingLine {
+            let points = def.lines[k].points
+            if let last = points.last, last.distance(to: w) < tolerance(7) { return finishLine() }
+            guard points.count < EditorLimits.maxLinePoints else {
+                finishLine()
+                return flash("That line has as many points as it can take")
+            }
+            // Adding the point and dragging it into place is one undo step.
+            closeChange()
+            performContinuing { $0.lines[k].points.append(pos) }
+            drag = .lineVertex(index: k, vertex: points.count)
+            return
+        }
+        if let v = lineVertex(at: w), case let .line(i) = selection {
+            drag = .lineVertex(index: i, vertex: v)
+        } else if let i = lineIndex(at: w) {
+            select(.line(i))
+            drag = .line(index: i, start: w, original: def.lines[i])
+        } else if def.lines.count >= EditorLimits.maxLines {
+            flash("That's a lot of lines. Delete some before adding more.")
+        } else {
+            // Start with the second point on the first; dragging pulls it out into a segment.
+            closeChange()
+            performContinuing { $0.lines.append(PaintLine(points: [pos, pos], width: lineWidth, color: lineColor)) }
+            let k = def.lines.count - 1
+            drawingLine = k
+            select(.line(k))
+            drag = .lineVertex(index: k, vertex: 1)
+        }
+    }
+
+    /// Stops adding points to the line being drawn. A line with a single point is dropped.
+    private func finishLine() {
+        guard let k = drawingLine else { return }
+        drawingLine = nil
+        if def.lines.indices.contains(k), def.lines[k].points.count < 2 {
+            perform { $0.lines.remove(at: k) }
+            select(.none)
+        } else {
+            flash("Line finished")
+        }
+        refreshAll()
+    }
+
+    /// A new object of the current kind. Buildings turn to face the nearest road; ramps line
+    /// up with it, launching cars the way the race goes.
+    private func newObject(at p: Vec2) -> TrackObject {
+        if objectKind.isTree {
+            return TrackObject(objectKind, at: p, size: Vec2(treeSize, treeSize), angle: objectHash(p), solid: treeSolid)
+        }
+        return TrackObject(objectKind, at: p, angle: objectKind.isRamp ? raceAngle(at: p) : facingAngle(at: p))
+    }
+
+    /// Angle that points a ramp's jump the way the race runs on the road nearest `p`.
+    private func raceAngle(at p: Vec2) -> Double {
+        let dense = Track.centerline(through: def.controlPoints)
+        let m = dense.count
+        guard m > 2, let i = dense.indices.min(by: { dense[$0].distance(to: p) < dense[$1].distance(to: p) }) else { return 0 }
+        let t = (dense[(i + 1) % m] - dense[(i - 1 + m) % m]).normalized
+        return snapAngle(atan2(-t.x, t.y), step: 5)
+    }
+
+    /// Which side of an object its turn handle is on: in front of buildings, past a ramp's
+    /// lip so it points the way cars jump.
+    private func turnHandleSide(_ o: TrackObject) -> Double { o.kind.isRamp ? 1 : -1 }
+
+    /// Random-looking but stable canopy turn for a new tree.
+    private func objectHash(_ p: Vec2) -> Double {
+        hash01(Int(p.x), Int(p.y), 77) * 2 * .pi
+    }
+
+    /// Angle that turns a building's front toward the road nearest `p`, in 5 degree steps.
+    private func facingAngle(at p: Vec2) -> Double {
+        let dense = Track.centerline(through: def.controlPoints)
+        guard let q = dense.min(by: { $0.distance(to: p) < $1.distance(to: p) }) else { return 0 }
+        let d = q - p
+        return snapAngle(atan2(d.x, -d.y), step: 5)
+    }
+
+    private func snapAngle(_ a: Double, step degrees: Double) -> Double {
+        let s = degrees * .pi / 180
+        return wrapAngle((a / s).rounded() * s)
     }
 
     func pointerDragged(to p: CGPoint) {
@@ -669,8 +877,48 @@ final class EditorScene: GameScene {
             performContinuing { $0.setRoadWidth(width, atPoint: i) }
             refreshStatus(cursor: w)
             return flash("Road width here: \(Int(width))")
+        case let .line(i, start, original):
+            guard let first = original.points.first else { break }
+            let moved = original.translated(by: snap(first + (w - start)) - first)
+            performContinuing { $0.lines[i] = moved }
+        case let .lineVertex(i, v):
+            let pos = EditorLimits.clampToMap(snap(w))
+            performContinuing { $0.lines[i].points[v] = pos }
+        case let .object(i, grab):
+            let pos = EditorLimits.clampToMap(snap(w + grab))
+            performContinuing { $0.objects[i].position = pos }
+        case let .objectHandle(i, h, original):
+            let changed = adjust(original, handle: h, to: w)
+            performContinuing { $0.objects[i] = changed }
+            if h == .rotate {
+                refreshStatus(cursor: w)
+                let deg = Int((changed.angle * 180 / .pi).rounded())
+                return flash("Facing \((deg % 360 + 360) % 360)°")
+            }
         }
         refreshStatus(cursor: w)
+    }
+
+    /// An object with one of its handles dragged to `w`.
+    private func adjust(_ o: TrackObject, handle h: ObjectHandle, to w: Vec2) -> TrackObject {
+        var o = o
+        switch h {
+        case .radius:
+            let r = EditorLimits.treeSize
+            let d = clamp((o.position.distance(to: w) * 2).rounded(), r.lowerBound, r.upperBound)
+            o.size = Vec2(d, d)
+        case .corner:
+            let l = o.local(w), step = snapToGrid ? EditorScene.gridStep : 2
+            let lr = EditorLimits.buildingLength, dr = EditorLimits.buildingDepth
+            o.size = Vec2(clamp((abs(l.x) * 2 / step).rounded() * step, lr.lowerBound, lr.upperBound),
+                          clamp((abs(l.y) * 2 / step).rounded() * step, dr.lowerBound, dr.upperBound))
+        case .rotate:
+            // Direction the object's front (local -y) should face.
+            let d = (w - o.position) * -turnHandleSide(o)
+            guard d.lengthSquared > 1 else { return o }
+            o.angle = snapAngle(atan2(d.x, -d.y), step: snapToGrid ? 15 : 5)
+        }
+        return o
     }
 
     func pointerUp(at p: CGPoint) {
@@ -682,6 +930,11 @@ final class EditorScene: GameScene {
             perform { $0.patches.append(Patch(patchSurface, shape, coversRoad: patchCoversRoad)) }
             select(.patch(def.patches.count - 1))
         }
+        // A click that didn't drag a new line point out leaves it on the previous point: drop it.
+        if case let .lineVertex(k, v) = d, drawingLine == k, def.lines.indices.contains(k), v > 0,
+           def.lines[k].points.indices.contains(v), def.lines[k].points[v] == def.lines[k].points[v - 1] {
+            performContinuing { $0.lines[k].points.remove(at: v) }
+        }
         closeChange()
         hover = computeHover(at: p)
         refreshAll()
@@ -691,12 +944,31 @@ final class EditorScene: GameScene {
     func secondaryClick(at p: CGPoint) {
         guard !isOverUI(p) else { return }
         let w = toWorld(p)
+        if drawingLine != nil { return finishLine() }
         if tool == .bridge, let x = crossingIndex(at: w), let k = def.bridgeIndex(at: crossings[x]) {
             perform { $0.bridges.remove(at: k) }
             return flash("Bridge removed")
         }
+        // A point of the selected line goes first, then the whole line.
+        if let v = lineVertex(at: w), case let .line(i) = selection, tool == .select || tool == .line {
+            guard def.lines[i].points.count > 2 else { return deleteLine(i) }
+            perform { $0.lines[i].points.remove(at: v) }
+            return flash("Line point deleted")
+        }
+        switch tool {
+        case .line:
+            if let i = lineIndex(at: w) { return deleteLine(i) }
+            return select(.none)
+        case .object:
+            if let i = objectIndex(at: w) { return deleteObject(i) }
+            return select(.none)
+        default:
+            break
+        }
         let pointFirst = tool != .patch
         if pointFirst, let i = pointIndex(at: w) { return deletePoint(i) }
+        if tool == .select, let i = objectIndex(at: w) { return deleteObject(i) }
+        if tool == .select, let i = lineIndex(at: w) { return deleteLine(i) }
         if let i = patchIndex(at: w) {
             perform { $0.patches.remove(at: i) }
             select(.none)
@@ -718,11 +990,14 @@ final class EditorScene: GameScene {
             hoveredButton = b
         }
         let h = computeHover(at: p)
-        if h != hover {
+        cursorWorld = isOverUI(p) ? nil : toWorld(p)
+        // The line rubber band and object ghost follow the mouse.
+        let followsCursor = drawingLine != nil || (tool == .object && h == .none)
+        if h != hover || followsCursor {
             hover = h
             refreshOverlay()
         }
-        refreshStatus(cursor: isOverUI(p) ? nil : toWorld(p))
+        refreshStatus(cursor: cursorWorld)
     }
 
     // MARK: Tool actions
@@ -765,16 +1040,61 @@ final class EditorScene: GameScene {
         case let .patch(i):
             perform { $0.patches.remove(at: i) }
             select(.none)
+        case let .line(i): deleteLine(i)
+        case let .object(i): deleteObject(i)
         case .none: break
         }
     }
 
-    private func duplicatePatch() {
-        guard case let .patch(i) = selection, def.patches.count < EditorLimits.maxPatches else { return }
-        var copy = def.patches[i]
-        copy.shape = copy.shape.translated(by: Vec2(14, -14))
-        perform { $0.patches.append(copy) }
-        select(.patch(def.patches.count - 1))
+    private func deleteLine(_ i: Int) {
+        guard def.lines.indices.contains(i) else { return }
+        drawingLine = nil
+        perform { $0.lines.remove(at: i) }
+        select(.none)
+        flash("Line deleted")
+    }
+
+    private func deleteObject(_ i: Int) {
+        guard def.objects.indices.contains(i) else { return }
+        let name = def.objects[i].kind.displayName
+        perform { $0.objects.remove(at: i) }
+        select(.none)
+        flash("\(name) deleted")
+    }
+
+    /// Copies the selected patch, line or object a little down and to the right.
+    private func duplicateSelection() {
+        let offset = Vec2(14, -14)
+        switch selection {
+        case let .patch(i) where def.patches.count < EditorLimits.maxPatches:
+            var copy = def.patches[i]
+            copy.shape = copy.shape.translated(by: offset)
+            perform { $0.patches.append(copy) }
+            select(.patch(def.patches.count - 1))
+        case let .line(i) where def.lines.count < EditorLimits.maxLines:
+            finishLine()
+            guard def.lines.indices.contains(i) else { return }
+            let copy = def.lines[i].translated(by: offset)
+            perform { $0.lines.append(copy) }
+            select(.line(def.lines.count - 1))
+        case let .object(i) where def.objects.count < EditorLimits.maxObjects:
+            var copy = def.objects[i]
+            copy.position = EditorLimits.clampToMap(copy.position + (copy.kind.isTree ? offset : Vec2(0, -copy.size.y - 6)))
+            perform { $0.objects.append(copy) }
+            select(.object(def.objects.count - 1))
+        default:
+            break
+        }
+    }
+
+    private func updateLine(_ i: Int, _ body: @escaping (inout PaintLine) -> Void) {
+        guard def.lines.indices.contains(i) else { return }
+        perform { body(&$0.lines[i]) }
+    }
+
+    private func updateObject(_ i: Int, _ body: @escaping (inout TrackObject) -> Void) {
+        guard def.objects.indices.contains(i) else { return }
+        perform { body(&$0.objects[i]) }
     }
 
     private func nudge(_ d: Vec2) {
@@ -783,6 +1103,10 @@ final class EditorScene: GameScene {
             perform { $0.controlPoints[i] = EditorLimits.clampToMap($0.controlPoints[i] + d) }
         case let .patch(i):
             perform { $0.patches[i].shape = $0.patches[i].shape.translated(by: d) }
+        case let .line(i):
+            perform { $0.lines[i] = $0.lines[i].translated(by: d) }
+        case let .object(i):
+            perform { $0.objects[i].position = EditorLimits.clampToMap($0.objects[i].position + d) }
         case .none:
             offset = CGPoint(x: offset.x - CGFloat(d.x) * 4, y: offset.y - CGFloat(d.y) * 4)
             applyView()
@@ -875,6 +1199,8 @@ final class EditorScene: GameScene {
 
     var debugSummary: String {
         "\(def.name): \(def.controlPoints.count) points, \(def.patches.count) patches, \(def.bridges.count) bridges "
+            + "\(def.lines.count) lines \(def.lines.map(\.points.count)) points, "
+            + "\(def.objects.count) objects \(def.objects.map { "\($0.kind.rawValue)\($0.isSolid ? "" : "(deco)")" }), "
             + "(over at \(def.bridges.map(\.controlPoint))), widths \(def.pointWidths.map { $0.map { Int($0) } }), "
             + "theme \(def.theme.rawValue), dirty \(isDirty), "
             + "undo \(undoStack.count), issues \(isCurrent ? "\(issues.map(\.message))" : "pending"), "
@@ -883,9 +1209,16 @@ final class EditorScene: GameScene {
     #endif
 
     func setTool(_ t: Tool) {
+        if t != .line { finishLine() }
         tool = t
-        if t == .bridge, case .patch = selection { selection = .none }
-        if t == .patch, case .point = selection { selection = .none }
+        // Keep the selection only if the new tool works on it.
+        switch (t, selection) {
+        case (_, .none), (.select, _), (.road, .point), (.road, .patch), (.bridge, .point),
+             (.patch, .patch), (.line, .line), (.object, .object):
+            break
+        default:
+            selection = .none
+        }
         hover = .none
         flashText = nil
         refreshAll()
@@ -901,6 +1234,18 @@ final class EditorScene: GameScene {
             patchKind = p.shape.kind
             patchCoversRoad = p.coversRoad
             if case let .capsule(_, _, r) = p.shape { capsuleRadius = r }
+        }
+        if case let .line(i) = s, def.lines.indices.contains(i) {
+            lineColor = def.lines[i].color
+            lineWidth = def.lines[i].width
+        }
+        if case let .object(i) = s, def.objects.indices.contains(i) {
+            let o = def.objects[i]
+            objectKind = o.kind
+            if o.kind.isTree {
+                treeSize = o.size.x
+                treeSolid = o.solid
+            }
         }
         refreshOverlay()
         refreshPanel()
@@ -1009,7 +1354,7 @@ final class EditorScene: GameScene {
             case "s": if modal == nil { save() }
             case "o": if modal == nil { openTrack() }
             case "n": if modal == nil { newTrack() }
-            case "d": duplicatePatch()
+            case "d": duplicateSelection()
             default: super.keyDown(with: event)
             }
             return
@@ -1020,6 +1365,10 @@ final class EditorScene: GameScene {
         }
         let step = flags.contains(.shift) ? 10.0 : 1.0
         switch event.keyCode {
+        case 36 where drawingLine != nil, 76 where drawingLine != nil:
+            finishLine()
+        case 53 where drawingLine != nil && drag == nil:
+            finishLine()
         case 53:
             if drag != nil {
                 drag = nil
@@ -1042,6 +1391,8 @@ final class EditorScene: GameScene {
             case "r", "2": setTool(.road)
             case "p", "3": setTool(.patch)
             case "b", "4": setTool(.bridge)
+            case "l", "5": setTool(.line)
+            case "o", "6": setTool(.object)
             case "g": toggleGrid()
             case "f": fitView()
             case "t": testDrive()
@@ -1116,7 +1467,7 @@ final class EditorScene: GameScene {
         gridButton.isSelected = snapToGrid
         panelButton.isSelected = panelVisible
         let name = def.name.isEmpty ? "Untitled" : def.name
-        titleLabel.text = String(name.prefix(16)) + (isDirty ? " *" : "")
+        titleLabel.text = String(name.prefix(12)) + (isDirty ? " *" : "")
         titleLabel.fontColor = isDirty ? .accent : .white
     }
 
@@ -1215,6 +1566,9 @@ final class EditorScene: GameScene {
             addShape(scenePath(pending), stroke: .accent, width: 1.5,
                      fill: EditorColors.swatch(patchSurface, theme: theme).withAlphaComponent(0.5), z: 2)
         }
+
+        drawLineOverlay()
+        drawObjectOverlay()
 
         // Centerline with direction chevrons.
         addShape(polyline(densePts, closed: true), stroke: SKColor(white: 1, alpha: 0.6), width: 1.5, z: 3)
@@ -1316,6 +1670,89 @@ final class EditorScene: GameScene {
         }
     }
 
+    private func circlePath(_ c: CGPoint, _ r: CGFloat) -> CGPath {
+        CGPath(ellipseIn: CGRect(x: c.x - r, y: c.y - r, width: r * 2, height: r * 2), transform: nil)
+    }
+
+    private func squarePath(_ c: CGPoint, _ r: CGFloat) -> CGPath {
+        CGPath(rect: CGRect(x: c.x - r, y: c.y - r, width: r * 2, height: r * 2), transform: nil)
+    }
+
+    /// Outline around a paint line, a little wider than the paint.
+    private func lineOutline(_ line: PaintLine) -> CGPath {
+        let pts = line.points.map(toScene)
+        let w = max(CGFloat(line.width) * zoom, 2) + 5
+        guard pts.count > 1 else { return circlePath(pts.first ?? .zero, w / 2) }
+        return polyline(pts, closed: false).copy(strokingWithWidth: w, lineCap: .round, lineJoin: .round, miterLimit: 1)
+    }
+
+    private func drawLineOverlay() {
+        for (i, line) in def.lines.enumerated() where !line.points.isEmpty {
+            let selected = selection == .line(i), hovered = hover == .line(i)
+            guard selected || hovered || tool == .line else { continue }
+            addShape(lineOutline(line), stroke: selected ? .accent : hovered ? .white : SKColor(white: 1, alpha: 0.35),
+                     width: selected ? 1.5 : 1, fill: hovered && !selected ? SKColor(white: 1, alpha: 0.1) : .clear, z: 2.5)
+        }
+        // Rubber band from the last point to the mouse while drawing.
+        if let k = drawingLine, def.lines.indices.contains(k), let last = def.lines[k].points.last, let c = cursorWorld, drag == nil {
+            let band = polyline([toScene(last), toScene(EditorLimits.clampToMap(snap(c)))], closed: false)
+            addShape(band.copy(dashingWithPhase: 0, lengths: [5, 4]), stroke: EditorColors.paint(lineColor).withAlphaComponent(0.9),
+                     width: max(1.5, CGFloat(lineWidth) * zoom), z: 6)
+        }
+        // Points of the selected line. While drawing, the last one is ringed: click it to finish.
+        guard case let .line(i) = selection, def.lines.indices.contains(i) else { return }
+        let points = def.lines[i].points
+        for (v, p) in points.enumerated() {
+            let s = toScene(p), r: CGFloat = hover == .lineVertex(v) ? 5 : 4
+            addShape(squarePath(s, r), stroke: .black, width: 1, fill: .accent, z: 6)
+            if drawingLine == i, v == points.count - 1 {
+                addShape(circlePath(s, 9), stroke: .accent, width: 1.5, z: 6)
+            }
+        }
+    }
+
+    /// Footprint of an object as drawn, in scene coordinates.
+    private func objectPath(_ o: TrackObject) -> CGPath {
+        if o.kind.isTree { return circlePath(toScene(o.position), CGFloat(o.radius) * zoom) }
+        return polyline(o.corners.map(toScene), closed: true)
+    }
+
+    private func drawObjectOverlay() {
+        for (i, o) in def.objects.enumerated() {
+            let selected = selection == .object(i), hovered = hover == .object(i)
+            guard selected || hovered || tool == .object else { continue }
+            addShape(objectPath(o), stroke: selected ? .accent : hovered ? .white : SKColor(white: 1, alpha: 0.35),
+                     width: selected ? 2 : hovered ? 1.8 : 1, fill: selected || hovered ? SKColor(white: 1, alpha: 0.08) : .clear, z: 2.6)
+            // What cars actually hit on a solid tree.
+            if o.kind.isTree, o.solid, selected || hovered {
+                addShape(circlePath(toScene(o.position), CGFloat(o.trunkRadius) * zoom).copy(dashingWithPhase: 0, lengths: [3, 3]),
+                         stroke: EditorColors.issue, width: 1.2, z: 2.7)
+            }
+        }
+
+        // Placement ghost under the mouse.
+        if tool == .object, hover == .none, drag == nil, let c = cursorWorld,
+           c.x >= 0, c.y >= 0, c.x <= 960, c.y <= 600, def.objects.count < EditorLimits.maxObjects {
+            let ghost = newObject(at: EditorLimits.clampToMap(snap(c)))
+            addShape(objectPath(ghost).copy(dashingWithPhase: 0, lengths: [4, 3]), stroke: SKColor.accent.withAlphaComponent(0.7),
+                     width: 1.2, z: 2.6)
+        }
+
+        guard case let .object(i) = selection, def.objects.indices.contains(i) else { return }
+        let o = def.objects[i]
+        if !o.kind.isTree {
+            // Stem from the edge of the building or ramp to its turn handle.
+            let side = turnHandleSide(o)
+            let a = toScene(o.world(Vec2(0, side * o.size.y / 2)))
+            let b = toScene(o.world(Vec2(0, side * (o.size.y / 2 + Self.rotateHandleGap))))
+            addShape(polyline([a, b], closed: false), stroke: .accent, width: 1.2, z: 6)
+        }
+        for (h, p) in objectHandles(of: o) {
+            let s = toScene(p), r: CGFloat = hover == .objectHandle(h) ? 5.5 : 4.5
+            addShape(h == .rotate ? circlePath(s, r) : squarePath(s, r - 0.5), stroke: .black, width: 1, fill: .accent, z: 6)
+        }
+    }
+
     private func drawGrid() {
         var step = EditorScene.gridStep
         while CGFloat(step) * zoom < 7 { step *= 2 }
@@ -1349,8 +1786,15 @@ final class EditorScene: GameScene {
         switch selection {
         case let .point(i): pointSection(layout, i)
         case let .patch(i): patchSection(layout, i)
+        case let .line(i): lineSection(layout, i)
+        case let .object(i): objectSection(layout, i)
         case .none:
-            if tool == .patch { newPatchSection(layout) } else { trackSection(layout) }
+            switch tool {
+            case .patch: newPatchSection(layout)
+            case .line: newLineSection(layout)
+            case .object: newObjectSection(layout)
+            default: trackSection(layout)
+            }
         }
         let h = layout.height
         let bg = SKShapeNode(rect: CGRect(x: 0, y: -h, width: Layout.panelWidth, height: h), cornerRadius: 8)
@@ -1415,7 +1859,7 @@ final class EditorScene: GameScene {
         }])
         let ownWidths = def.pointWidths.compactMap { $0 }.count
         L.note("\(def.controlPoints.count) road points\(ownWidths > 0 ? " (\(ownWidths) with their own width)" : ""), "
-               + "\(def.patches.count) patches, \(def.bridges.count) bridges.")
+               + "\(def.patches.count) patches, \(def.bridges.count) bridges, \(def.lines.count) lines, \(def.objects.count) objects.")
         checksSection(L)
     }
 
@@ -1516,7 +1960,7 @@ final class EditorScene: GameScene {
     }
 
     private func surfaceOptions(selected: Surface, apply: @escaping (Surface) -> Void) -> [Option] {
-        [Surface.sand, .ice, .grass, .asphalt, .wall, .curb].map { s in
+        [Surface.sand, .ice, .water, .mud, .grass, .asphalt, .wall, .curb].map { s in
             Option(title: s.displayName, selected: selected == s, tint: EditorColors.swatch(s, theme: def.theme),
                    tip: s.editorTip) { apply(s) }
         }
@@ -1524,7 +1968,7 @@ final class EditorScene: GameScene {
 
     private func newPatchSection(_ L: PanelLayout) {
         L.header("NEW PATCH")
-        L.note("Patches paint a surface onto the map: sand traps, ice, grass, extra asphalt, walls or curbs.")
+        L.note("Patches paint a surface onto the map: sand traps, ice, water, mud, grass, extra asphalt, walls or curbs.")
         L.choices("Surface", surfaceOptions(selected: patchSurface) { [unowned self] s in
             patchSurface = s
             refreshPanel()
@@ -1632,11 +2076,194 @@ final class EditorScene: GameScene {
             },
         ])
         L.choices(nil, [
-            Option(title: "Duplicate", tip: "Copy this patch (Cmd+D)") { [unowned self] in duplicatePatch() },
+            Option(title: "Duplicate", tip: "Copy this patch (Cmd+D)") { [unowned self] in duplicateSelection() },
             Option(title: "Delete", tip: "Delete this patch (Delete)") { [unowned self] in deleteSelection() },
         ])
         L.note("Drag to move, drag the yellow handles to resize. Arrow keys nudge.")
         L.choices(nil, [Option(title: "Done", tip: "Deselect (Esc)") { [unowned self] in select(.none) }])
+    }
+
+    // MARK: Lines and objects
+
+    private func paintOptions(selected: PaintColor, apply: @escaping (PaintColor) -> Void) -> [Option] {
+        PaintColor.allCases.map { c in
+            Option(title: c.displayName, selected: selected == c, tint: EditorColors.paint(c)) { apply(c) }
+        }
+    }
+
+    private func lineWidthStepper(_ L: PanelLayout, width: Double, apply: @escaping (Double) -> Void) {
+        let r = EditorLimits.lineWidth
+        L.stepper("Width", value: "\(Int(width))", tip: "Paint width") {
+            apply(clamp(width - 1, r.lowerBound, r.upperBound))
+        } plus: {
+            apply(clamp(width + 1, r.lowerBound, r.upperBound))
+        }
+    }
+
+    private func newLineSection(_ L: PanelLayout) {
+        L.header("NEW LINE")
+        L.note("Paint lines go on any surface: grid boxes, pit lane edges, arrows, a painted curb. They don't affect driving.")
+        L.choices("Color", paintOptions(selected: lineColor) { [unowned self] c in
+            lineColor = c
+            refreshPanel()
+        }, perRow: 3)
+        lineWidthStepper(L, width: lineWidth) { [unowned self] w in
+            lineWidth = w
+            refreshPanel()
+        }
+        L.note("Click on the map to start a line, then click to add points (hold and drag to place each one exactly). "
+               + "Click the last point, press Enter or right-click to finish.")
+    }
+
+    private func lineSection(_ L: PanelLayout, _ i: Int) {
+        let line = def.lines[i]
+        L.header("LINE \(i + 1) OF \(def.lines.count)")
+        L.choices("Color", paintOptions(selected: line.color) { [unowned self] c in
+            lineColor = c
+            updateLine(i) { $0.color = c }
+        }, perRow: 3)
+        lineWidthStepper(L, width: line.width) { [unowned self] w in
+            lineWidth = w
+            updateLine(i) { $0.width = w }
+        }
+        L.note("\(line.points.count) point\(line.points.count == 1 ? "" : "s")")
+        if drawingLine == i {
+            L.note("Click to add points. Click the last point (ringed), press Enter or right-click to finish.", color: .accent)
+            L.choices(nil, [Option(title: "Finish line", tip: "Stop adding points (Enter)") { [unowned self] in finishLine() }])
+            return
+        }
+        L.choices(nil, [
+            Option(title: "Add points", enabled: line.points.count < EditorLimits.maxLinePoints,
+                   tip: "Keep drawing from the end of this line") { [unowned self] in
+                if tool != .line { setTool(.line) }
+                select(.line(i))
+                drawingLine = i
+                refreshAll()
+            },
+            Option(title: "Duplicate", tip: "Copy this line (Cmd+D)") { [unowned self] in duplicateSelection() },
+            Option(title: "Delete", tip: "Delete this line (Delete)") { [unowned self] in deleteSelection() },
+        ])
+        L.note("Drag the line to move it, drag its yellow points to reshape it. Right-click a point to remove it. Arrow keys nudge.")
+        L.choices(nil, [Option(title: "Done", tip: "Deselect (Esc)") { [unowned self] in select(.none) }])
+    }
+
+    private func kindOptions(selected: TrackObjectKind, apply: @escaping (TrackObjectKind) -> Void) -> [Option] {
+        TrackObjectKind.allCases.map { k in
+            Option(title: k.shortName, selected: selected == k, tip: k.editorTip) { apply(k) }
+        }
+    }
+
+    private func solidChoice(_ L: PanelLayout, selected: Bool, apply: @escaping (Bool) -> Void) {
+        L.choices("Solid", [
+            Option(title: "No", selected: !selected, tip: "Scenery: cars drive under the leaves") { apply(false) },
+            Option(title: "Yes", selected: selected, tip: "Cars crash into the trunk") { apply(true) },
+        ])
+    }
+
+    private func treeSizeStepper(_ L: PanelLayout, size: Double, apply: @escaping (Double) -> Void) {
+        let r = EditorLimits.treeSize
+        L.stepper("Size", value: "\(Int(size))", tip: "Canopy diameter") {
+            apply(clamp(size - 2, r.lowerBound, r.upperBound))
+        } plus: {
+            apply(clamp(size + 2, r.lowerBound, r.upperBound))
+        }
+    }
+
+    private func newObjectSection(_ L: PanelLayout) {
+        L.header("NEW OBJECT")
+        L.note("Trees, buildings and jump ramps. Buildings are solid; trees can be solid or just scenery cars drive under.")
+        L.choices("Kind", kindOptions(selected: objectKind) { [unowned self] k in
+            objectKind = k
+            refreshAll()
+        }, perRow: 3)
+        if objectKind.isTree {
+            treeSizeStepper(L, size: treeSize) { [unowned self] s in
+                treeSize = s
+                refreshAll()
+            }
+            solidChoice(L, selected: treeSolid) { [unowned self] v in
+                treeSolid = v
+                refreshPanel()
+            }
+        }
+        L.note("Click on the map to place one; hold and drag to put it in place. Buildings turn to face the nearest road; "
+               + "ramps line up to jump the way the race goes.")
+    }
+
+    private func objectSection(_ L: PanelLayout, _ i: Int) {
+        let o = def.objects[i]
+        L.header("\(o.kind.displayName.uppercased()) \(i + 1) OF \(def.objects.count)")
+        L.choices("Kind", kindOptions(selected: o.kind) { [unowned self] k in
+            objectKind = k
+            let tree = treeSize
+            let aligned = raceAngle(at: o.position)
+            updateObject(i) { obj in
+                // Trees, buildings and ramps don't share sizes; keep the size within each group.
+                func group(_ k: TrackObjectKind) -> Int { k.isTree ? 0 : k.isRamp ? 2 : 1 }
+                if group(k) != group(obj.kind) {
+                    obj.size = k.isTree ? Vec2(tree, tree) : k.defaultSize
+                    if k.isRamp { obj.angle = aligned }
+                }
+                obj.kind = k
+            }
+        }, perRow: 3)
+        if o.kind.isTree {
+            treeSizeStepper(L, size: o.size.x) { [unowned self] s in
+                treeSize = s
+                updateObject(i) { $0.size = Vec2(s, s) }
+            }
+            solidChoice(L, selected: o.solid) { [unowned self] v in
+                treeSolid = v
+                updateObject(i) { $0.solid = v }
+            }
+        } else {
+            let lr = EditorLimits.buildingLength, dr = EditorLimits.buildingDepth
+            L.stepper("Length", value: "\(Int(o.size.x))") { [unowned self] in
+                updateObject(i) { $0.size.x = clamp($0.size.x - 10, lr.lowerBound, lr.upperBound) }
+            } plus: { [unowned self] in
+                updateObject(i) { $0.size.x = clamp($0.size.x + 10, lr.lowerBound, lr.upperBound) }
+            }
+            L.stepper("Depth", value: "\(Int(o.size.y))") { [unowned self] in
+                updateObject(i) { $0.size.y = clamp($0.size.y - 2, dr.lowerBound, dr.upperBound) }
+            } plus: { [unowned self] in
+                updateObject(i) { $0.size.y = clamp($0.size.y + 2, dr.lowerBound, dr.upperBound) }
+            }
+            let deg = Int((o.angle * 180 / .pi).rounded())
+            let ramp = o.kind.isRamp
+            L.stepper(ramp ? "Turn" : "Facing", value: "\((deg % 360 + 360) % 360)°",
+                      tip: ramp ? "Which way the ramp launches cars" : "Which way the front faces") { [unowned self] in
+                updateObject(i) { $0.angle = self.snapAngle($0.angle - .pi / 12, step: 5) }
+            } plus: { [unowned self] in
+                updateObject(i) { $0.angle = self.snapAngle($0.angle + .pi / 12, step: 5) }
+            }
+            if ramp {
+                L.choices(nil, [
+                    Option(title: "Line up", tip: "Point the jump the way the race runs on the nearest road") { [unowned self] in
+                        let a = raceAngle(at: o.position)
+                        updateObject(i) { $0.angle = a }
+                    },
+                    Option(title: "Flip", tip: "Swap which end cars jump from") { [unowned self] in
+                        updateObject(i) { $0.angle = wrapAngle($0.angle + .pi) }
+                    },
+                ])
+                L.note("Drive up from the chevron end to jump over walls, water and other cars. Hitting the lip "
+                       + "end or the sides is just a bump that slows you down.")
+            } else {
+                L.choices(nil, [Option(title: "Face the road", tip: "Turn the front toward the nearest road") { [unowned self] in
+                    let a = facingAngle(at: o.position)
+                    updateObject(i) { $0.angle = a }
+                }])
+                L.note("Buildings are always solid.")
+            }
+        }
+        L.choices(nil, [
+            Option(title: "Duplicate", tip: "Copy this object (Cmd+D)") { [unowned self] in duplicateSelection() },
+            Option(title: "Delete", tip: "Delete this object (Delete)") { [unowned self] in deleteSelection() },
+        ])
+        L.note(o.kind.isTree ? "Drag to move, drag the yellow handle to resize. Arrow keys nudge."
+               : "Drag to move. Drag the corner handle to resize, the round handle to turn it. Arrow keys nudge.")
+        L.choices(nil, [Option(title: "Done", tip: "Deselect (Esc)") { [unowned self] in select(.none) }])
+        checksSection(L)
     }
 
     // MARK: Dialogs
@@ -1781,6 +2408,8 @@ extension Surface {
         case .sand: "Sand"
         case .ice: "Ice"
         case .wall: "Wall"
+        case .water: "Water"
+        case .mud: "Mud"
         }
     }
 
@@ -1792,6 +2421,45 @@ extension Surface {
         case .sand: "Sand: heavy drag, low grip. Classic trap on the outside of corners."
         case .ice: "Ice: very little grip or drag. Put it on the road for chaos."
         case .wall: "Wall: solid tire barrier cars bounce off."
+        case .water: "Water: shallow, cars splash through it slowly and a bit loose."
+        case .mud: "Mud: slippery and slow at once."
+        }
+    }
+}
+
+extension PaintColor {
+    var displayName: String { rawValue.capitalized }
+}
+
+extension TrackObjectKind {
+    var displayName: String {
+        switch self {
+        case .tree: "Tree"
+        case .pine: "Pine"
+        case .palm: "Palm"
+        case .grandstand: "Grandstand"
+        case .pitBuilding: "Pit building"
+        case .ramp: "Ramp"
+        }
+    }
+
+    /// Fits an inspector button.
+    var shortName: String {
+        switch self {
+        case .grandstand: "Stand"
+        case .pitBuilding: "Pits"
+        default: displayName
+        }
+    }
+
+    var editorTip: String {
+        switch self {
+        case .tree: "Round leafy tree"
+        case .pine: "Pine tree"
+        case .palm: "Palm tree"
+        case .grandstand: "Grandstand full of spectators, seats facing the front"
+        case .pitBuilding: "Pit garages with the doors along the front"
+        case .ramp: "Jump ramp: launches cars driving up from the chevron end, bumps anyone coming the other way"
         }
     }
 }

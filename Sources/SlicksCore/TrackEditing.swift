@@ -295,12 +295,23 @@ public extension Track {
             run.removeAll()
         }
         for i in 0..<n {
-            if surface(at: path[i], level: Int(sampleLevels[i])) == .wall {
+            // Trees and buildings in the way get their own message below.
+            if surface(at: path[i], level: Int(sampleLevels[i])) == .wall, groundSurface(at: path[i]) == .wall {
                 if let last = run.last, last != i - 1 { flush() }
                 run.append(i)
             }
         }
         flush()
+
+        for ramp in ramps {
+            let against = (0..<n).contains { i in ramp.covers(path[i]) && ramp.rampDirection.dot(tangents[i]) < -0.3 }
+            if against { out.append(TrackIssue(message: "Ramp faces against the race", position: ramp.position)) }
+        }
+
+        for k in objectsOnRoad {
+            let o = definition.objects[k]
+            out.append(TrackIssue(message: o.kind.isTree ? "Tree on the road" : "Building on the road", position: o.position))
+        }
 
         let maxDeck = 260.0
         for b in bridges {

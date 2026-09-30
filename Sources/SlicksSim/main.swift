@@ -282,7 +282,7 @@ for def in BuiltInTracks.all + widthTestTracks() where onlyTrack == nil || def.i
     var offRoad = 0
     for (i, p) in track.path.enumerated() {
         let s = track.surface(at: p, level: Int(track.sampleLevels[i]))
-        if s != .asphalt && s != .ice && s != .sand {
+        if ![.asphalt, .ice, .sand, .water, .mud].contains(s) {
             offRoad += 1
             print("   undrivable sample \(i) at \(Int(p.x)),\(Int(p.y)) level \(track.sampleLevels[i]) surface \(s)")
         }

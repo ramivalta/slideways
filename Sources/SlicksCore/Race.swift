@@ -92,7 +92,9 @@ public final class Race {
                     input = humanInputs[p]
                 }
             }
+            let before = car.position
             car.integrate(input: input, track: track, dt: dt)
+            Jumps.update(car, from: before, track: track, dt: dt, events: &impacts)
             updateLevel(car)
         }
 
@@ -101,6 +103,8 @@ public final class Race {
                 let a = cars[i], b = cars[j]
                 // Cars on the deck and cars underneath pass through each other.
                 if a.level != b.level, a.bridgeZone != nil || b.bridgeZone != nil { continue }
+                // So do cars jumping over each other.
+                if a.isAboveObstacles || b.isAboveObstacles, abs(a.height - b.height) > Jumps.clearance { continue }
                 Collisions.resolve(a, b, events: &impacts)
             }
         }

@@ -71,15 +71,22 @@ public final class RaceAudio {
             rpm += s.throttle * ((car.isWheelspinning ? 0.18 : 0) + (1 - props.traction) * 0.35)
             s.rpm = clamp(rpm, 0, 1)
 
-            switch car.surface {
+            // Nothing under the tires in the air.
+            switch car.isAirborne ? .wall : car.surface {
             case .asphalt, .curb, .ice:
                 let slide = clamp((car.slip - 22) / 110, 0, 1) * clamp(car.speed / 40, 0, 1)
                 let braking = car.isBraking && car.speed > 70 ? 0.35 + 0.3 * clamp((car.speed - 70) / 200, 0, 1) : 0
                 let spin = car.isWheelspinning ? 0.4 : 0
                 s.screech = max(slide, braking, spin) * (car.surface == .ice ? 0.45 : 1)
                 s.screechPitch = car.surface == .ice ? 0.62 : car.surface == .curb ? 0.9 : 1
-            case .grass, .sand:
-                s.rumble = clamp(car.speed / 220, 0, 1) * (car.surface == .sand ? 1.2 : 1)
+            case .grass, .sand, .mud, .water:
+                let loudness: Double = switch car.surface {
+                case .sand: 1.2
+                case .mud: 1.1
+                case .water: 0.8
+                default: 1
+                }
+                s.rumble = clamp(car.speed / 220, 0, 1) * loudness
             case .wall:
                 break
             }

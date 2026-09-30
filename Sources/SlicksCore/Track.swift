@@ -110,6 +110,35 @@ public final class Track: @unchecked Sendable {
         surfaces = raster.surfaces
         distanceField = raster.distance
         nearestSample = raster.nearest
+        groundSurfaces = raster.ground
+        objectsOnRoad = raster.objectsOnRoad
+        ramps = def.objects.filter(\.kind.isRamp)
+    }
+
+    /// Jump ramps. See `Jumps`.
+    public let ramps: [TrackObject]
+
+    /// Walls a car in the air can't clear: trees, buildings, bridge structures and the map edge.
+    func isTallWall(_ x: Int, _ y: Int) -> Bool {
+        let border = 3
+        guard x >= border, y >= border, x < width - border, y < height - border else { return true }
+        let i = y * width + x
+        guard surfaces[i] == .wall else { return false }
+        return groundSurfaces[i] != .wall || bridgeLocal(x: x, y: y) != nil
+    }
+
+    // MARK: Objects
+
+    /// Surface per cell as painted, before solid trees and buildings were stamped into
+    /// `surfaces` as walls. What the renderer draws under the objects.
+    public let groundSurfaces: [Surface]
+    /// Indices of solid objects standing on the road itself.
+    public let objectsOnRoad: [Int]
+
+    public func groundSurface(at p: Vec2) -> Surface {
+        let x = Int(floor(p.x)), y = Int(floor(p.y))
+        guard x >= 0, y >= 0, x < width, y < height else { return .wall }
+        return groundSurfaces[y * width + x]
     }
 
     // MARK: Bridges
@@ -181,7 +210,11 @@ public final class Track: @unchecked Sendable {
 
     /// Wall contact for a car on a given level. Cars on a deck ignore the ground under it and
     /// are kept on by the railings; cars below use the ground layer (abutments included).
-    public func wallContact(center c: Vec2, radius r: Double, level: Int) -> (normal: Vec2, depth: Double)? {
+    /// `aboveObstacles` is for cars jumping over the ground: only tall walls stop them.
+    public func wallContact(center c: Vec2, radius r: Double, level: Int, aboveObstacles: Bool = false) -> (normal: Vec2, depth: Double)? {
+        if aboveObstacles, level == 0 {
+            return wallContact(center: c, radius: r) { x, y in self.isTallWall(x, y) }
+        }
         guard level > 0 else { return wallContact(center: c, radius: r) }
         return wallContact(center: c, radius: r) { x, y in
             if let l = self.bridgeLocal(x: x, y: y) {
@@ -348,7 +381,8 @@ public final class Track: @unchecked Sendable {
     }
 
     static func rasterize(def: TrackDefinition, path: [Vec2], halfWidths: [Double], bridges: [Bridge],
-                          structure: (bridge: [Int8], along: [Float], lateral: [Float])) -> (surfaces: [Surface], distance: [Float], nearest: [Int32]) {
+                          structure: (bridge: [Int8], along: [Float], lateral: [Float]))
+        -> (surfaces: [Surface], distance: [Float], nearest: [Int32], ground: [Surface], objectsOnRoad: [Int]) {
         let w = def.width, h = def.height
         let maxHalf = halfWidths.max() ?? def.roadWidth / 2
         let barrierOuter = def.barrierDistance.map { maxHalf + $0 + def.barrierThickness } ?? 0
@@ -432,6 +466,26 @@ public final class Track: @unchecked Sendable {
                 surfaces[y * w + x] = .wall
             }
         }
-        return (surfaces, distance, nearest)
+
+        // Solid trees and buildings are walls to the physics, but the renderer draws the
+        // ground under them.
+        let ground = surfaces
+        var onRoad: [Int] = []
+        for (k, object) in def.objects.enumerated() where object.isSolid {
+            let b = object.bounds
+            let x0 = max(0, b.minX), x1 = min(w - 1, b.maxX), y0 = max(0, b.minY), y1 = min(h - 1, b.maxY)
+            guard x0 <= x1, y0 <= y1 else { continue }
+            var blocksRoad = false
+            for y in y0...y1 {
+                for x in x0...x1 where object.blocks(Vec2(Double(x) + 0.5, Double(y) + 0.5)) {
+                    let i = y * w + x
+                    surfaces[i] = .wall
+                    let s = Int(nearest[i])
+                    if s >= 0, Double(distance[i]) <= halfWidths[s], ground[i] != .wall { blocksRoad = true }
+                }
+            }
+            if blocksRoad { onRoad.append(k) }
+        }
+        return (surfaces, distance, nearest, ground, onRoad)
     }
 }
