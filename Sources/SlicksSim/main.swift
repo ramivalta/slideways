@@ -76,6 +76,7 @@ func skidpad() {
 skidpad()
 failures += editorChecks()
 failures += looseSandCheck()
+failures += slipstreamCheck()
 
 /// Crash test: floor it head-on into a wall like a player would, keep the throttle pinned and
 /// steer left after the hit. The car should drive away forward and turn left, with no lingering
