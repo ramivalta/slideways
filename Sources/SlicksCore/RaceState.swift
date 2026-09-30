@@ -54,6 +54,8 @@ public struct CarState: Codable, Sendable, Equatable {
     public var isAirborne: Bool
     public var sandOnTires: Double
     public var jumps: Int
+    /// Drafting behind other cars (smoothed over time, so it's state, not derivable).
+    public var slipstream: Double
 }
 
 /// A complete copy of a race's changing state at one tick. Restoring it into a race built
@@ -99,6 +101,7 @@ public struct RaceSnapshot: Codable, Sendable, Equatable {
             h.add(c.lastInput.throttle); h.add(c.lastInput.brake); h.add(c.lastInput.steer)
             h.add(c.level); h.add(c.bridgeZone ?? -1)
             h.add(c.height); h.add(c.verticalSpeed); h.add(c.isAirborne); h.add(c.sandOnTires); h.add(c.jumps)
+            h.add(c.slipstream)
         }
         h.add(sandChecksum ?? 0)
         h.add(sandRNG ?? 0)

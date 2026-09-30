@@ -5,7 +5,8 @@ public enum NetProtocol {
     /// Bump whenever messages or the simulation change in a way older builds can't follow.
     /// 2: encrypted UDP transport with join codes.
     /// 3: jumps and loose sand in race state.
-    public static let version: UInt16 = 3
+    /// 4: slipstream.
+    public static let version: UInt16 = 4
     /// UDP.
     public static let defaultPort: UInt16 = 47800
     public static let bonjourType = "_slideways._udp"

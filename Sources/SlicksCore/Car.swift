@@ -226,7 +226,8 @@ public final class Car {
             lastLapMark: lastLapMark, finishTime: finishTime, slip: slip, isBraking: isBraking,
             isWheelspinning: isWheelspinning, inReverse: inReverse, surface: surface, wallHits: wallHits,
             lastInput: lastInput, level: level, bridgeZone: bridgeZone,
-            height: height, verticalSpeed: verticalSpeed, isAirborne: isAirborne, sandOnTires: sandOnTires, jumps: jumps
+            height: height, verticalSpeed: verticalSpeed, isAirborne: isAirborne, sandOnTires: sandOnTires, jumps: jumps,
+            slipstream: slipstream
         )
     }
 
@@ -257,6 +258,7 @@ public final class Car {
         isAirborne = s.isAirborne
         sandOnTires = s.sandOnTires
         jumps = s.jumps
+        slipstream = s.slipstream
     }
 
     /// Applies an impulse at a world-space offset from the car center (unit mass).

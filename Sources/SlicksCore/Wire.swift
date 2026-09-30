@@ -55,6 +55,7 @@ extension RaceSnapshot {
             w.u8((c.isBraking ? 1 : 0) | (c.isWheelspinning ? 2 : 0) | (c.inReverse ? 4 : 0) | (c.isAirborne ? 8 : 0))
             w.f64(c.height); w.f64(c.verticalSpeed); w.f64(c.sandOnTires)
             w.u16(UInt16(clamping: c.jumps))
+            w.f64(c.slipstream)
             w.u8(c.surface.rawValue)
             w.u16(UInt16(clamping: c.wallHits))
             // Full precision: AI steering isn't quantized, and clients predict with these.
@@ -113,6 +114,7 @@ extension RaceSnapshot {
             let height = try r.finite(), verticalSpeed = try r.finite()
             let sandOnTires = clamp(try r.finite(), 0, LooseSand.tireCapacity)
             let jumps = Int(try r.u16())
+            let slipstream = clamp(try r.finite(), 0, 2)
             guard abs(height) < 10_000, abs(verticalSpeed) < 100_000 else { throw invalid("height") }
             guard let surface = Surface(rawValue: try r.u8()) else { throw invalid("surface") }
             let wallHits = Int(try r.u16())
@@ -129,7 +131,8 @@ extension RaceSnapshot {
                 finishTime: finishTime, slip: slip, isBraking: flags & 1 != 0, isWheelspinning: flags & 2 != 0,
                 inReverse: flags & 4 != 0, surface: surface, wallHits: wallHits, lastInput: lastInput,
                 level: level, bridgeZone: zone < 0 ? nil : zone,
-                height: height, verticalSpeed: verticalSpeed, isAirborne: flags & 8 != 0, sandOnTires: sandOnTires, jumps: jumps
+                height: height, verticalSpeed: verticalSpeed, isAirborne: flags & 8 != 0, sandOnTires: sandOnTires, jumps: jumps,
+                slipstream: slipstream
             ))
         }
         self.cars = cars
