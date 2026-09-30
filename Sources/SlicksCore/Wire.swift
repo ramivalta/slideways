@@ -70,6 +70,7 @@ extension RaceSnapshot {
             w.u8(UInt8(clamping: id))
             w.f64(d.skill); w.f64(d.lane)
             w.f64(d.stuckTime); w.f64(d.reverseTime); w.f64(d.reverseSteer); w.f64(d.laneDrift)
+            w.optionalF64(d.routeBest); w.f64(d.routeStall)
         }
         // The sand grid travels separately (see `SandDelta`); only its fingerprint goes here.
         w.bool(sandChecksum != nil)
@@ -146,6 +147,8 @@ extension RaceSnapshot {
             d.reverseTime = try r.finite()
             d.reverseSteer = try r.finite()
             d.laneDrift = try r.finite()
+            d.routeBest = try r.optionalFinite()
+            d.routeStall = try r.finite()
             drivers[id] = d
         }
         self.drivers = drivers
