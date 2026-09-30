@@ -333,7 +333,10 @@ enum OnlineRules {
             if !ok { return "bad patch" }
         }
         guard d.bridges.count <= EditorLimits.maxBridges,
-              d.bridges.allSatisfy({ pts.indices.contains($0.controlPoint) && ($0.length.map { $0.isFinite && (0...2000).contains($0) } ?? true) })
+              d.bridges.allSatisfy({ b in
+                  pts.indices.contains(b.controlPoint)
+                      && [b.back, b.ahead].allSatisfy { $0.map { $0.isFinite && (0...2000).contains($0) } ?? true }
+              })
         else { return "bad bridge" }
         func onMap(_ p: Vec2) -> Bool { p.x.isFinite && p.y.isFinite && abs(p.x) < 10_000 && abs(p.y) < 10_000 }
         guard d.lines.count <= EditorLimits.maxLines * 2,
