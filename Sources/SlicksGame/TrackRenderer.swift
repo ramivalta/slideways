@@ -40,12 +40,23 @@ public enum TrackRenderer {
         let start = track.path[0], startT = track.tangents[0], startN = track.normals[0]
         let startHalf = track.halfWidths[0]
         let hasBridges = !track.bridges.isEmpty
+        let paint = paintLayer(for: def)
+        let ground = track.groundSurfaces
+        /// Whether the ground a few cells from (x, y) isn't `s`, for shorelines.
+        func nearEdge(_ x: Int, _ y: Int, of s: Surface, reach: Int) -> Bool {
+            for (dx, dy) in [(reach, 0), (-reach, 0), (0, reach), (0, -reach)] {
+                let nx = x + dx, ny = y + dy
+                if nx >= 0, ny >= 0, nx < w, ny < h, ground[ny * w + nx] != s { return true }
+            }
+            return false
+        }
 
         var pixels = [UInt8](repeating: 255, count: w * h * 4)
         for y in 0..<h {
             for x in 0..<w {
                 let i = y * w + x
-                let s = track.surfaces[i]
+                // Trees and buildings are drawn in their own layer, over the ground they stand on.
+                let s = ground[i]
                 let d = Double(track.distanceField[i])
                 // Road half width where this cell is, since width can vary along the track.
                 let half = track.halfRoad(atCell: i)
@@ -97,6 +108,11 @@ public enum TrackRenderer {
                 case .sand:
                     c = pal.sand.scaled(1 + noise * 0.1)
                     if hash01(x / 2, y, 3) > 0.93 { c = c.scaled(0.9) }
+                    // Thin sand at the rim of a pile and loose grains are a touch darker, so
+                    // the ground shows through the edge.
+                    let sandNeighbors = [(1, 0), (-1, 0), (0, 1), (0, -1)]
+                        .filter { track.surface(x: x + $0.0, y: y + $0.1) == .sand }.count
+                    if sandNeighbors < 4 { c = c.scaled(sandNeighbors == 0 ? 0.84 : 0.93) }
                 case .ice:
                     c = RGB(186, 222, 244).scaled(1 + noise * 0.05)
                     if (x + y * 3) % 23 == 0 || hash01(x, y, 11) > 0.97 { c = RGB(236, 246, 255) }
@@ -105,6 +121,29 @@ public enum TrackRenderer {
                     let cell = ((x / 4) + (y / 4)) & 1
                     c = cell == 0 ? RGB(46, 46, 52) : RGB(22, 22, 26)
                     c = c.scaled(1 + noise * 0.2)
+                case .water:
+                    c = waterColor.scaled(1 + noise * 0.05)
+                    // Short ripple streaks, and a pale rim along the shore.
+                    let ripple = sin(Double(x) * 0.5 + Double(y) * 0.22 + hash01(x / 7, y / 5, 12) * 6)
+                    if ripple > 0.94, hash01(x, y / 2, 13) > 0.35 { c = RGB(140, 192, 230) }
+                    if nearEdge(x, y, of: .water, reach: 1) {
+                        c = c.mixed(RGB(176, 214, 232), 0.55)
+                    } else if nearEdge(x, y, of: .water, reach: 3) {
+                        c = c.mixed(RGB(120, 172, 210), 0.35)
+                    }
+                case .mud:
+                    c = mudColor.scaled(1 + noise * 0.12)
+                    if hash01(x / 3, y / 3, 14) > 0.72 { c = c.scaled(0.8) }
+                    if hash01(x, y, 15) > 0.985 { c = RGB(150, 122, 92) }
+                    if nearEdge(x, y, of: .mud, reach: 1) { c = c.scaled(0.85) }
+                }
+
+                // Paint goes on top of any surface.
+                if let paint {
+                    let o = ((h - 1 - y) * w + x) * 4
+                    if paint[o + 3] > 127 {
+                        c = RGB(Double(paint[o]), Double(paint[o + 1]), Double(paint[o + 2])).scaled(1 + noise * 0.08)
+                    }
                 }
 
                 c = applyWallShadow(c, track: track, x: x, y: y, surface: s)
@@ -126,7 +165,11 @@ public enum TrackRenderer {
     static func applyWallShadow(_ c: RGB, track: Track, x: Int, y: Int, surface s: Surface) -> RGB {
         guard s != .wall else { return c }
         // Abutments under a deck are hidden by it, so they don't cast shadows of their own.
-        func casts(_ x: Int, _ y: Int) -> Bool { track.isWall(x, y) && track.deck(x: x, y: y) == nil }
+        // Trees and buildings draw their own shadows.
+        func casts(_ x: Int, _ y: Int) -> Bool {
+            guard x >= 0, y >= 0, x < track.width, y < track.height else { return true }
+            return track.groundSurfaces[y * track.width + x] == .wall && track.deck(x: x, y: y) == nil
+        }
         return casts(x - 2, y + 2) || casts(x - 1, y + 1) ? c.scaled(0.68) : c
     }
 
@@ -231,19 +274,461 @@ public enum TrackRenderer {
         return makeCGImage(pixels: pixels, width: w, height: h)
     }
 
-    /// Ground plus bridge decks in one image, for previews.
+    /// Ground, bridge decks, trees and buildings in one image, for previews.
     public static func makeCompositeImage(for track: Track) -> CGImage {
         let ground = makeImage(for: track)
-        guard !track.bridges.isEmpty else { return ground }
+        guard !track.bridges.isEmpty || !track.definition.objects.isEmpty else { return ground }
+        // Ramps sit on the ground under the decks; trees and buildings go over everything.
         let ctx = CGContext(data: nil, width: track.width, height: track.height, bitsPerComponent: 8, bytesPerRow: 0,
                             space: CGColorSpace(name: CGColorSpace.sRGB)!,
                             bitmapInfo: CGImageAlphaInfo.premultipliedLast.rawValue)!
         ctx.draw(ground, in: CGRect(x: 0, y: 0, width: track.width, height: track.height))
         ctx.interpolationQuality = .high
+        drawRamps(track.definition.objects, in: ctx)
         for b in track.bridges {
             ctx.draw(makeBridgeImage(for: track, bridge: b), in: deckRect(b))
         }
+        drawObjects(track.definition.objects, theme: track.definition.theme, in: ctx)
         return ctx.makeImage()!
+    }
+
+    // MARK: Paint lines
+
+    static func paintColor(_ c: PaintColor) -> RGB {
+        switch c {
+        case .white: RGB(238, 238, 232)
+        case .yellow: RGB(244, 200, 40)
+        case .red: RGB(206, 44, 40)
+        case .blue: RGB(44, 96, 204)
+        case .black: RGB(22, 22, 24)
+        }
+    }
+
+    static func cgColor(_ c: RGB, alpha: Double = 1) -> CGColor {
+        CGColor(srgbRed: c.r / 255, green: c.g / 255, blue: c.b / 255, alpha: alpha)
+    }
+
+    /// Strokes paint lines in world coordinates.
+    static func drawLines(_ lines: [PaintLine], in ctx: CGContext) {
+        ctx.saveGState()
+        ctx.setLineCap(.round)
+        ctx.setLineJoin(.round)
+        for line in lines {
+            guard let first = line.points.first else { continue }
+            let color = cgColor(paintColor(line.color))
+            if line.points.count == 1 {
+                let r = line.width / 2
+                ctx.setFillColor(color)
+                ctx.fillEllipse(in: CGRect(x: first.x - r, y: first.y - r, width: r * 2, height: r * 2))
+                continue
+            }
+            ctx.setStrokeColor(color)
+            ctx.setLineWidth(line.width)
+            ctx.addLines(between: line.points.map { CGPoint(x: $0.x, y: $0.y) })
+            ctx.strokePath()
+        }
+        ctx.restoreGState()
+    }
+
+    /// Paint lines rasterized without antialiasing, one pixel per cell, in the same row order
+    /// as the ground image. Nil when the track has no lines.
+    static func paintLayer(for def: TrackDefinition) -> [UInt8]? {
+        guard !def.lines.isEmpty else { return nil }
+        let w = def.width, h = def.height
+        var buffer = [UInt8](repeating: 0, count: w * h * 4)
+        buffer.withUnsafeMutableBytes { raw in
+            guard let ctx = CGContext(data: raw.baseAddress, width: w, height: h, bitsPerComponent: 8, bytesPerRow: w * 4,
+                                      space: CGColorSpace(name: CGColorSpace.sRGB)!,
+                                      bitmapInfo: CGImageAlphaInfo.premultipliedLast.rawValue) else { return }
+            ctx.setShouldAntialias(false)
+            drawLines(def.lines, in: ctx)
+        }
+        return buffer
+    }
+
+    // MARK: Trees and buildings
+
+    /// Pixels per track unit for the object layer.
+    public static let objectScale = 2
+
+    /// Trees and buildings with their shadows over a transparent map-sized image, drawn above
+    /// the cars. Nil when the track has none.
+    public static func makeObjectImage(for def: TrackDefinition) -> CGImage? {
+        guard def.objects.contains(where: { !$0.kind.isRamp }) else { return nil }
+        return makeLayer(for: def) { drawObjects(def.objects, theme: def.theme, in: $0) }
+    }
+
+    /// Ramps over a transparent map-sized image, drawn on the ground under the cars. Nil when
+    /// the track has none.
+    public static func makeRampImage(for def: TrackDefinition) -> CGImage? {
+        guard def.objects.contains(where: \.kind.isRamp) else { return nil }
+        return makeLayer(for: def) { drawRamps(def.objects, in: $0) }
+    }
+
+    private static func makeLayer(for def: TrackDefinition, _ draw: (CGContext) -> Void) -> CGImage? {
+        let s = objectScale
+        let ctx = CGContext(data: nil, width: def.width * s, height: def.height * s, bitsPerComponent: 8, bytesPerRow: 0,
+                            space: CGColorSpace(name: CGColorSpace.sRGB)!,
+                            bitmapInfo: CGImageAlphaInfo.premultipliedLast.rawValue)!
+        ctx.scaleBy(x: CGFloat(s), y: CGFloat(s))
+        draw(ctx)
+        return ctx.makeImage()
+    }
+
+    /// Draws ramps in world coordinates, each with the shadow its raised lip casts.
+    static func drawRamps(_ objects: [TrackObject], in ctx: CGContext) {
+        for o in objects where o.kind.isRamp {
+            ctx.saveGState()
+            ctx.translateBy(x: o.position.x, y: o.position.y)
+            ctx.rotate(by: o.angle)
+            drawRamp(o, in: ctx)
+            ctx.restoreGState()
+        }
+    }
+
+    /// Plank ramp rising from the front (-y) to a hazard-striped lip (+y), with steel side
+    /// rails and chevrons showing the way to jump. Drawn in local coordinates.
+    static func drawRamp(_ o: TrackObject, in ctx: CGContext) {
+        let hl = o.size.x / 2, hd = o.size.y / 2
+        func rect(_ x0: Double, _ y0: Double, _ x1: Double, _ y1: Double, _ c: RGB, alpha: Double = 1) {
+            ctx.setFillColor(cgColor(c, alpha: alpha))
+            ctx.fill(CGRect(x: x0, y: y0, width: x1 - x0, height: y1 - y0))
+        }
+        // Shadow under the raised half, falling down-right in world space.
+        ctx.saveGState()
+        ctx.rotate(by: -o.angle)
+        ctx.translateBy(x: 3.5, y: -3.5)
+        ctx.rotate(by: o.angle)
+        rect(-hl, 0, hl, hd, RGB(0, 0, 0), alpha: 0.3)
+        ctx.restoreGState()
+
+        // Planks, lighter as they climb toward the light.
+        let low = RGB(132, 96, 62), high = RGB(204, 160, 106)
+        let plank = 3.0
+        var y = -hd
+        var k = 0
+        while y < hd {
+            let t = (y + hd) / max(o.size.y, 1)
+            let c = low.mixed(high, t).scaled(0.96 + 0.08 * hash01(k, Int(o.position.x), 31))
+            rect(-hl, y, hl, min(hd, y + plank), c)
+            rect(-hl, y, hl, y + 0.4, c.scaled(0.75))
+            y += plank
+            k += 1
+        }
+        // Chevrons pointing the way to jump.
+        let w = min(hl * 0.55, 14.0), tall = min(w * 0.7, o.size.y * 0.18)
+        for cy in [-hd * 0.45, -hd * 0.05] {
+            let path = CGMutablePath()
+            path.move(to: CGPoint(x: -w, y: cy - tall))
+            path.addLine(to: CGPoint(x: 0, y: cy + tall * 0.4))
+            path.addLine(to: CGPoint(x: w, y: cy - tall))
+            ctx.addPath(path)
+            ctx.setStrokeColor(cgColor(RGB(248, 248, 240), alpha: 0.9))
+            ctx.setLineWidth(max(1.5, w * 0.22))
+            ctx.setLineCap(.butt)
+            ctx.setLineJoin(.miter)
+            ctx.strokePath()
+        }
+        // Hazard stripes along the lip.
+        let band = min(4.0, o.size.y * 0.15)
+        rect(-hl, hd - band, hl, hd, RGB(240, 196, 40))
+        ctx.saveGState()
+        ctx.clip(to: CGRect(x: -hl, y: hd - band, width: o.size.x, height: band))
+        ctx.setFillColor(cgColor(RGB(26, 26, 28)))
+        var sx = -hl - band
+        while sx < hl + band {
+            let p = CGMutablePath()
+            p.addLines(between: [CGPoint(x: sx, y: hd - band), CGPoint(x: sx + 2.5, y: hd - band),
+                                 CGPoint(x: sx + 2.5 + band, y: hd), CGPoint(x: sx + band, y: hd)])
+            p.closeSubpath()
+            ctx.addPath(p)
+            ctx.fillPath()
+            sx += 5
+        }
+        ctx.restoreGState()
+        // Steel lip edge, front plate and side rails.
+        rect(-hl, hd - 0.8, hl, hd, RGB(236, 236, 240))
+        rect(-hl, -hd, hl, -hd + 1.2, RGB(150, 152, 160))
+        let rail = min(2.5, o.size.x * 0.06)
+        rect(-hl, -hd, -hl + rail, hd, RGB(74, 76, 84))
+        rect(hl - rail, -hd, hl, hd, RGB(74, 76, 84))
+        rect(-hl + rail - 0.6, -hd, -hl + rail, hd, RGB(150, 152, 162))
+        rect(hl - rail, -hd, hl - rail + 0.6, hd, RGB(150, 152, 162))
+    }
+
+    /// Draws objects in world coordinates: all shadows first, then buildings, then trees.
+    /// Ramps are left out: they sit on the ground (see `drawRamps`).
+    static func drawObjects(_ objects: [TrackObject], theme: TrackTheme, in ctx: CGContext) {
+        let objects = objects.filter { !$0.kind.isRamp }
+        guard !objects.isEmpty else { return }
+        // Shadows go through one transparency layer so overlapping ones don't stack up darker.
+        ctx.saveGState()
+        ctx.setAlpha(0.3)
+        ctx.beginTransparencyLayer(auxiliaryInfo: nil)
+        ctx.setFillColor(CGColor(gray: 0, alpha: 1))
+        for o in objects {
+            let d = shadowLength(o)
+            ctx.saveGState()
+            ctx.translateBy(x: d, y: -d)
+            silhouette(o, in: ctx)
+            ctx.fillPath()
+            ctx.restoreGState()
+        }
+        ctx.endTransparencyLayer()
+        ctx.restoreGState()
+
+        for o in objects where !o.kind.isTree { drawObject(o, theme: theme, in: ctx) }
+        for o in objects where o.kind.isTree { drawObject(o, theme: theme, in: ctx) }
+    }
+
+    /// How far down-right an object's shadow falls.
+    static func shadowLength(_ o: TrackObject) -> Double {
+        switch o.kind {
+        case .tree, .pine: 1.5 + o.radius * 0.35
+        case .palm: 3 + o.radius * 0.4
+        case .grandstand: 7
+        case .pitBuilding: 5
+        case .ramp: 3.5
+        }
+    }
+
+    /// Adds the object's outline to the context's path.
+    static func silhouette(_ o: TrackObject, in ctx: CGContext) {
+        let c = CGPoint(x: o.position.x, y: o.position.y)
+        switch o.kind {
+        case .tree:
+            ctx.addEllipse(in: CGRect(x: c.x - o.radius, y: c.y - o.radius, width: o.radius * 2, height: o.radius * 2))
+        case .pine:
+            ctx.addPath(starPath(center: c, outer: o.radius, inner: o.radius * 0.72, points: 9, rotation: o.angle))
+        case .palm:
+            ctx.addPath(palmFronds(o))
+        case .grandstand, .pitBuilding, .ramp:
+            ctx.addLines(between: o.corners.map { CGPoint(x: $0.x, y: $0.y) })
+            ctx.closePath()
+        }
+    }
+
+    /// Stable per-object random number in [0, 1).
+    static func objectHash(_ o: TrackObject, _ salt: Int) -> Double {
+        hash01(Int(o.position.x * 8), Int(o.position.y * 8), salt)
+    }
+
+    static func starPath(center c: CGPoint, outer: Double, inner: Double, points: Int, rotation: Double) -> CGPath {
+        let path = CGMutablePath()
+        for k in 0..<(points * 2) {
+            let a = rotation + Double(k) * .pi / Double(points)
+            let r = k % 2 == 0 ? outer : inner
+            let p = CGPoint(x: c.x + cos(a) * r, y: c.y + sin(a) * r)
+            k == 0 ? path.move(to: p) : path.addLine(to: p)
+        }
+        path.closeSubpath()
+        return path
+    }
+
+    /// Palm fronds: pointed leaves radiating from the crown.
+    static func palmFronds(_ o: TrackObject, scale: Double = 1) -> CGPath {
+        let path = CGMutablePath()
+        let count = 8
+        let r = o.radius * scale
+        for k in 0..<count {
+            let a = o.angle + Double(k) * 2 * .pi / Double(count) + (objectHash(o, 40 + k) - 0.5) * 0.4
+            let len = r * (0.85 + 0.15 * objectHash(o, 50 + k))
+            let dir = Vec2(angle: a), side = dir.perp
+            let base = o.position + dir * (r * 0.1)
+            let mid = o.position + dir * (len * 0.55)
+            let tip = o.position + dir * len
+            let wdt = r * 0.34
+            func pt(_ v: Vec2) -> CGPoint { CGPoint(x: v.x, y: v.y) }
+            path.move(to: pt(base))
+            path.addQuadCurve(to: pt(tip), control: pt(mid + side * wdt))
+            path.addQuadCurve(to: pt(base), control: pt(mid - side * wdt))
+            path.closeSubpath()
+        }
+        return path
+    }
+
+    static func drawObject(_ o: TrackObject, theme: TrackTheme, in ctx: CGContext) {
+        ctx.saveGState()
+        defer { ctx.restoreGState() }
+        let c = CGPoint(x: o.position.x, y: o.position.y)
+        let r = o.radius
+        let snowy = theme == .winter
+        func fill(_ color: RGB, _ path: CGPath) {
+            ctx.addPath(path)
+            ctx.setFillColor(cgColor(color))
+            ctx.fillPath()
+        }
+        func disc(_ p: CGPoint, _ radius: Double) -> CGPath {
+            CGPath(ellipseIn: CGRect(x: p.x - radius, y: p.y - radius, width: radius * 2, height: radius * 2), transform: nil)
+        }
+
+        switch o.kind {
+        case .tree:
+            // Clumps of leaves around a dark core, lit from the top left.
+            let dark = RGB(30, 84, 36), mid = RGB(46, 118, 48)
+            let light = snowy ? RGB(214, 226, 232) : RGB(86, 156, 68)
+            fill(dark, disc(c, r))
+            let lumps = 6
+            for k in 0..<lumps {
+                let a = o.angle + Double(k) * 2 * .pi / Double(lumps) + objectHash(o, k) * 0.6
+                let p = CGPoint(x: c.x + cos(a) * r * 0.42, y: c.y + sin(a) * r * 0.42)
+                fill(mid, disc(p, r * (0.5 + 0.08 * objectHash(o, 10 + k))))
+            }
+            fill(mid.scaled(1.05), disc(c, r * 0.55))
+            for k in 0..<lumps {
+                let a = o.angle + Double(k) * 2 * .pi / Double(lumps) + 0.5
+                let p = CGPoint(x: c.x + cos(a) * r * 0.38 - r * 0.12, y: c.y + sin(a) * r * 0.38 + r * 0.12)
+                let lit = sin(a) > -0.2 && cos(a) < 0.4
+                fill(lit ? light : mid.scaled(1.12), disc(p, r * 0.2))
+            }
+            fill(light.mixed(RGB(255, 255, 255), snowy ? 0.4 : 0.15), disc(CGPoint(x: c.x - r * 0.22, y: c.y + r * 0.22), r * 0.16))
+        case .pine:
+            // Layered star of branches from above.
+            let layers: [(Double, Double, RGB)] = [
+                (1, 0.72, RGB(28, 82, 48)),
+                (0.72, 0.5, snowy ? RGB(170, 194, 196) : RGB(44, 108, 62)),
+                (0.45, 0.3, snowy ? RGB(226, 236, 240) : RGB(72, 142, 82)),
+            ]
+            for (k, layer) in layers.enumerated() {
+                let path = starPath(center: c, outer: r * layer.0, inner: r * layer.1, points: 9 - k * 2,
+                                    rotation: o.angle + Double(k) * 0.35)
+                fill(layer.2, path)
+            }
+            fill(RGB(96, 70, 44), disc(c, max(0.8, r * 0.08)))
+        case .palm:
+            let outer = palmFronds(o)
+            fill(RGB(60, 134, 52), outer)
+            ctx.addPath(outer)
+            ctx.setStrokeColor(cgColor(RGB(34, 88, 36)))
+            ctx.setLineWidth(max(0.4, r * 0.03))
+            ctx.strokePath()
+            fill(snowy ? RGB(200, 220, 210) : RGB(110, 178, 74), palmFronds(o, scale: 0.62))
+            // Midribs.
+            ctx.setStrokeColor(cgColor(RGB(40, 96, 40)))
+            ctx.setLineWidth(max(0.4, r * 0.035))
+            for k in 0..<8 {
+                let a = o.angle + Double(k) * 2 * .pi / 8 + (objectHash(o, 40 + k) - 0.5) * 0.4
+                let tip = o.position + Vec2(angle: a) * (r * 0.8)
+                ctx.move(to: c)
+                ctx.addLine(to: CGPoint(x: tip.x, y: tip.y))
+            }
+            ctx.strokePath()
+            fill(RGB(112, 82, 50), disc(c, r * 0.14))
+            fill(RGB(150, 116, 70), disc(CGPoint(x: c.x - r * 0.04, y: c.y + r * 0.04), r * 0.07))
+        case .grandstand:
+            ctx.translateBy(x: c.x, y: c.y)
+            ctx.rotate(by: o.angle)
+            drawGrandstand(o, in: ctx)
+        case .pitBuilding:
+            ctx.translateBy(x: c.x, y: c.y)
+            ctx.rotate(by: o.angle)
+            drawPitBuilding(o, snowy: snowy, in: ctx)
+        case .ramp:
+            ctx.translateBy(x: c.x, y: c.y)
+            ctx.rotate(by: o.angle)
+            drawRamp(o, in: ctx)
+        }
+    }
+
+    /// Seating rows rising from the front (-y) to a covered back, packed with spectators.
+    /// Drawn in local coordinates.
+    static func drawGrandstand(_ o: TrackObject, in ctx: CGContext) {
+        let hl = o.size.x / 2, hd = o.size.y / 2
+        func rect(_ x0: Double, _ y0: Double, _ x1: Double, _ y1: Double, _ c: RGB) {
+            ctx.setFillColor(cgColor(c))
+            ctx.fill(CGRect(x: x0, y: y0, width: x1 - x0, height: y1 - y0))
+        }
+        rect(-hl, -hd, hl, hd, RGB(128, 128, 134))
+        let roofDepth = max(6, o.size.y * 0.3)
+        let seatsTop = hd - roofDepth
+        let rowDepth = 3.2
+        let rows = max(2, Int((seatsTop + hd - 2) / rowDepth))
+        let crowd = [RGB(214, 60, 52), RGB(240, 220, 90), RGB(70, 120, 210), RGB(236, 236, 236),
+                     RGB(60, 170, 90), RGB(230, 150, 60), RGB(40, 40, 48), RGB(200, 160, 130)]
+        for row in 0..<rows {
+            let y0 = -hd + 2 + Double(row) * rowDepth
+            // Rows further back sit higher, so they catch a little more light.
+            let lift = 0.9 + 0.2 * Double(row) / Double(max(rows - 1, 1))
+            rect(-hl + 2.5, y0, hl - 2.5, y0 + rowDepth - 0.8, RGB(44, 70, 150).scaled(lift))
+            var x = -hl + 3.2
+            var k = 0
+            while x < hl - 3.2 {
+                let hsh = hash01(Int(o.position.x) + k, Int(o.position.y) + row * 97, 21)
+                if hsh > 0.28 {
+                    let col = crowd[Int(hash01(k, row, Int(o.position.x) & 1023) * Double(crowd.count)) % crowd.count]
+                    rect(x, y0 + 0.4, x + 1.5, y0 + 1.9, col.scaled(lift))
+                }
+                x += 2.2
+                k += 1
+            }
+        }
+        // Aisles.
+        var ax = -hl + 28
+        while ax < hl - 10 {
+            rect(ax - 1, -hd + 2, ax + 1, seatsTop, RGB(150, 150, 156))
+            ax += 30
+        }
+        // Front wall and end walls.
+        rect(-hl, -hd, hl, -hd + 2, RGB(210, 210, 214))
+        rect(-hl, -hd, -hl + 2.5, hd, RGB(96, 96, 104))
+        rect(hl - 2.5, -hd, hl, hd, RGB(96, 96, 104))
+        // Roof over the back rows, with ribs and a shaded front lip.
+        rect(-hl, seatsTop, hl, hd, RGB(206, 210, 218))
+        var rx = -hl + 8
+        while rx < hl {
+            rect(rx - 0.4, seatsTop, rx + 0.4, hd, RGB(176, 180, 190))
+            rx += 10
+        }
+        rect(-hl, seatsTop, hl, seatsTop + 1.2, RGB(120, 124, 134))
+        rect(-hl, hd - 1, hl, hd, RGB(236, 238, 242))
+    }
+
+    /// Flat-roofed pit garages: doors along the front (-y), team stripe along the back,
+    /// rooftop plant and a small control tower at one end. Drawn in local coordinates.
+    static func drawPitBuilding(_ o: TrackObject, snowy: Bool, in ctx: CGContext) {
+        let hl = o.size.x / 2, hd = o.size.y / 2
+        func rect(_ x0: Double, _ y0: Double, _ x1: Double, _ y1: Double, _ c: RGB) {
+            ctx.setFillColor(cgColor(c))
+            ctx.fill(CGRect(x: x0, y: y0, width: x1 - x0, height: y1 - y0))
+        }
+        let roof = snowy ? RGB(232, 236, 242) : RGB(212, 214, 220)
+        rect(-hl, -hd, hl, hd, RGB(110, 112, 120))
+        rect(-hl + 1.5, -hd + 1.5, hl - 1.5, hd - 1.5, roof)
+        // Roof panel seams.
+        var sx = -hl + 10
+        while sx < hl - 2 {
+            rect(sx - 0.3, -hd + 1.5, sx + 0.3, hd - 1.5, roof.scaled(0.92))
+            sx += 10
+        }
+        // Garage doors under the front eave.
+        let doorDepth = min(6, o.size.y * 0.2)
+        rect(-hl, -hd, hl, -hd + doorDepth, RGB(48, 50, 58))
+        let doors = max(1, Int((o.size.x - 4) / 16))
+        let doorW = (o.size.x - 4) / Double(doors)
+        for k in 0..<doors {
+            let x0 = -hl + 2 + Double(k) * doorW
+            rect(x0 + 1.5, -hd + 0.8, x0 + doorW - 1.5, -hd + doorDepth - 1, RGB(164, 168, 178))
+            rect(x0 + 1.5, -hd + doorDepth - 2, x0 + doorW - 1.5, -hd + doorDepth - 1, RGB(206, 44, 40))
+        }
+        // Team stripe along the back.
+        rect(-hl + 1.5, hd - 4.5, hl - 1.5, hd - 2, RGB(206, 44, 40))
+        // Rooftop air handlers.
+        let units = max(1, Int(o.size.x / 45))
+        for k in 0..<units {
+            let ux = -hl + (Double(k) + 0.5) * o.size.x / Double(units) - 6
+            let uy = -hd + doorDepth + 3 + objectHash(o, 60 + k) * max(0, o.size.y - doorDepth - 16)
+            rect(ux, uy, ux + 9, uy + 6, RGB(120, 124, 132))
+            rect(ux + 1, uy + 1, ux + 8, uy + 5, RGB(160, 164, 172))
+            rect(ux + 3.5, uy + 2, ux + 5.5, uy + 4, RGB(80, 84, 92))
+        }
+        // Control tower at the right end: a raised glass box.
+        let t = min(o.size.y * 0.7, 26.0)
+        let tx = hl - t - 3, ty = -t / 2 + 2
+        ctx.setFillColor(CGColor(gray: 0, alpha: 0.25))
+        ctx.fill(CGRect(x: tx + 2, y: ty - 2, width: t, height: t))
+        rect(tx, ty, tx + t, ty + t, RGB(70, 130, 190))
+        rect(tx + 2, ty + 2, tx + t - 2, ty + t - 2, roof.scaled(1.02))
+        rect(tx + 2, ty + t - 3.5, tx + t - 2, ty + t - 2, RGB(140, 196, 236))
     }
 
     /// Flat-colored approximation of a track drawn with vector strokes: fast enough to redraw
@@ -254,18 +739,7 @@ public enum TrackRenderer {
                             space: CGColorSpace(name: CGColorSpace.sRGB)!,
                             bitmapInfo: CGImageAlphaInfo.premultipliedLast.rawValue)!
         let pal = palette(def.theme)
-        func color(_ s: Surface) -> CGColor {
-            let c: RGB
-            switch s {
-            case .asphalt: c = pal.asphalt
-            case .curb: c = RGB(206, 44, 40)
-            case .grass: c = pal.ground
-            case .sand: c = pal.sand
-            case .ice: c = RGB(186, 222, 244)
-            case .wall: c = RGB(46, 46, 52)
-            }
-            return CGColor(srgbRed: c.r / 255, green: c.g / 255, blue: c.b / 255, alpha: 1)
-        }
+        func color(_ s: Surface) -> CGColor { cgColor(flatColor(s, pal)) }
         ctx.setFillColor(color(def.background))
         ctx.fill(CGRect(x: 0, y: 0, width: w, height: h))
 
@@ -318,10 +792,30 @@ public enum TrackRenderer {
         band(extra: Track.curbWidth, color(.curb))
         band(extra: 0, color(.asphalt))
         def.patches.filter(\.coversRoad).forEach(fill)
+        drawLines(def.lines, in: ctx)
         ctx.setStrokeColor(color(.wall))
         ctx.setLineWidth(6)
         ctx.stroke(CGRect(x: 0, y: 0, width: w, height: h))
+        drawRamps(def.objects, in: ctx)
+        drawObjects(def.objects, theme: def.theme, in: ctx)
         return ctx.makeImage()!
+    }
+
+    static let waterColor = RGB(56, 118, 178)
+    static let mudColor = RGB(104, 76, 50)
+
+    /// Single representative color of a surface, for previews and swatches.
+    static func flatColor(_ s: Surface, _ pal: Palette) -> RGB {
+        switch s {
+        case .asphalt: pal.asphalt
+        case .curb: RGB(206, 44, 40)
+        case .grass: pal.ground
+        case .sand: pal.sand
+        case .ice: RGB(186, 222, 244)
+        case .wall: RGB(46, 46, 52)
+        case .water: waterColor
+        case .mud: mudColor
+        }
     }
 
     /// Hash-placed round tree canopies on a 14px grid.

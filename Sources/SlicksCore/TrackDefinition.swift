@@ -25,6 +25,12 @@ public struct TrackDefinition: Codable, Sendable, Identifiable, Equatable {
     public var patches: [Patch]
     /// Places where the road crosses itself on two levels.
     public var bridges: [BridgeDefinition]
+    /// Paint on the ground, drawn in order. No effect on driving.
+    public var lines: [PaintLine]
+    /// Trees, buildings and jump ramps.
+    public var objects: [TrackObject]
+    /// Whether cars kick sand out of sand traps and track it onto the road during a race.
+    public var looseSand: Bool
 
     public init(
         id: String,
@@ -40,7 +46,10 @@ public struct TrackDefinition: Codable, Sendable, Identifiable, Equatable {
         barrierDistance: Double? = nil,
         barrierThickness: Double = 7,
         patches: [Patch] = [],
-        bridges: [BridgeDefinition] = []
+        bridges: [BridgeDefinition] = [],
+        lines: [PaintLine] = [],
+        objects: [TrackObject] = [],
+        looseSand: Bool = true
     ) {
         self.id = id
         self.name = name
@@ -56,6 +65,9 @@ public struct TrackDefinition: Codable, Sendable, Identifiable, Equatable {
         self.barrierThickness = barrierThickness
         self.patches = patches
         self.bridges = bridges
+        self.lines = lines
+        self.objects = objects
+        self.looseSand = looseSand
     }
 
     /// Tracks saved before a field existed still load: missing optional parts get defaults.
@@ -75,6 +87,9 @@ public struct TrackDefinition: Codable, Sendable, Identifiable, Equatable {
         barrierThickness = try c.decodeIfPresent(Double.self, forKey: .barrierThickness) ?? 7
         patches = try c.decodeIfPresent([Patch].self, forKey: .patches) ?? []
         bridges = try c.decodeIfPresent([BridgeDefinition].self, forKey: .bridges) ?? []
+        lines = try c.decodeIfPresent([PaintLine].self, forKey: .lines) ?? []
+        objects = try c.decodeIfPresent([TrackObject].self, forKey: .objects) ?? []
+        looseSand = try c.decodeIfPresent(Bool.self, forKey: .looseSand) ?? true
     }
 
     /// Road width at a control point.

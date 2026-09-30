@@ -6,6 +6,11 @@ public enum Surface: UInt8, Codable, Sendable, CaseIterable {
     case sand
     case ice
     case wall
+    // New surfaces go at the end: saved tracks store the raw value.
+    /// Shallow water cars splash through: heavy drag and a little aquaplaning.
+    case water
+    /// Slippery and draggy at once.
+    case mud
 
     public var properties: SurfaceProperties {
         switch self {
@@ -15,6 +20,8 @@ public enum Surface: UInt8, Codable, Sendable, CaseIterable {
         case .sand: SurfaceProperties(grip: 0.65, drag: 3.2, traction: 0.45)
         case .ice: SurfaceProperties(grip: 0.32, drag: 0.15, traction: 0.35)
         case .wall: SurfaceProperties(grip: 1.0, drag: 0.35, traction: 1.0)
+        case .water: SurfaceProperties(grip: 0.55, drag: 1.9, traction: 0.7)
+        case .mud: SurfaceProperties(grip: 0.45, drag: 2.0, traction: 0.4)
         }
     }
 }

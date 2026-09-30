@@ -18,7 +18,7 @@ public struct AIDriver: Codable, Sendable, Equatable {
     }
 
     /// Public so tests can drive "human" cars with the AI's judgment.
-    public mutating func input(for car: Car, track: Track, dt: Double, elapsed: Double) -> CarInput {
+    public mutating func input(for car: Car, track: Track, sand: LooseSand? = nil, dt: Double, elapsed: Double) -> CarInput {
         let n = track.sampleCount
         let speed = car.speed
         let spec = car.spec
@@ -47,13 +47,13 @@ public struct AIDriver: Codable, Sendable, Equatable {
         // Grip and braking use the surface at each upcoming sample, so ice ahead is respected.
         let skillGrip = spec.grip * (0.72 + 0.26 * skill)
         let turnLimit = spec.turnRate * 0.75 * (0.85 + 0.15 * skill)
-        let hereProps = car.surface.properties
+        let hereProps = LooseSand.surface(track: track, sand: sand, at: car.position, level: car.level).properties
         let horizon = Int(12 + speed * 0.18)
         var desired = spec.maxSpeed
         var k = 2
         while k <= horizon {
             let i = (car.pathIndex + k) % n
-            let ahead = track.surface(at: track.path[i], level: Int(track.sampleLevels[i])).properties
+            let ahead = LooseSand.surface(track: track, sand: sand, at: track.path[i], level: Int(track.sampleLevels[i])).properties
             let gripAccel = skillGrip * ahead.grip
             // Braking happens between here and there, so use the worse of the two surfaces.
             let brakeDecel = spec.brakeDeceleration * 0.8 * min(hereProps.traction, ahead.traction)

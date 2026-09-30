@@ -193,10 +193,20 @@ extension Track {
         var along = [Float](repeating: 0, count: w * h)
         var lateral = [Float](repeating: .infinity, count: w * h)
         var best = [Double](repeating: .infinity, count: w * h)
+        // 0 = deck, 1 = ramp or zone. When two bridges' structures overlap (one bridge's ramp
+        // running out under another's deck), the deck wins so it has no holes.
+        var rank = [UInt8](repeating: .max, count: w * h)
+        // Per-bridge scratch: each bridge first finds its own nearest upper-road sample per
+        // cell, exactly as if it were the only bridge, and only then competes for the cell.
+        var nearD2 = [Double](repeating: .infinity, count: w * h)
+        var nearAlong = [Float](repeating: 0, count: w * h)
+        var nearLateral = [Float](repeating: 0, count: w * h)
+        var touched: [Int] = []
         for (bi, b) in bridges.enumerated() {
             let range = b.structureRange
             let r = b.halfWidth + 3
             let kMin = Int(floor(range.lowerBound / step)) - 1, kMax = Int(ceil(range.upperBound / step)) + 1
+            touched.removeAll(keepingCapacity: true)
             for k in kMin...kMax {
                 let i = ((b.centerSample + k) % n + n) % n
                 let s = path[i], t = tangents[i], nrm = t.perp
@@ -208,13 +218,27 @@ extension Track {
                         let d = Vec2(Double(x) + 0.5, Double(y) + 0.5) - s
                         let d2 = d.lengthSquared
                         let c = y * w + x
-                        guard d2 < best[c], d2 <= r * r else { continue }
-                        best[c] = d2
-                        index[c] = Int8(bi)
-                        along[c] = Float(Double(k) * step + d.dot(t))
-                        lateral[c] = Float(abs(d.dot(nrm)))
+                        guard d2 < nearD2[c], d2 <= r * r else { continue }
+                        if nearD2[c] == .infinity { touched.append(c) }
+                        nearD2[c] = d2
+                        nearAlong[c] = Float(Double(k) * step + d.dot(t))
+                        nearLateral[c] = Float(abs(d.dot(nrm)))
                     }
                 }
+            }
+            for c in touched {
+                let d2 = nearD2[c], a = Double(nearAlong[c]), l = Double(nearLateral[c])
+                nearD2[c] = .infinity
+                // Only cells that really are part of this bridge's structure compete, so a
+                // bridge can't knock a hole in another bridge's deck.
+                guard range.contains(a), l <= b.halfWidth + 1 else { continue }
+                let cellRank: UInt8 = b.isDeck(along: a, lateral: l) ? 0 : 1
+                guard index[c] < 0 || cellRank < rank[c] || (cellRank == rank[c] && d2 < best[c]) else { continue }
+                best[c] = d2
+                rank[c] = cellRank
+                index[c] = Int8(bi)
+                along[c] = Float(a)
+                lateral[c] = Float(l)
             }
         }
         for c in 0..<(w * h) where index[c] >= 0 {

@@ -224,21 +224,15 @@ enum EditorColors {
 
     /// Swatch for a surface, in the track theme's colors.
     static func swatch(_ s: Surface, theme: TrackTheme) -> SKColor {
-        let pal = TrackRenderer.palette(theme)
-        switch s {
-        case .asphalt: return SKColor(pal.asphalt)
-        case .curb: return SKColor(RGB(206, 44, 40))
-        case .grass: return SKColor(pal.ground)
-        case .sand: return SKColor(pal.sand)
-        case .ice: return SKColor(RGB(186, 222, 244))
-        case .wall: return SKColor(RGB(46, 46, 52))
-        }
+        SKColor(TrackRenderer.flatColor(s, TrackRenderer.palette(theme)))
     }
 
     /// Outline for a patch of a surface: the swatch, lifted so dark surfaces stay visible.
     static func outline(_ s: Surface, theme: TrackTheme) -> SKColor {
         let c = swatch(s, theme: theme)
-        return c.blended(withFraction: s == .wall || s == .asphalt ? 0.6 : 0.25, of: .white) ?? c
+        return c.blended(withFraction: s == .wall || s == .asphalt || s == .mud ? 0.6 : 0.25, of: .white) ?? c
     }
+
+    static func paint(_ c: PaintColor) -> SKColor { SKColor(TrackRenderer.paintColor(c)) }
 }
 #endif

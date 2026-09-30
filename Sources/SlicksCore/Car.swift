@@ -86,6 +86,19 @@ public final class Car {
     public internal(set) var level = 0
     /// Index of the bridge zone the car is currently in, if any.
     public internal(set) var bridgeZone: Int?
+    /// Sand stuck to the rear tires after driving through a trap, in cells' worth (up to
+    /// `LooseSand.tireCapacity`). Shed onto the road over the next few car lengths.
+    public internal(set) var sandOnTires = 0.0
+
+    /// Height above the ground: rising up a ramp or flying off one. See `Jumps`.
+    public internal(set) var height = 0.0
+    var verticalSpeed = 0.0
+    /// In the air after leaving a ramp: no grip, steering or engine until it lands.
+    public internal(set) var isAirborne = false
+    /// Ramp launches so far, for telemetry.
+    public internal(set) var jumps = 0
+    /// High enough to clear tire walls and other cars.
+    public var isAboveObstacles: Bool { isAirborne && height > Jumps.clearance }
 
     init(id: Int, name: String, colorIndex: Int, isAI: Bool, playerIndex: Int?, spec: CarSpec,
          position: Vec2, heading: Double, pathIndex: Int, progress: Double) {
@@ -115,10 +128,22 @@ public final class Car {
 
     /// Advances the car's own dynamics: steering, engine, drag and tire grip.
     /// Collisions are resolved separately by the race.
-    func integrate(input: CarInput, track: Track, dt: Double) {
+    func integrate(input: CarInput, track: Track, sand: LooseSand? = nil, dt: Double) {
         lastInput = input
-        surface = track.surface(at: position, level: level)
-        let props = surface.properties
+        if isAirborne {
+            // Ballistic: the tires have nothing to push on, so the car keeps its heading
+            // and velocity apart from a little air drag and whatever spin it took off with.
+            isBraking = false
+            isWheelspinning = false
+            angularVelocity *= exp(-1.5 * dt)
+            heading = wrapAngle(heading + angularVelocity * dt)
+            velocity *= exp(-0.08 * dt)
+            position += velocity * dt
+            return
+        }
+        let ground = LooseSand.surface(track: track, sand: sand, at: position, level: level)
+        surface = ground.surface
+        let props = ground.properties
 
         // Steering scales in with speed so the car can't spin on the spot,
         // and flips when reversing like a real car.

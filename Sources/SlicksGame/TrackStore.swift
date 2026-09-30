@@ -70,6 +70,28 @@ public enum TrackStore {
         d.normalizeWidths()
         d.defaultLaps = clamp(d.defaultLaps, 1, 20)
         d.bridges = Array(d.bridges.filter { d.controlPoints.indices.contains($0.controlPoint) }.prefix(EditorLimits.maxBridges))
+        func finite(_ v: Vec2) -> Bool { v.x.isFinite && v.y.isFinite }
+        d.lines = Array(d.lines.compactMap { line -> PaintLine? in
+            guard !line.points.isEmpty, line.points.allSatisfy(finite), line.width.isFinite else { return nil }
+            var l = line
+            l.points = Array(l.points.prefix(EditorLimits.maxLinePoints))
+            l.width = clamp(l.width, EditorLimits.lineWidth.lowerBound, EditorLimits.lineWidth.upperBound)
+            return l
+        }.prefix(EditorLimits.maxLines))
+        d.objects = Array(d.objects.compactMap { object -> TrackObject? in
+            guard finite(object.position), finite(object.size), object.angle.isFinite else { return nil }
+            var o = object
+            o.position = EditorLimits.clampToMap(o.position)
+            if o.kind.isTree {
+                let s = clamp(o.size.x, EditorLimits.treeSize.lowerBound, EditorLimits.treeSize.upperBound)
+                o.size = Vec2(s, s)
+            } else {
+                let l = EditorLimits.buildingLength, dp = EditorLimits.buildingDepth
+                o.size = Vec2(clamp(o.size.x, l.lowerBound, l.upperBound), clamp(o.size.y, dp.lowerBound, dp.upperBound))
+            }
+            o.angle = wrapAngle(o.angle)
+            return o
+        }.prefix(EditorLimits.maxObjects))
         return d
     }
 }
@@ -80,10 +102,17 @@ public enum EditorLimits {
     public static let roadWidth: ClosedRange<Double> = 40...160
     public static let barrierDistance: ClosedRange<Double> = 2...120
     public static let barrierThickness: ClosedRange<Double> = 3...24
-    public static let bridgeLength: ClosedRange<Double> = 20...400
+    public static let bridgeLength: ClosedRange<Double> = 20...500
     public static let patchSize: ClosedRange<Double> = 3...960
     public static let maxBridges = 16
     public static let maxPatches = 200
+    public static let lineWidth: ClosedRange<Double> = 1...12
+    public static let maxLines = 150
+    public static let maxLinePoints = 64
+    public static let treeSize: ClosedRange<Double> = 8...90
+    public static let buildingLength: ClosedRange<Double> = 20...320
+    public static let buildingDepth: ClosedRange<Double> = 12...120
+    public static let maxObjects = 300
 
     /// Control points stay a little inside the map so bridge decks always have an area.
     public static func clampToMap(_ p: Vec2) -> Vec2 {
