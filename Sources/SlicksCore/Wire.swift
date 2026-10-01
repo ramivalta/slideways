@@ -71,6 +71,9 @@ extension RaceSnapshot {
             w.f64(d.skill); w.f64(d.lane)
             w.f64(d.stuckTime); w.f64(d.reverseTime); w.f64(d.reverseSteer); w.f64(d.laneDrift)
             w.optionalF64(d.routeBest); w.f64(d.routeStall)
+            // The personality is rebuilt from its seed.
+            w.bool(d.seed != nil)
+            if let seed = d.seed { w.u64(seed) }
         }
         // The sand grid travels separately (see `SandDelta`); only its fingerprint goes here.
         w.bool(sandChecksum != nil)
@@ -145,13 +148,21 @@ extension RaceSnapshot {
         for _ in 0..<driverCount {
             let id = Int(try r.u8())
             guard id < count else { throw invalid("driver") }
-            var d = AIDriver(skill: try r.finite(), lane: try r.finite())
-            d.stuckTime = try r.finite()
-            d.reverseTime = try r.finite()
-            d.reverseSteer = try r.finite()
-            d.laneDrift = try r.finite()
-            d.routeBest = try r.optionalFinite()
-            d.routeStall = try r.finite()
+            let skill = try r.finite(), lane = try r.finite()
+            let stuckTime = try r.finite()
+            let reverseTime = try r.finite()
+            let reverseSteer = try r.finite()
+            let laneDrift = try r.finite()
+            let routeBest = try r.optionalFinite()
+            let routeStall = try r.finite()
+            let seed: UInt64? = try r.bool() ? try r.u64() : nil
+            var d = AIDriver(skill: skill, lane: lane, seed: seed)
+            d.stuckTime = stuckTime
+            d.reverseTime = reverseTime
+            d.reverseSteer = reverseSteer
+            d.laneDrift = laneDrift
+            d.routeBest = routeBest
+            d.routeStall = routeStall
             drivers[id] = d
         }
         self.drivers = drivers

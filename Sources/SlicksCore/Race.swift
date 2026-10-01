@@ -49,6 +49,8 @@ public final class Race {
     public let rubber: Rubber?
 
     private var drivers: [Int: AIDriver] = [:]
+    /// Seeds the drivers' personalities, including ones taking over from humans mid-race.
+    private let seed: UInt64
     /// Routes back to the road for AI cars knocked behind walls. Built the first time a race
     /// has a computer driver (from the start, or when a human hands over mid-race), the same
     /// way on every peer since it only depends on the track.
@@ -61,6 +63,7 @@ public final class Race {
     public init(track: Track, entrants: [Entrant], laps: Int, seed: UInt64 = 1, rubberBuildsUp: Bool = true) {
         self.track = track
         self.laps = max(1, laps)
+        self.seed = seed
         looseSand = track.definition.looseSand && track.surfaces.contains(.sand) ? LooseSand(track: track, seed: seed) : nil
         rubber = rubberBuildsUp ? Rubber(track: track) : nil
         var rng = SplitMix64(seed: seed)
@@ -79,7 +82,7 @@ public final class Race {
         for car in cars where car.isAI {
             let e = entrants[car.id]
             let lane = Double.random(in: -0.45...0.45, using: &rng)
-            drivers[car.id] = AIDriver(skill: e.aiSkill, lane: lane)
+            drivers[car.id] = AIDriver(skill: e.aiSkill, lane: lane, seed: rng.next())
         }
     }
 
@@ -99,7 +102,9 @@ public final class Race {
     /// The car keeps its place, name and lap times.
     public func handOverToAI(carID: Int, skill: Double = 0.75) {
         guard cars.indices.contains(carID), drivers[carID] == nil else { return }
-        drivers[carID] = AIDriver(skill: skill, lane: 0)
+        // Seeded from the race and car, so every machine hands over to the same driver.
+        var rng = SplitMix64(seed: seed ^ (UInt64(carID + 1) &* 0xD6E8_FEB8_6659_FD93))
+        drivers[carID] = AIDriver(skill: skill, lane: 0, seed: rng.next())
     }
 
     /// Takes and clears the impact events produced since the last call.
