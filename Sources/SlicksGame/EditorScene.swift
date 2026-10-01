@@ -720,7 +720,7 @@ final class EditorScene: GameScene {
               let k = def.bridges.firstIndex(where: { $0.controlPoint == i }) else { return [] }
         let dense = Track.centerline(through: def.controlPoints)
         // Decks keep the width the road has at the bridge point.
-        let half = def.roadWidth(atPoint: i) / 2 + Track.curbWidth + 6
+        let half = def.roadWidth(atPoint: i) / 2 + def.curbWidth + 6
         return BridgeEnd.allCases.compactMap { end in
             guard let e = deckExtent(bridge: k, end) else { return nil }
             let r = roadPosition(fromPoint: i, distance: Double(end.sign) * e, dense: dense)
@@ -2028,6 +2028,11 @@ final class EditorScene: GameScene {
             perform { $0.roadWidth = clamp($0.roadWidth - 2, EditorLimits.roadWidth.lowerBound, EditorLimits.roadWidth.upperBound) }
         } plus: { [unowned self] in
             perform { $0.roadWidth = clamp($0.roadWidth + 2, EditorLimits.roadWidth.lowerBound, EditorLimits.roadWidth.upperBound) }
+        }
+        L.stepper("Curb width", value: "\(Int(def.curbWidth))", tip: "Width of curbs outside both road edges") { [unowned self] in
+            perform { $0.curbWidth = max(EditorLimits.curbWidth.lowerBound, $0.curbWidth - 1) }
+        } plus: { [unowned self] in
+            perform { $0.curbWidth = min(EditorLimits.curbWidth.upperBound, $0.curbWidth + 1) }
         }
         L.stepper("Laps", value: "\(def.defaultLaps)", tip: "Suggested number of laps") { [unowned self] in
             perform { $0.defaultLaps = max(1, $0.defaultLaps - 1) }

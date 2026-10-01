@@ -66,6 +66,8 @@ public enum TrackStore {
         d.controlPoints = d.controlPoints.map(EditorLimits.clampToMap)
         let widths = EditorLimits.roadWidth
         d.roadWidth = clamp(d.roadWidth, widths.lowerBound, widths.upperBound)
+        d.curbWidth = d.curbWidth.isFinite
+            ? clamp(d.curbWidth, EditorLimits.curbWidth.lowerBound, EditorLimits.curbWidth.upperBound) : Track.curbWidth
         d.pointWidths = d.pointWidths.map { w in w.flatMap { $0.isFinite ? clamp($0, widths.lowerBound, widths.upperBound) : nil } }
         d.normalizeWidths()
         d.defaultLaps = clamp(d.defaultLaps, 1, 20)
@@ -100,6 +102,7 @@ public enum TrackStore {
 public enum EditorLimits {
     public static let mapSize = CGSize(width: 960, height: 600)
     public static let roadWidth: ClosedRange<Double> = 40...160
+    public static let curbWidth: ClosedRange<Double> = 0...20
     public static let barrierDistance: ClosedRange<Double> = 2...120
     public static let barrierThickness: ClosedRange<Double> = 3...24
     /// How far a fixed deck end reaches from its bridge's control point.

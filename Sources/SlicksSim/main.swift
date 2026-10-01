@@ -33,7 +33,7 @@ func writePNG(_ image: CGImage, to url: URL) {
 /// Pairs of centerline samples that are close in space but far apart along the track.
 func overlaps(_ track: Track) -> [(Int, Int, Double)] {
     let n = track.sampleCount
-    let minGap = track.definition.roadWidth + Track.curbWidth * 2 + 8
+    let minGap = track.definition.roadWidth + track.definition.curbWidth * 2 + 8
     let skip = Int((track.definition.roadWidth * 2.5) / track.spacing)
     var found: [(Int, Int, Double)] = []
     var i = 0

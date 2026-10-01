@@ -139,7 +139,7 @@ extension Track {
         let x = Int(floor(p.x)), y = Int(floor(p.y))
         guard x >= 0, y >= 0, x < width, y < height else { return false }
         let i = y * width + x
-        return Double(distanceField[i]) <= halfRoad(atCell: i) + Track.curbWidth
+        return Double(distanceField[i]) <= halfRoad(atCell: i) + definition.curbWidth
     }
 
     /// Whether a wall on the ground layer lies on the straight line from `a` to `b`.

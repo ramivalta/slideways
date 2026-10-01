@@ -92,10 +92,25 @@ func editorChecks() -> Int {
         check(inside == .asphalt && outside == .curb, "width \(Int(target)) at point \(i): \(inside) inside, \(outside) at edge")
     }
 
+    var curb = TrackDefinition.blank(id: "custom-curb")
+    curb.curbWidth = 12
+    let broad = Track(definition: curb)
+    let edge = broad.path[0] + broad.normals[0] * (broad.halfWidths[0] + 6)
+    check(broad.surface(at: edge) == .curb, "wide curb covers road edge")
+    curb.curbWidth = 0
+    let bare = Track(definition: curb)
+    check(bare.surface(at: edge) != .curb, "zero curb removes road edge")
+    if let data = try? JSONEncoder().encode(curb), let restored = try? JSONDecoder().decode(TrackDefinition.self, from: data) {
+        check(restored.curbWidth == 0, "custom curb width survives JSON round trip")
+    } else {
+        check(false, "custom curb width JSON round trip")
+    }
+
     // Tracks saved before point widths existed still load.
     let legacy = #"{"id":"custom-old","name":"Old","width":960,"height":600,"roadWidth":80,"controlPoints":[{"x":100,"y":100},{"x":800,"y":100},{"x":450,"y":500}],"defaultLaps":3,"theme":"summer","background":2,"barrierThickness":7,"patches":[],"bridges":[]}"#
     if let old = try? JSONDecoder().decode(TrackDefinition.self, from: Data(legacy.utf8)) {
-        check(old.pointWidths.isEmpty && old.roadWidth == 80, "legacy JSON decodes with default widths")
+        check(old.pointWidths.isEmpty && old.roadWidth == 80 && old.curbWidth == Track.curbWidth,
+              "legacy JSON decodes with default widths")
     } else {
         check(false, "legacy JSON decodes")
     }

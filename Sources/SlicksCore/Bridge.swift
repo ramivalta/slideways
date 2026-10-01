@@ -167,6 +167,7 @@ extension Track {
         let tangents: [Vec2]
         let centerSample: Int
         let halfWidth: Double
+        let curbWidth: Double
         let rampSamples: Int
         /// Samples of every other pass near the bridge, with the half width of their asphalt
         /// and curbs, and whether that pass is up on another bridge's deck there.
@@ -177,13 +178,14 @@ extension Track {
 
         /// `reach` is the farthest the structure (deck plus ramp) may reach from the center.
         /// `raised` marks samples on other bridges' decks: a ramp can run out under those.
-        init(path: [Vec2], tangents: [Vec2], halfWidths: [Double], centerSample ci: Int, halfWidth: Double,
+        init(path: [Vec2], tangents: [Vec2], halfWidths: [Double], centerSample ci: Int, halfWidth: Double, curbWidth: Double,
              reach: Double, step: Double, raised: [Bool] = []) {
             let n = path.count
             self.path = path
             self.tangents = tangents
             centerSample = ci
             self.halfWidth = halfWidth
+            self.curbWidth = curbWidth
             rampSamples = Int((bridgeRampLength / step).rounded(.up))
             // Everything far enough along the loop from here is another pass. The upper road's
             // own samples within the structure are excluded.
@@ -258,11 +260,11 @@ extension Track {
         /// where the other decks are.
         func ends(_ bd: BridgeDefinition, raised: [Bool]?) -> (back: Int, fwd: Int, maxed: Bool, blocked: [Vec2], clearance: BridgeClearance) {
             let ci = controlSamples[bd.controlPoint]
-            let halfWidth = halfWidths[ci] + curbWidth + bridgeRailing
+            let halfWidth = halfWidths[ci] + def.curbWidth + bridgeRailing
             let fixed = BridgeEnd.allCases.map { bd.extent($0).map { max(0, Int(($0 / step).rounded())) } }
             let longest = Double(max(maxAuto, fixed[0] ?? 0, fixed[1] ?? 0)) * step
             let clearance = BridgeClearance(path: path, tangents: tangents, halfWidths: halfWidths, centerSample: ci,
-                                            halfWidth: halfWidth, reach: longest, step: step, raised: raised ?? [])
+                                            halfWidth: halfWidth, curbWidth: def.curbWidth, reach: longest, step: step, raised: raised ?? [])
             var maxed = false
             var blocked: [Vec2] = []
             let ks = BridgeEnd.allCases.enumerated().map { e, end -> Int in
@@ -292,7 +294,7 @@ extension Track {
             let ci = controlSamples[bd.controlPoint]
             // The upper road keeps the width it has at the crossing across the whole structure.
             let half = halfWidths[ci]
-            let halfWidth = half + curbWidth + bridgeRailing
+            let halfWidth = half + def.curbWidth + bridgeRailing
             let e = ends(bd, raised: raised)
             let back = e.back, fwd = e.fwd, reachedMax = e.maxed, blocked = e.blocked, clearance = e.clearance
 
@@ -419,7 +421,7 @@ extension Track {
             return (0..<n).filter { i in
                 var d = abs(i - b.centerSample) % n
                 d = min(d, n - d)
-                let p = path[i], pad = halfWidths[i] + curbWidth + 4
+                let p = path[i], pad = halfWidths[i] + def.curbWidth + 4
                 return d > b.upperHalfSpan && p.x >= Double(r.minX) - pad && p.x <= Double(r.maxX) + pad
                     && p.y >= Double(r.minY) - pad && p.y <= Double(r.maxY) + pad
             }.map { (path[$0], halfWidths[$0]) }
@@ -434,7 +436,7 @@ extension Track {
                 let p = Vec2(Double(c % w) + 0.5, Double(c / w) + 0.5)
                 var e = Double.infinity
                 for q in lowers[bi] { e = min(e, (p - q.point).length - q.half) }
-                surfaces[c] = e <= 0 ? .asphalt : e <= curbWidth ? .curb : .wall
+                surfaces[c] = e <= 0 ? .asphalt : e <= def.curbWidth ? .curb : .wall
             } else if b.rampDistance(along: a) != nil, l >= b.driveHalfWidth, l <= b.halfWidth {
                 surfaces[c] = .wall
             }
@@ -483,7 +485,8 @@ public extension Track {
             for k in k0...k1 { raised[((o.centerSample + k) % n + n) % n] = true }
         }
         let clearance = BridgeClearance(path: path, tangents: tangents, halfWidths: halfWidths, centerSample: b.centerSample,
-                                        halfWidth: b.halfWidth, reach: Double(maxK) * step, step: step, raised: raised)
+                                        halfWidth: b.halfWidth, curbWidth: definition.curbWidth,
+                                        reach: Double(maxK) * step, step: step, raised: raised)
         guard let k = clearance.autoEnd(sign: end.sign, from: abs(bestK), limit: maxK) else { return nil }
         return (end, Double(k) * step)
     }

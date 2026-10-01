@@ -437,7 +437,7 @@ public final class Track: @unchecked Sendable {
             distance[i] = Float(d)
             if e <= 0 {
                 surfaces[i] = .asphalt
-            } else if e <= curbWidth {
+            } else if e <= def.curbWidth {
                 surfaces[i] = .curb
             } else if let bd = def.barrierDistance, e >= bd, e <= bd + def.barrierThickness {
                 surfaces[i] = .wall

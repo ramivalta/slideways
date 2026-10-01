@@ -789,7 +789,7 @@ public enum TrackRenderer {
             band(extra: bd, color(def.background))
         }
         def.patches.filter { !$0.coversRoad }.forEach(fill)
-        band(extra: Track.curbWidth, color(.curb))
+        band(extra: def.curbWidth, color(.curb))
         band(extra: 0, color(.asphalt))
         def.patches.filter(\.coversRoad).forEach(fill)
         drawLines(def.lines, in: ctx)
