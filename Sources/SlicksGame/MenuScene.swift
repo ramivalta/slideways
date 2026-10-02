@@ -199,10 +199,12 @@ final class MenuScene: GameScene {
         case .laps:
             settings.laps = clamp(settings.laps + delta, 1, 20)
         case .players:
-            settings.humanPlayers = clamp(settings.humanPlayers + delta, 1, 4)
-            settings.aiOpponents = min(settings.aiOpponents, GameInfo.maxCars - settings.humanPlayers)
+            settings.humanPlayers = clamp(settings.humanPlayers + delta, 0, 4)
+            let minimumOpponents = settings.humanPlayers == 0 ? 1 : 0
+            settings.aiOpponents = clamp(settings.aiOpponents, minimumOpponents, GameInfo.maxCars - settings.humanPlayers)
         case .opponents:
-            settings.aiOpponents = clamp(settings.aiOpponents + delta, 0, GameInfo.maxCars - settings.humanPlayers)
+            let minimumOpponents = settings.humanPlayers == 0 ? 1 : 0
+            settings.aiOpponents = clamp(settings.aiOpponents + delta, minimumOpponents, GameInfo.maxCars - settings.humanPlayers)
         case .skill:
             let i = clamp(skillIndex + delta, 0, MenuScene.skillLevels.count - 1)
             settings.aiSkill = MenuScene.skillLevels[i].value

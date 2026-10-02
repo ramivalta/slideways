@@ -46,7 +46,10 @@ public struct RaceSettings: Codable, Sendable, Equatable {
         var rng = SplitMix64(seed: seed)
         var list: [Entrant] = []
         let names = RaceSettings.aiNames.shuffled(using: &rng)
-        for i in 0..<min(aiOpponents, GameInfo.maxCars - humans.count) {
+        let availableCars = max(0, GameInfo.maxCars - humans.count)
+        let minimumOpponents = humans.isEmpty && availableCars > 0 ? 1 : 0
+        let opponentCount = clamp(aiOpponents, minimumOpponents, availableCars)
+        for i in 0..<opponentCount {
             let jitter = Double.random(in: -0.12...0.12, using: &rng)
             list.append(Entrant(name: names[i % names.count], colorIndex: humans.count + i, playerIndex: nil,
                                 aiSkill: clamp(aiSkill + jitter, 0, 1)))
