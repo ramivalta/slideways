@@ -21,9 +21,9 @@ public enum Jumps {
     static let bumpScrub = 0.5
 
     /// Height of the ramp surface under `p`, or 0 off every ramp.
-    static func groundHeight(at p: Vec2, track: Track) -> Double {
+    static func groundHeight(at p: Vec2, level: Int, track: Track) -> Double {
         var h = 0.0
-        for ramp in track.ramps {
+        for ramp in track.ramps where track.rampAffects(ramp, level: level, at: p) {
             let l = ramp.local(p)
             guard abs(l.x) <= ramp.size.x / 2, abs(l.y) <= ramp.size.y / 2 else { continue }
             h = max(h, lipHeight * rise(l.y, ramp))
@@ -43,13 +43,13 @@ public enum Jumps {
         if car.isAirborne {
             car.verticalSpeed -= gravity * dt
             car.height += car.verticalSpeed * dt
-            let ground = groundHeight(at: car.position, track: track)
+            let ground = groundHeight(at: car.position, level: car.level, track: track)
             if car.verticalSpeed < 0, car.height <= ground { land(car, on: ground, events: &events) }
             return
         }
 
         var height = 0.0
-        for ramp in track.ramps {
+        for ramp in track.ramps where track.rampAffects(ramp, level: car.level, at: car.position) {
             let hl = ramp.size.x / 2, hd = ramp.size.y / 2
             let l0 = ramp.local(before), l1 = ramp.local(car.position)
             let inside0 = abs(l0.x) <= hl && abs(l0.y) <= hd

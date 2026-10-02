@@ -129,11 +129,24 @@ public struct Patch: Codable, Sendable, Equatable {
     public var shape: PatchShape
     /// When false the patch only replaces non-road cells (e.g. sand traps beside the road).
     public var coversRoad: Bool
+    /// Whether the patch paints the bridge deck instead of the ground below it.
+    public var onDeck: Bool
 
-    public init(_ surface: Surface, _ shape: PatchShape, coversRoad: Bool = false) {
+    public init(_ surface: Surface, _ shape: PatchShape, coversRoad: Bool = false, onDeck: Bool = false) {
         self.surface = surface
         self.shape = shape
         self.coversRoad = coversRoad
+        self.onDeck = onDeck
+    }
+
+    private enum CodingKeys: String, CodingKey { case surface, shape, coversRoad, onDeck }
+
+    public init(from decoder: Decoder) throws {
+        let container = try decoder.container(keyedBy: CodingKeys.self)
+        surface = try container.decode(Surface.self, forKey: .surface)
+        shape = try container.decode(PatchShape.self, forKey: .shape)
+        coversRoad = try container.decode(Bool.self, forKey: .coversRoad)
+        onDeck = try container.decodeIfPresent(Bool.self, forKey: .onDeck) ?? false
     }
 }
 

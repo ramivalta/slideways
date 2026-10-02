@@ -112,11 +112,23 @@ public final class Track: @unchecked Sendable {
         nearestSample = raster.nearest
         groundSurfaces = raster.ground
         objectsOnRoad = raster.objectsOnRoad
+        deckObjects = raster.deckObjects.map { def.objects[$0] }
         ramps = def.objects.filter(\.kind.isRamp)
     }
 
     /// Jump ramps. See `Jumps`.
     public let ramps: [TrackObject]
+
+    public func rampIsOnDeck(_ ramp: TrackObject) -> Bool {
+        deck(x: Int(floor(ramp.position.x)), y: Int(floor(ramp.position.y))) != nil
+    }
+
+    /// Whether a jump ramp lifts a car on `level` at `p`. Off the decks (bridge ramps included)
+    /// both levels drive on the ground.
+    public func rampAffects(_ ramp: TrackObject, level: Int, at p: Vec2) -> Bool {
+        if rampIsOnDeck(ramp) { return level > 0 }
+        return level == 0 || deck(x: Int(floor(p.x)), y: Int(floor(p.y))) == nil
+    }
 
     /// Walls a car in the air can't clear: trees, buildings, bridge structures and the map edge.
     func isTallWall(_ x: Int, _ y: Int) -> Bool {
@@ -134,6 +146,7 @@ public final class Track: @unchecked Sendable {
     public let groundSurfaces: [Surface]
     /// Indices of solid objects standing on the road itself.
     public let objectsOnRoad: [Int]
+    private let deckObjects: [TrackObject]
 
     public func groundSurface(at p: Vec2) -> Surface {
         let x = Int(floor(p.x)), y = Int(floor(p.y))
@@ -196,9 +209,17 @@ public final class Track: @unchecked Sendable {
         return l.bridge
     }
 
-    /// Surface a car at `level` feels at `p`. Bridge decks are asphalt.
+    /// Surface a car at `level` feels at `p`.
     public func surface(at p: Vec2, level: Int) -> Surface {
-        if level > 0, deck(x: Int(floor(p.x)), y: Int(floor(p.y))) != nil { return .asphalt }
+        if level > 0, deck(x: Int(floor(p.x)), y: Int(floor(p.y))) != nil {
+            let x = Int(floor(p.x)), y = Int(floor(p.y))
+            let cell = Vec2(Double(x) + 0.5, Double(y) + 0.5)
+            for (index, patch) in definition.patches.enumerated().reversed() where patch.onDeck {
+                let ragged = patch.surface == .sand ? RaggedEdge(shape: patch.shape, salt: index &* 7919 &+ 17) : nil
+                if ragged?.covers(cell, x: x, y: y) ?? patch.shape.contains(cell) { return patch.surface }
+            }
+            return .asphalt
+        }
         return surface(at: p)
     }
 
@@ -222,7 +243,11 @@ public final class Track: @unchecked Sendable {
         return wallContact(center: c, radius: r) { x, y in
             if let l = self.bridgeLocal(x: x, y: y) {
                 let b = self.bridges[l.bridge]
-                if b.isDeck(along: l.along, lateral: l.lateral) { return l.lateral > b.driveHalfWidth }
+                if b.isDeck(along: l.along, lateral: l.lateral) {
+                    let cell = Vec2(Double(x) + 0.5, Double(y) + 0.5)
+                    return l.lateral > b.driveHalfWidth || self.surface(at: cell, level: 1) == .wall
+                        || self.deckObjects.contains { $0.blocks(cell) }
+                }
             }
             return self.isWall(x, y)
         }
@@ -385,7 +410,7 @@ public final class Track: @unchecked Sendable {
 
     static func rasterize(def: TrackDefinition, path: [Vec2], halfWidths: [Double], bridges: [Bridge],
                           structure: (bridge: [Int8], along: [Float], lateral: [Float]))
-        -> (surfaces: [Surface], distance: [Float], nearest: [Int32], ground: [Surface], objectsOnRoad: [Int]) {
+        -> (surfaces: [Surface], distance: [Float], nearest: [Int32], ground: [Surface], objectsOnRoad: [Int], deckObjects: [Int]) {
         let w = def.width, h = def.height
         let maxHalf = halfWidths.max() ?? def.roadWidth / 2
         let barrierOuter = def.barrierDistance.map { maxHalf + $0 + def.barrierThickness } ?? 0
@@ -444,6 +469,15 @@ public final class Track: @unchecked Sendable {
             }
         }
 
+        carveBridges(bridges, def: def, path: path, halfWidths: halfWidths, structure: structure, surfaces: &surfaces)
+
+        /// Ground cells hidden under a deck: the only place a patch's level matters.
+        func isUnderDeck(_ i: Int) -> Bool {
+            guard !bridges.isEmpty else { return false }
+            let bi = Int(structure.bridge[i])
+            return bi >= 0 && bridges[bi].isDeck(along: Double(structure.along[i]), lateral: Double(structure.lateral[i]))
+        }
+
         for (pi, patch) in def.patches.enumerated() {
             let ragged = patch.surface == .sand ? RaggedEdge(shape: patch.shape, salt: pi &* 7919 &+ 17) : nil
             let b = patch.shape.bounds
@@ -455,15 +489,15 @@ public final class Track: @unchecked Sendable {
             for y in y0...y1 {
                 for x in x0...x1 {
                     let i = y * w + x
-                    if !patch.coversRoad && (surfaces[i] == .asphalt || surfaces[i] == .curb) { continue }
+                    if !bridges.isEmpty, structure.bridge[i] >= 0, surfaces[i] == .wall { continue }
+                    if patch.onDeck && isUnderDeck(i) { continue }
+                    if !patch.coversRoad && !patch.onDeck && (surfaces[i] == .asphalt || surfaces[i] == .curb) { continue }
                     let p = Vec2(Double(x) + 0.5, Double(y) + 0.5)
                     let covered = ragged?.covers(p, x: x, y: y) ?? patch.shape.contains(p)
                     if covered { surfaces[i] = patch.surface }
                 }
             }
         }
-
-        carveBridges(bridges, def: def, path: path, halfWidths: halfWidths, structure: structure, surfaces: &surfaces)
 
         // The screen edge is always a wall, like the original.
         let border = 3
@@ -477,7 +511,18 @@ public final class Track: @unchecked Sendable {
         // ground under them.
         let ground = surfaces
         var onRoad: [Int] = []
+        var onDeck: [Int] = []
         for (k, object) in def.objects.enumerated() where object.isSolid {
+            let cx = Int(floor(object.position.x)), cy = Int(floor(object.position.y))
+            if !bridges.isEmpty, cx >= 0, cy >= 0, cx < w, cy < h {
+                let index = cy * w + cx
+                let bi = Int(structure.bridge[index])
+                if bi >= 0, bridges[bi].isDeck(along: Double(structure.along[index]), lateral: Double(structure.lateral[index])) {
+                    onRoad.append(k)
+                    onDeck.append(k)
+                    continue
+                }
+            }
             let b = object.bounds
             let x0 = max(0, b.minX), x1 = min(w - 1, b.maxX), y0 = max(0, b.minY), y1 = min(h - 1, b.maxY)
             guard x0 <= x1, y0 <= y1 else { continue }
@@ -492,6 +537,6 @@ public final class Track: @unchecked Sendable {
             }
             if blocksRoad { onRoad.append(k) }
         }
-        return (surfaces, distance, nearest, ground, onRoad)
+        return (surfaces, distance, nearest, ground, onRoad, onDeck)
     }
 }
