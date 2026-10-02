@@ -528,6 +528,11 @@ final class EditorScene: GameScene {
 
     private func patchIndex(at w: Vec2) -> Int? {
         let tol = tolerance(4)
+        let onDeck = track?.deck(x: Int(floor(w.x)), y: Int(floor(w.y))) != nil
+        let visible = def.patches.indices.reversed().first {
+            def.patches[$0].onDeck == onDeck && def.patches[$0].shape.distance(to: w) <= tol
+        }
+        if visible != nil || tool != .select { return visible }
         return def.patches.indices.reversed().first { def.patches[$0].shape.distance(to: w) <= tol }
     }
 
@@ -1070,7 +1075,8 @@ final class EditorScene: GameScene {
         if case let .create(start) = d {
             let shape = dragMoved ? (pendingPatch ?? defaultPatchShape(at: start)) : defaultPatchShape(at: start)
             pendingPatch = nil
-            perform { $0.patches.append(Patch(patchSurface, shape, coversRoad: patchCoversRoad)) }
+            let onDeck = currentTrack.deck(x: Int(floor(start.x)), y: Int(floor(start.y))) != nil
+            perform { $0.patches.append(Patch(patchSurface, shape, coversRoad: patchCoversRoad, onDeck: onDeck)) }
             select(.patch(def.patches.count - 1))
         }
         // A click that didn't drag a new line point out leaves it on the previous point: drop it.
@@ -2254,9 +2260,17 @@ final class EditorScene: GameScene {
                 updatePatch(i) { $0.shape = $0.shape.converted(to: k) }
             }
         })
-        coversRoadChoice(L, selected: patch.coversRoad) { [unowned self] v in
-            patchCoversRoad = v
-            updatePatch(i) { $0.coversRoad = v }
+        if !def.bridges.isEmpty {
+            L.choices("Level", [
+                Option(title: "Ground", selected: !patch.onDeck) { [unowned self] in updatePatch(i) { $0.onDeck = false } },
+                Option(title: "Bridge", selected: patch.onDeck) { [unowned self] in updatePatch(i) { $0.onDeck = true } },
+            ])
+        }
+        if !patch.onDeck {
+            coversRoadChoice(L, selected: patch.coversRoad) { [unowned self] v in
+                patchCoversRoad = v
+                updatePatch(i) { $0.coversRoad = v }
+            }
         }
         let maxSize = EditorLimits.patchSize.upperBound
         switch patch.shape {

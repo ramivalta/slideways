@@ -1,5 +1,6 @@
 import Foundation
 import SlicksCore
+import SlicksGame
 
 /// Exercises the editing operations the level editor relies on.
 func editorChecks() -> Int {
@@ -40,7 +41,89 @@ func editorChecks() -> Int {
         check(f.bridges[k].controlPoint != over1, "flip moves the bridge to the other pass")
         let t = Track(definition: f)
         check(t.bridges.count == 1 && t.bridges[0].deckEnd - t.bridges[0].deckStart > 40, "flipped bridge spans the lower road")
+        f.patches = [Patch(.ice, .circle(center: x.point, radius: 12), coversRoad: true, onDeck: true)]
+        let patched = Track(definition: f)
+        check(patched.surface(at: x.point, level: 1) == .ice, "road patch on bridge affects upper surface")
+        check(patched.surface(at: x.point, level: 0) == t.surface(at: x.point, level: 0), "bridge patch leaves lower road clear")
+        let plainImage = TrackRenderer.makeBridgeImage(for: t, bridge: t.bridges[0]).dataProvider!.data! as Data
+        let patchedImage = TrackRenderer.makeBridgeImage(for: patched, bridge: patched.bridges[0]).dataProvider!.data! as Data
+        check(plainImage != patchedImage, "patch is visible on bridge deck")
+        f.patches = []
+        f.lines = [PaintLine(points: [x.point], width: 12, color: .red)]
+        let painted = Track(definition: f)
+        let paintedImage = TrackRenderer.makeBridgeImage(for: painted, bridge: painted.bridges[0]).dataProvider!.data! as Data
+        check(plainImage != paintedImage, "paint is visible on bridge deck")
+        f.lines = []
+        f.patches = [Patch(.ice, .circle(center: x.point, radius: 12))]
+        check(Track(definition: f).surface(at: x.point, level: 1) == .asphalt, "off-road patch does not affect bridge")
+        f.patches = [Patch(.wall, .circle(center: x.point, radius: 12), coversRoad: true, onDeck: true)]
+        check(Track(definition: f).wallContact(center: x.point, radius: 3, level: 1) != nil, "wall patch blocks bridge traffic")
+        f.patches = []
+        f.objects = [TrackObject(.tree, at: x.point, size: Vec2(40, 40))]
+        let occupied = Track(definition: f)
+        check(occupied.wallContact(center: x.point, radius: 3, level: 1) != nil, "solid object blocks bridge traffic")
+        check(occupied.wallContact(center: x.point, radius: 3, level: 0) == nil, "bridge object does not block lower road")
+          f.objects = [TrackObject(.ramp, at: x.point, size: Vec2(30, 18))]
+          let ramped = Track(definition: f)
+          check(ramped.rampIsOnDeck(ramped.ramps[0]), "ramp placed on bridge uses deck level")
+          check(TrackRenderer.makeRampImage(for: ramped, onDeck: true) != nil
+              && TrackRenderer.makeRampImage(for: ramped) == nil, "bridge ramp is drawn above deck only")
         print("  figure eight: \(f.controlPoints.count) points, issues \(t.issues().map(\.message))")
+    }
+
+    var underBridge = BuiltInTracks.all.first { $0.id == "twin-bridges" }!
+    let twin = Track(definition: underBridge)
+    let lowerCell = (0..<twin.height).lazy.flatMap { y in (0..<twin.width).lazy.map { x in Vec2(Double(x) + 0.5, Double(y) + 0.5) } }
+        .first { twin.deck(x: Int($0.x), y: Int($0.y)) != nil && twin.surface(at: $0) == .asphalt }
+    check(lowerCell != nil, "twin bridges have an open lower road")
+    if let lowerCell {
+        underBridge.patches.append(Patch(.sand, .circle(center: lowerCell, radius: 12), coversRoad: true))
+        let lowerPatch = Track(definition: underBridge)
+        check(lowerPatch.surface(at: lowerCell, level: 0) == .sand, "sand patch paints lower road")
+        check(lowerPatch.surface(at: lowerCell, level: 1) == .asphalt, "sand on lower road leaves bridge clear")
+        underBridge.patches.append(Patch(.ice, .circle(center: lowerCell, radius: 12), onDeck: true))
+        let both = Track(definition: underBridge)
+        check(both.surface(at: lowerCell, level: 0) == .sand && both.surface(at: lowerCell, level: 1) == .ice,
+              "overlapping patches affect their own road levels")
+        underBridge.patches[underBridge.patches.count - 2].surface = .ice
+        underBridge.patches[underBridge.patches.count - 1].surface = .sand
+        let sandOnDeck = Track(definition: underBridge)
+        let below = sandOnDeck.surface(at: lowerCell, level: 0), above = sandOnDeck.surface(at: lowerCell, level: 1)
+        check(below == .ice && above == .sand, "sand on bridge does not paint road below (ground \(below), deck \(above))")
+    }
+
+    // Bridge ramps take patches drawn on them and deck patches that run onto them.
+    let b0 = twin.bridges[0]
+    let rampCell = twin.path[((b0.centerSample + Int((b0.deckEnd + b0.rampLength / 2) / twin.spacing)) % twin.sampleCount)]
+    check(twin.elevation(x: Int(rampCell.x), y: Int(rampCell.y))?.rampDistance != nil, "ramp test point is on a bridge ramp")
+    for onDeck in [false, true] {
+        var onRamp = BuiltInTracks.all.first { $0.id == "twin-bridges" }!
+        onRamp.patches.append(Patch(.sand, .circle(center: rampCell, radius: 10), coversRoad: true, onDeck: onDeck))
+        let t = Track(definition: onRamp)
+        check(t.surface(at: rampCell, level: 1) == .sand, "\(onDeck ? "deck" : "ground") patch covers bridge ramp")
+        let image = TrackRenderer.makeImage(for: t).dataProvider!.data! as Data
+        check(image != TrackRenderer.makeImage(for: twin).dataProvider!.data! as Data, "patch is visible on bridge ramp")
+    }
+    let pastRamp = twin.path[((b0.centerSample + Int((b0.deckEnd + b0.rampLength + 12) / twin.spacing)) % twin.sampleCount)]
+    var spill = BuiltInTracks.all.first { $0.id == "twin-bridges" }!
+    spill.patches.append(Patch(.sand, .capsule(from: rampCell, to: pastRamp, radius: 10), onDeck: true))
+    check(Track(definition: spill).surface(at: pastRamp, level: 0) == .sand, "bridge patch runs on past the bottom of the ramp")
+    var jump = BuiltInTracks.all.first { $0.id == "twin-bridges" }!
+    jump.objects.append(TrackObject(.ramp, at: rampCell, size: Vec2(30, 18)))
+    let jumpTrack = Track(definition: jump)
+    check(jumpTrack.rampAffects(jumpTrack.ramps.last!, level: 1, at: rampCell), "jump ramp on bridge ramp lifts cars driving up it")
+
+    let deckPatch = Patch(.sand, .circle(center: Vec2(100, 100), radius: 20), onDeck: true)
+    if let data = try? JSONEncoder().encode(deckPatch),
+       let decoded = try? JSONDecoder().decode(Patch.self, from: data),
+       var legacy = try? JSONSerialization.jsonObject(with: data) as? [String: Any] {
+        check(decoded.onDeck, "bridge patch survives save and load")
+        legacy.removeValue(forKey: "onDeck")
+        let oldData = try? JSONSerialization.data(withJSONObject: legacy)
+        check(oldData.flatMap { try? JSONDecoder().decode(Patch.self, from: $0) }?.onDeck == false,
+              "older patches load on the ground")
+    } else {
+        check(false, "patch serialization")
     }
 
     // Patches entirely off the map mustn't crash the rasterizer.

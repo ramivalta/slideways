@@ -51,6 +51,13 @@ public enum TrackRenderer {
             return false
         }
 
+        func painted(_ c: RGB, _ x: Int, _ y: Int, _ noise: Double) -> RGB {
+            guard let paint else { return c }
+            let o = ((h - 1 - y) * w + x) * 4
+            guard paint[o + 3] > 127 else { return c }
+            return RGB(Double(paint[o]), Double(paint[o + 1]), Double(paint[o + 2])).scaled(1 + noise * 0.08)
+        }
+
         var pixels = [UInt8](repeating: 255, count: w * h * 4)
         for y in 0..<h {
             for x in 0..<w {
@@ -70,11 +77,15 @@ public enum TrackRenderer {
                     let b = track.bridges[e.bridge]
                     let l = track.bridgeLocal(x: x, y: y)!
                     if let ramp = e.rampDistance {
-                        c = rampColor(surface: s, along: l.along, lateral: l.lateral, height: e.height,
-                                      capped: ramp > b.rampLength - 14, bridge: b, half: b.roadHalf, pal: pal, noise: noise)
-                        c = applyWallShadow(c, track: track, x: x, y: y, surface: s)
-                        write(c, x: x, y: y, w: w, h: h, into: &pixels)
-                        continue
+                        // Patched cells on the ramp's road fall through and draw as their surface.
+                        if l.lateral >= b.driveHalfWidth || s == .asphalt || s == .curb {
+                            c = rampColor(surface: s, along: l.along, lateral: l.lateral, height: e.height,
+                                          capped: ramp > b.rampLength - 14, bridge: b, half: b.roadHalf, pal: pal, noise: noise)
+                            c = painted(c, x, y, noise)
+                            c = applyWallShadow(c, track: track, x: x, y: y, surface: s)
+                            write(c, x: x, y: y, w: w, h: h, into: &pixels)
+                            continue
+                        }
                     } else if s == .wall {
                         // Abutment under the deck: hidden by the deck sprite, painted to match it.
                         c = deckColor(along: l.along, lateral: l.lateral, bridge: b, half: b.roadHalf, pal: pal, noise: noise)
@@ -139,12 +150,7 @@ public enum TrackRenderer {
                 }
 
                 // Paint goes on top of any surface.
-                if let paint {
-                    let o = ((h - 1 - y) * w + x) * 4
-                    if paint[o + 3] > 127 {
-                        c = RGB(Double(paint[o]), Double(paint[o + 1]), Double(paint[o + 2])).scaled(1 + noise * 0.08)
-                    }
-                }
+                c = painted(c, x, y, noise)
 
                 c = applyWallShadow(c, track: track, x: x, y: y, surface: s)
                 // The deck casts the same short shadow as walls onto the road passing under it.
@@ -253,6 +259,7 @@ public enum TrackRenderer {
         guard w > 0, h > 0 else { return makeCGImage(pixels: [0, 0, 0, 0], width: 1, height: 1) }
         let pal = palette(track.definition.theme)
         let half = b.roadHalf
+        let paint = paintLayer(for: track.definition)
         var pixels = [UInt8](repeating: 0, count: w * h * 4)
         for row in 0..<h {
             for px in 0..<w {
@@ -263,7 +270,18 @@ public enum TrackRenderer {
                 let alpha = clamp((b.halfWidth - lateral) * s + 0.5, 0, 1)
                 guard alpha > 0 else { continue }
                 let noise = hash01(Int(floor(p.x)), Int(floor(p.y))) - 0.5
-                let c = deckColor(along: along, lateral: lateral, bridge: b, half: half, pal: pal, noise: noise)
+                let surface = lateral <= half ? track.surface(at: p, level: 1) : .asphalt
+                var c = surface == .asphalt
+                    ? deckColor(along: along, lateral: lateral, bridge: b, half: half, pal: pal, noise: noise)
+                    : flatColor(surface, pal).scaled(1 + noise * 0.08)
+                let x = Int(floor(p.x)), y = Int(floor(p.y))
+                if lateral <= half, let paint, x >= 0, y >= 0, x < track.width, y < track.height {
+                    let offset = ((track.height - 1 - y) * track.width + x) * 4
+                    if paint[offset + 3] > 127 {
+                        c = RGB(Double(paint[offset]), Double(paint[offset + 1]), Double(paint[offset + 2]))
+                            .scaled(1 + noise * 0.08)
+                    }
+                }
                 let o = (row * w + px) * 4
                 pixels[o] = UInt8(clamp(c.r * alpha, 0, 255))
                 pixels[o + 1] = UInt8(clamp(c.g * alpha, 0, 255))
@@ -284,10 +302,11 @@ public enum TrackRenderer {
                             bitmapInfo: CGImageAlphaInfo.premultipliedLast.rawValue)!
         ctx.draw(ground, in: CGRect(x: 0, y: 0, width: track.width, height: track.height))
         ctx.interpolationQuality = .high
-        drawRamps(track.definition.objects, in: ctx)
+        drawRamps(track.ramps.filter { !track.rampIsOnDeck($0) }, in: ctx)
         for b in track.bridges {
             ctx.draw(makeBridgeImage(for: track, bridge: b), in: deckRect(b))
         }
+        drawRamps(track.ramps.filter { track.rampIsOnDeck($0) }, in: ctx)
         drawObjects(track.definition.objects, theme: track.definition.theme, in: ctx)
         return ctx.makeImage()!
     }
@@ -360,9 +379,10 @@ public enum TrackRenderer {
 
     /// Ramps over a transparent map-sized image, drawn on the ground under the cars. Nil when
     /// the track has none.
-    public static func makeRampImage(for def: TrackDefinition) -> CGImage? {
-        guard def.objects.contains(where: \.kind.isRamp) else { return nil }
-        return makeLayer(for: def) { drawRamps(def.objects, in: $0) }
+    public static func makeRampImage(for track: Track, onDeck: Bool = false) -> CGImage? {
+        let ramps = track.ramps.filter { track.rampIsOnDeck($0) == onDeck }
+        guard !ramps.isEmpty else { return nil }
+        return makeLayer(for: track.definition) { drawRamps(ramps, in: $0) }
     }
 
     private static func makeLayer(for def: TrackDefinition, _ draw: (CGContext) -> Void) -> CGImage? {
@@ -788,10 +808,10 @@ public enum TrackRenderer {
             band(extra: bd + def.barrierThickness, color(.wall))
             band(extra: bd, color(def.background))
         }
-        def.patches.filter { !$0.coversRoad }.forEach(fill)
+        def.patches.filter { !$0.onDeck && !$0.coversRoad }.forEach(fill)
         band(extra: def.curbWidth, color(.curb))
         band(extra: 0, color(.asphalt))
-        def.patches.filter(\.coversRoad).forEach(fill)
+        def.patches.filter { !$0.onDeck && $0.coversRoad }.forEach(fill)
         drawLines(def.lines, in: ctx)
         ctx.setStrokeColor(color(.wall))
         ctx.setLineWidth(6)

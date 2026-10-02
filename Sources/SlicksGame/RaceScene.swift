@@ -137,6 +137,12 @@ final class RaceScene: GameScene {
             deck.zPosition = Z.deck
             world.addChild(deck)
         }
+        if let texture = coordinator.rampTexture(for: track, onDeck: true) {
+            let ramps = SKSpriteNode(texture: texture, size: worldSize)
+            ramps.anchorPoint = .zero
+            ramps.zPosition = Z.deck + 0.1
+            world.addChild(ramps)
+        }
         deckSkids.zPosition = Z.deckSkids
         world.addChild(deckSkids)
 

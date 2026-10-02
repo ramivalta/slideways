@@ -154,10 +154,10 @@ public final class GameCoordinator {
     }
 
     /// Ramps layer, or nil if the track has none.
-    func rampTexture(for track: Track) -> SKTexture? {
-        let key = track.definition.id + "#ramps"
+    func rampTexture(for track: Track, onDeck: Bool = false) -> SKTexture? {
+        let key = track.definition.id + (onDeck ? "#deckRamps" : "#ramps")
         if let t = textures[key] { return t }
-        guard let image = TrackRenderer.makeRampImage(for: track.definition) else { return nil }
+        guard let image = TrackRenderer.makeRampImage(for: track, onDeck: onDeck) else { return nil }
         let t = SKTexture(cgImage: image)
         t.filteringMode = .linear
         textures[key] = t
