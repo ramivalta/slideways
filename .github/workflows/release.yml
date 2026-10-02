@@ -1,0 +1,26 @@
+name: Release
+
+on:
+  push:
+    tags:
+      - '**'
+
+permissions:
+  contents: write
+
+jobs:
+  release:
+    runs-on: macos-15
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Build universal macOS app
+        run: ./scripts/build-app.sh
+
+      - name: Archive app
+        run: ditto -c -k --keepParent build/Slideways.app Slideways-macOS-universal.zip
+
+      - name: Publish GitHub Release
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: gh release create "$GITHUB_REF_NAME" Slideways-macOS-universal.zip --verify-tag --title "$GITHUB_REF_NAME" --generate-notes
