@@ -9,6 +9,7 @@ import UniformTypeIdentifiers
 // Usage: swift run -c release SlicksSim [outputDir] [trackId]
 //        swift run -c release SlicksSim --hash   (determinism fingerprints, see NetChecks.swift)
 //        swift run -c release SlicksSim --net    (online checks only)
+//        swift run SlicksSim --editor           (editor checks only)
 
 let args = CommandLine.arguments
 if args.dropFirst().first == "--hash" {
@@ -17,6 +18,11 @@ if args.dropFirst().first == "--hash" {
 }
 if args.dropFirst().first == "--net" {
     let problems = netChecks() + loopbackChecks() + portMapperChecks()
+    print(problems == 0 ? "ALL OK" : "\(problems) problem(s)")
+    exit(problems == 0 ? 0 : 1)
+}
+if args.dropFirst().first == "--editor" {
+    let problems = editorChecks()
     print(problems == 0 ? "ALL OK" : "\(problems) problem(s)")
     exit(problems == 0 ? 0 : 1)
 }

@@ -43,21 +43,42 @@ public enum TrackStore {
     }
 
     public static func save(_ def: TrackDefinition) throws {
-        guard let url = url(for: def.id) else { throw CocoaError(.fileWriteInvalidFileName) }
+        guard url(for: def.id) != nil else { throw CocoaError(.fileWriteInvalidFileName) }
+        let allowed = CharacterSet(charactersIn: "abcdefghijklmnopqrstuvwxyz0123456789")
+        let slug = def.name.lowercased().unicodeScalars.map { allowed.contains($0) ? String($0) : "-" }
+            .joined().split(separator: "-").joined(separator: "-")
+        let name = slug.isEmpty ? "untitled" : String(slug.prefix(80))
+        let url = directory.appendingPathComponent(def.id + "--" + name + ".json")
         try FileManager.default.createDirectory(at: directory, withIntermediateDirectories: true)
+        let previousFiles = try files(for: def.id)
         let encoder = JSONEncoder()
         encoder.outputFormatting = [.prettyPrinted, .sortedKeys]
         try encoder.encode(def).write(to: url, options: .atomic)
+        for previous in previousFiles where previous != url {
+            try FileManager.default.removeItem(at: previous)
+        }
     }
 
     public static func delete(id: String) throws {
-        guard let url = url(for: id) else { return }
-        try FileManager.default.removeItem(at: url)
+        for url in try files(for: id) {
+            try FileManager.default.removeItem(at: url)
+        }
+    }
+
+    private static func files(for id: String) throws -> [URL] {
+        guard url(for: id) != nil,
+              FileManager.default.fileExists(atPath: directory.path) else { return [] }
+        return try FileManager.default.contentsOfDirectory(at: directory, includingPropertiesForKeys: nil)
+            .filter { $0.pathExtension == "json" && matches($0.deletingPathExtension().lastPathComponent, id: id) }
+    }
+
+    private static func matches(_ filename: String, id: String) -> Bool {
+        filename == id || filename.hasPrefix(id + "--")
     }
 
     /// Rejects files the game can't build and fixes up values the editor wouldn't produce.
     static func sanitized(_ def: TrackDefinition, fileID: String) -> TrackDefinition? {
-        guard def.id == fileID, isCustom(def.id), def.controlPoints.count >= TrackDefinition.minControlPoints,
+        guard url(for: def.id) != nil, matches(fileID, id: def.id), def.controlPoints.count >= TrackDefinition.minControlPoints,
               def.controlPoints.allSatisfy({ $0.x.isFinite && $0.y.isFinite }) else { return nil }
         var d = def
         // The whole track is one screen, so the map size is fixed.

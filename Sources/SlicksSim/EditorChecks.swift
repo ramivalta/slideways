@@ -1,5 +1,6 @@
 import Foundation
 import SlicksCore
+import SlicksGame
 
 /// Exercises the editing operations the level editor relies on.
 func editorChecks() -> Int {
@@ -8,6 +9,7 @@ func editorChecks() -> Int {
         if !ok { print("  FAIL: \(what)"); problems += 1 }
     }
     print("== Editor operations")
+    trackStoreChecks(check)
 
     // Start/reverse keep bridges on the same physical point.
     var d = BuiltInTracks.all.first { $0.id == "twin-bridges" }!
@@ -125,6 +127,55 @@ func editorChecks() -> Int {
         check(false, "JSON round trip")
     }
     return problems
+}
+
+private func trackStoreChecks(_ check: (Bool, String) -> Void) {
+    let directory = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString, isDirectory: true)
+    let previousDirectory = ProcessInfo.processInfo.environment["SLIDEWAYS_TRACKS_DIR"]
+    setenv("SLIDEWAYS_TRACKS_DIR", directory.path, 1)
+    defer {
+        if let previousDirectory {
+            setenv("SLIDEWAYS_TRACKS_DIR", previousDirectory, 1)
+        } else {
+            unsetenv("SLIDEWAYS_TRACKS_DIR")
+        }
+        try? FileManager.default.removeItem(at: directory)
+    }
+    do {
+        var track = TrackDefinition.blank(id: "custom-filename", name: "Sunset Run")
+        try TrackStore.save(track)
+        let original = directory.appendingPathComponent("custom-filename--sunset-run.json")
+        check(FileManager.default.fileExists(atPath: original.path), "saved filename includes track name")
+        check(TrackStore.loadAll().map(\.id) == [track.id], "named filename loads with original ID")
+
+        var other = track
+        other.id = "custom-other"
+        try TrackStore.save(other)
+        check(TrackStore.loadAll().count == 2, "identical names keep separate tracks")
+
+        track.name = "../Night / Run: Finals"
+        try TrackStore.save(track)
+        let renamed = directory.appendingPathComponent("custom-filename--night-run-finals.json")
+        check(FileManager.default.fileExists(atPath: renamed.path), "filename sanitizes unsafe characters")
+        check(!FileManager.default.fileExists(atPath: original.path), "rename removes old file")
+        check(TrackStore.loadAll().first { $0.id == track.id }?.name == track.name, "rename preserves full display name")
+        try TrackStore.delete(id: track.id)
+        check(TrackStore.loadAll().map(\.id) == [other.id], "delete removes named file only")
+
+        let legacy = directory.appendingPathComponent(track.id + ".json")
+        try JSONEncoder().encode(track).write(to: legacy)
+        check(TrackStore.loadAll().count == 2, "legacy ID-only filename still loads")
+        track.name = "   / :   "
+        try TrackStore.save(track)
+        check(!FileManager.default.fileExists(atPath: legacy.path), "save migrates legacy filename")
+        check(FileManager.default.fileExists(atPath: directory.appendingPathComponent(track.id + "--untitled.json").path),
+              "empty filename uses untitled fallback")
+        try TrackStore.delete(id: track.id)
+        try TrackStore.delete(id: other.id)
+        check(TrackStore.loadAll().isEmpty, "delete removes all saved tracks")
+    } catch {
+        check(false, "track filename persistence: \(error)")
+    }
 }
 
 /// Built-in layouts with per-point widths, raced by the main loop like the built-ins.
