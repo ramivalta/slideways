@@ -1,0 +1,64 @@
+{
+    "configurations": [
+        {
+            "type": "swift",
+            "request": "launch",
+            "args": [],
+            "cwd": "${workspaceFolder:slideways}",
+            "name": "Debug SlicksMac",
+            "target": "SlicksMac",
+            "configuration": "debug",
+            "preLaunchTask": "swift: Build Debug SlicksMac"
+        },
+        {
+            "type": "swift",
+            "request": "launch",
+            "args": [],
+            "cwd": "${workspaceFolder:slideways}",
+            "name": "Release SlicksMac",
+            "target": "SlicksMac",
+            "configuration": "release",
+            "preLaunchTask": "swift: Build Release SlicksMac"
+        },
+        {
+            "type": "swift",
+            "request": "launch",
+            "args": [],
+            "cwd": "${workspaceFolder:slideways}",
+            "name": "Debug SlicksSim",
+            "target": "SlicksSim",
+            "configuration": "debug",
+            "preLaunchTask": "swift: Build Debug SlicksSim"
+        },
+        {
+            "type": "swift",
+            "request": "launch",
+            "args": [],
+            "cwd": "${workspaceFolder:slideways}",
+            "name": "Release SlicksSim",
+            "target": "SlicksSim",
+            "configuration": "release",
+            "preLaunchTask": "swift: Build Release SlicksSim"
+        },
+        {
+            "type": "swift",
+            "request": "launch",
+            "args": [],
+            "cwd": "${workspaceFolder:slideways}",
+            "name": "Debug SlicksRelay",
+            "target": "SlicksRelay",
+            "configuration": "debug",
+            "preLaunchTask": "swift: Build Debug SlicksRelay"
+        },
+        {
+            "type": "swift",
+            "request": "launch",
+            "args": [],
+            "cwd": "${workspaceFolder:slideways}",
+            "name": "Release SlicksRelay",
+            "target": "SlicksRelay",
+            "configuration": "release",
+            "preLaunchTask": "swift: Build Release SlicksRelay"
+        }
+    ]
+}
