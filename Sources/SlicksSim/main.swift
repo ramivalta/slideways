@@ -13,12 +13,17 @@ import UniformTypeIdentifiers
 //        swift run -c release SlicksSim --physics (wall recovery checks only)
 
 let args = CommandLine.arguments
+if args.dropFirst().first == "--race-checks" {
+    let problems = raceEndChecks()
+    print(problems == 0 ? "ALL OK" : "\(problems) problem(s)")
+    exit(problems == 0 ? 0 : 1)
+}
 if args.dropFirst().first == "--hash" {
     printDeterminismHashes()
     exit(0)
 }
 if args.dropFirst().first == "--net" {
-    let problems = netChecks() + loopbackChecks() + portMapperChecks()
+    let problems = raceEndChecks() + netChecks() + loopbackChecks() + portMapperChecks()
     print(problems == 0 ? "ALL OK" : "\(problems) problem(s)")
     exit(problems == 0 ? 0 : 1)
 }
@@ -98,6 +103,7 @@ if args.dropFirst().first != "--physics" {
     failures += slipstreamCheck()
     failures += rubberCheck()
     failures += fencedInCheck()
+    failures += raceEndChecks()
     failures += netChecks()
     failures += loopbackChecks()
     failures += portMapperChecks()

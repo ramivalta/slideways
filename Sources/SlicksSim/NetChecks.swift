@@ -35,6 +35,81 @@ private func run(_ race: Race, setup: RaceSetup, limit: Int) -> [UInt64] {
     return hashes
 }
 
+func raceEndChecks() -> Int {
+    var problems = 0
+    func check(_ ok: Bool, _ what: String) {
+        if !ok { print("  FAIL: \(what)"); problems += 1 }
+    }
+    print("== Race completion and player names")
+    let track = Track(definition: BuiltInTracks.all[0])
+    func afterLeaderFinishes(humans: Int, aiLeader: Bool = false) -> Race {
+        var settings = RaceSettings()
+        settings.humanPlayers = humans
+        settings.aiOpponents = 1
+        let race = Race(track: track, entrants: settings.entrants(seed: 1), laps: 1)
+        var snapshot = race.snapshot()
+        snapshot.phase = .racing
+        snapshot.time = 1
+        let leader = aiLeader ? 0 : 1
+        snapshot.cars[leader].progress = Double(track.sampleCount) + 10
+        race.restore(snapshot)
+        race.step(dt: Race.tickDuration, humanInputs: [])
+        check(race.cars[leader].isFinished, "test leader failed to finish")
+        snapshot = race.snapshot()
+        snapshot.time += Race.finishGrace + 1
+        race.restore(snapshot)
+        race.step(dt: Race.tickDuration, humanInputs: [])
+        return race
+    }
+    for aiLeader in [false, true] {
+        let race = afterLeaderFinishes(humans: 2, aiLeader: aiLeader)
+        check(race.phase == .racing, "multiplayer race ended while a human was unfinished (AI leader: \(aiLeader))")
+        var snapshot = race.snapshot()
+        for index in race.cars.indices where !race.cars[index].isAI {
+            snapshot.cars[index].finishTime = snapshot.time
+        }
+        race.restore(snapshot)
+        race.step(dt: Race.tickDuration, humanInputs: [])
+        snapshot = race.snapshot()
+        snapshot.time += 3
+        race.restore(snapshot)
+        race.step(dt: Race.tickDuration, humanInputs: [])
+        check(race.phase == .finished, "race didn't end after all humans finished")
+    }
+    let departed = afterLeaderFinishes(humans: 2)
+    departed.handOverToAI(carID: 2)
+    departed.step(dt: Race.tickDuration, humanInputs: [])
+    var snapshot = departed.snapshot()
+    snapshot.time += 3
+    departed.restore(snapshot)
+    departed.step(dt: Race.tickDuration, humanInputs: [])
+    check(departed.phase == .finished, "departed human held the race open")
+    let abandoned = afterLeaderFinishes(humans: 2, aiLeader: true)
+    abandoned.handOverToAI(carID: 1)
+    abandoned.handOverToAI(carID: 2)
+    abandoned.step(dt: Race.tickDuration, humanInputs: [])
+    check(abandoned.phase == .finished, "race with no active humans ignored the grace period")
+    check(afterLeaderFinishes(humans: 1, aiLeader: true).phase == .finished, "single-player grace period changed")
+    check(afterLeaderFinishes(humans: 0, aiLeader: true).phase == .finished, "AI-only grace period changed")
+
+    var settings = RaceSettings()
+    settings.humanPlayers = 2
+    settings.setPlayerName("  Alice  ", for: 0)
+    settings.setPlayerName("Bob", for: 1)
+    let names = settings.entrants(seed: 1).filter { $0.playerIndex != nil }.map(\.name)
+    check(names == ["Alice", "Bob"], "custom names didn't reach the race entrants")
+    settings.setPlayerName("   ", for: 1)
+    check(settings.playerName(for: 1) == "Player 2", "blank name didn't use a fallback")
+    settings.setPlayerName("abcdefghijklmnopq", for: 0)
+    check(settings.playerName(for: 0).count == 16, "name length wasn't bounded")
+    let decoded = try! JSONDecoder().decode(RaceSettings.self, from: JSONEncoder().encode(settings))
+    check(decoded == settings, "names didn't survive settings encoding")
+    let legacy = Data("{\"trackIndex\":2,\"laps\":3,\"humanPlayers\":2,\"aiOpponents\":4,\"aiSkill\":0.45}".utf8)
+    let migrated = try? JSONDecoder().decode(RaceSettings.self, from: legacy)
+    check(migrated?.laps == 3 && migrated?.playerName(for: 0) == "Player 1", "old settings failed to decode")
+    return problems
+}
+
 /// What online play relies on: setups and snapshots survive the wire, identical setups
 /// replay identically, and restoring a snapshot continues exactly where it left off.
 func netChecks() -> Int {
@@ -73,10 +148,11 @@ func netChecks() -> Int {
     // The replay runs both in the same race and in a fresh one fed the snapshot over the wire.
     let race = Race(setup: setup, track: track)
     _ = run(race, setup: setup, limit: 900)
+    for car in race.cars where !car.isAI { race.handOverToAI(carID: car.id) }
     let snap = race.snapshot()
     check(snap.tick == 900 && race.tick == 900, "tick counter (\(race.tick)) doesn't match steps taken")
     check(snap.phase == .racing, "snapshot should be taken while racing")
-    let original = run(race, setup: setup, limit: .max)
+    let original = run(race, setup: setup, limit: 200 * Race.tickRate)
     check(race.phase == .finished, "scripted race never finished")
 
     let finalSand = race.looseSand?.amount
@@ -86,7 +162,7 @@ func netChecks() -> Int {
     check(race.stateHash == snap.stateHash, "restore doesn't reproduce the snapshot")
     check(race.looseSand?.amount == snap.sand?.amount, "restore doesn't put the loose sand back")
     check(race.rubber?.amount == snap.rubber?.amount, "restore doesn't put the rubber back")
-    let rewound = run(race, setup: setup, limit: .max)
+    let rewound = run(race, setup: setup, limit: 200 * Race.tickRate)
     check(rewound == original, "replay after restore diverges at tick \(900 + firstDivergence(original, rewound))")
     check(race.looseSand?.amount == finalSand, "loose sand differs after the replay")
     check(race.rubber?.amount == finalRubber, "rubber differs after the replay")
@@ -95,7 +171,7 @@ func netChecks() -> Int {
     check(decoded == snap, "snapshot changes when encoded and decoded")
     let fresh = Race(setup: setup, track: track)
     fresh.restore(decoded)
-    let resumed = run(fresh, setup: setup, limit: .max)
+    let resumed = run(fresh, setup: setup, limit: 200 * Race.tickRate)
     check(resumed == original, "fresh race resumed from a snapshot diverges")
 
     let finishers = race.cars.filter(\.isFinished).count

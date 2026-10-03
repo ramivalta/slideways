@@ -7,7 +7,7 @@ import AppKit
 /// Race setup screen, fully keyboard/gamepad-free navigable with arrows and Enter.
 final class MenuScene: GameScene {
     private enum Row: CaseIterable {
-        case track, laps, players, opponents, skill, sound
+        case track, laps, players, name, opponents, skill, sound
         #if os(macOS)
         case display
         #endif
@@ -46,6 +46,8 @@ final class MenuScene: GameScene {
     private unowned let coordinator: GameCoordinator
     private var settings: RaceSettings
     private var selected = Row.start
+    private var namePlayer = 0
+    private var replacingName = true
     private var rowLabels: [Row: SKLabelNode] = [:]
     private let preview = SKSpriteNode()
     private var previewCaption: SKLabelNode!
@@ -67,9 +69,9 @@ final class MenuScene: GameScene {
         subtitle.position = CGPoint(x: 480, y: 524)
         addChild(subtitle)
 
-        // Up to ten rows with the display, online and editor entries: tighter spacing keeps
+        // Up to eleven rows with the display, online and editor entries: tighter spacing keeps
         // them clear of the help text.
-        let spacing: CGFloat = Row.allCases.count > 9 ? 32 : Row.allCases.count > 8 ? 35 : 40
+        let spacing: CGFloat = Row.allCases.count > 10 ? 28 : Row.allCases.count > 9 ? 32 : Row.allCases.count > 8 ? 35 : 40
         for (i, row) in Row.allCases.enumerated() {
             let l = makeLabel("", size: 20)
             l.position = CGPoint(x: 60, y: 456 - CGFloat(i) * spacing - (row.isAction ? 12 : 0))
@@ -129,6 +131,7 @@ final class MenuScene: GameScene {
             .track: "TRACK      < \(def.name) >",
             .laps: "LAPS       < \(settings.laps) >",
             .players: "PLAYERS    < \(settings.humanPlayers) >",
+            .name: "P\(namePlayer + 1) NAME    < \(settings.playerName(for: namePlayer))\(selected == .name ? "_" : "") >",
             .opponents: "OPPONENTS  < \(settings.aiOpponents) >",
             .skill: "AI SKILL   < \(MenuScene.skillLevels[skillIndex].name) >",
             .sound: "SOUND      < \(volumeText) >",
@@ -169,6 +172,12 @@ final class MenuScene: GameScene {
             SoundSystem.shared.play(.menuMove)
         case .enter, .space:
             if isRepeat { return }
+            if selected == .name {
+                selected = .opponents
+                replacingName = true
+                refresh()
+                return
+            }
             SoundSystem.shared.play(.menuSelect)
             coordinator.settings = settings
             if selected == .online {
@@ -187,6 +196,7 @@ final class MenuScene: GameScene {
         default:
             return
         }
+        replacingName = true
         refresh()
     }
 
@@ -200,8 +210,13 @@ final class MenuScene: GameScene {
             settings.laps = clamp(settings.laps + delta, 1, 20)
         case .players:
             settings.humanPlayers = clamp(settings.humanPlayers + delta, 0, 4)
+            namePlayer = min(namePlayer, max(0, settings.humanPlayers - 1))
             let minimumOpponents = settings.humanPlayers == 0 ? 1 : 0
             settings.aiOpponents = clamp(settings.aiOpponents, minimumOpponents, GameInfo.maxCars - settings.humanPlayers)
+        case .name:
+            let count = max(1, settings.humanPlayers)
+            namePlayer = (namePlayer + delta + count) % count
+            replacingName = true
         case .opponents:
             let minimumOpponents = settings.humanPlayers == 0 ? 1 : 0
             settings.aiOpponents = clamp(settings.aiOpponents + delta, minimumOpponents, GameInfo.maxCars - settings.humanPlayers)
@@ -223,4 +238,29 @@ final class MenuScene: GameScene {
         }
         coordinator.settings = settings
     }
+
+    #if os(macOS)
+    override func handleTyping(_ event: NSEvent) -> Bool {
+        guard selected == .name else { return false }
+        switch event.keyCode {
+        case 36, 76, 53, 48, 123, 124, 125, 126:
+            return false
+        case 51, 117:
+            var name = settings.playerNames?.indices.contains(namePlayer) == true
+                ? settings.playerNames![namePlayer] : settings.playerName(for: namePlayer)
+            if !name.isEmpty { name.removeLast() }
+            settings.setPlayerName(name, for: namePlayer)
+        default:
+            let typed = (event.characters ?? "").filter { $0.isLetter || $0.isNumber || " -_'.!".contains($0) }
+            guard !typed.isEmpty else { return true }
+            let current = replacingName ? "" : (settings.playerNames?[namePlayer] ?? "")
+            settings.setPlayerName(current + typed, for: namePlayer)
+        }
+        replacingName = false
+        coordinator.settings = settings
+        settings.save()
+        refresh()
+        return true
+    }
+    #endif
 }

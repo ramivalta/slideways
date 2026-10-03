@@ -45,7 +45,7 @@ final class OnlineScene: GameScene {
         self.coordinator = coordinator
         self.message = message
         let d = UserDefaults.standard
-        playerName = d.string(forKey: Prefs.name) ?? OnlineScene.defaultName
+        playerName = coordinator.settings.playerNames?.first ?? d.string(forKey: Prefs.name) ?? OnlineScene.defaultName
         localPlayers = clamp(d.integer(forKey: Prefs.players), 1, 4)
         address = d.string(forKey: Prefs.address) ?? ""
         server = Prefs.relayServer ?? ""
@@ -90,6 +90,8 @@ final class OnlineScene: GameScene {
     private func save() {
         let d = UserDefaults.standard
         d.set(playerName, forKey: Prefs.name)
+        coordinator.settings.setPlayerName(playerName, for: 0)
+        coordinator.settings.save()
         d.set(localPlayers, forKey: Prefs.players)
         d.set(address, forKey: Prefs.address)
         d.set(server.trimmingCharacters(in: .whitespaces), forKey: Prefs.server)

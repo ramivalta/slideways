@@ -31,7 +31,7 @@ public final class Race {
     public static let tickRate = 120
     public static let tickDuration = 1.0 / Double(tickRate)
     public static let countdownDuration = 3.0
-    /// After the leader finishes, the rest have this long before the race is called.
+    /// After the leader finishes, single-player and AI-only races have this long left.
     public static let finishGrace = 25.0
 
     public let track: Track
@@ -214,7 +214,8 @@ public final class Race {
                 phase = .finished
             }
         }
-        if let first = firstFinishTime, time - first > Race.finishGrace {
+        if cars.filter({ !$0.isAI }).count <= 1 || humans.isEmpty,
+           let first = firstFinishTime, time - first > Race.finishGrace {
             phase = .finished
         }
     }

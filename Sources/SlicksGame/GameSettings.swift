@@ -16,6 +16,7 @@ public struct RaceSettings: Codable, Sendable, Equatable {
     public var humanPlayers = 1
     public var aiOpponents = 5
     public var aiSkill = 0.75
+    public var playerNames: [String]?
 
     public init() {}
 
@@ -23,7 +24,10 @@ public struct RaceSettings: Codable, Sendable, Equatable {
 
     public static func load() -> RaceSettings {
         guard let data = UserDefaults.standard.data(forKey: key),
-              let s = try? JSONDecoder().decode(RaceSettings.self, from: data) else { return RaceSettings() }
+              var s = try? JSONDecoder().decode(RaceSettings.self, from: data) else { return RaceSettings() }
+          if s.playerNames == nil, let name = UserDefaults.standard.string(forKey: "online.name") {
+            s.setPlayerName(name, for: 0)
+          }
         return s
     }
 
@@ -35,9 +39,23 @@ public struct RaceSettings: Codable, Sendable, Equatable {
 
     static let aiNames = ["Rusty", "Nitro", "Skid", "Blitz", "Drifty", "Turbo", "Sprocket", "Gravel"]
 
+    public func playerName(for player: Int) -> String {
+        let name = playerNames?.indices.contains(player) == true ? playerNames![player] : ""
+        let trimmed = name.trimmingCharacters(in: .whitespacesAndNewlines)
+        return trimmed.isEmpty ? "Player \(player + 1)" : String(trimmed.prefix(16))
+    }
+
+    public mutating func setPlayerName(_ name: String, for player: Int) {
+        guard (0..<4).contains(player) else { return }
+        var names = playerNames ?? []
+        while names.count <= player { names.append("") }
+        names[player] = String(name.prefix(16))
+        playerNames = names
+    }
+
     /// Builds the starting grid: humans at the back, AI ahead of them like the original.
     public func entrants(seed: UInt64) -> [Entrant] {
-        entrants(seed: seed, humans: (0..<humanPlayers).map { "Player \($0 + 1)" })
+        entrants(seed: seed, humans: (0..<humanPlayers).map { playerName(for: $0) })
     }
 
     /// Grid with these human drivers, who get input slots and liveries in order. AI fill the
