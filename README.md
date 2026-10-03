@@ -3,6 +3,20 @@
 Top-down arcade racing for macOS, with sliding cars, AI opponents, bridges,
 local multiplayer, online races, and a built-in track editor.
 
+## Screenshots
+
+### Racing on Pine Ridge
+
+![Eight cars racing on Pine Ridge's snowy circuit](docs/screenshots/pine-ridge-race.png)
+
+### Race Setup
+
+![Slideways race setup menu with a Figure Eight track preview](docs/screenshots/race-setup.png)
+
+### Track Editor
+
+![Cloverleaf Crossing in the track editor with road points and track settings](docs/screenshots/track-editor.png)
+
 ## Download and Play
 
 Download the macOS ZIP from [GitHub Releases](https://github.com/ramivalta/slideways/releases/latest),
