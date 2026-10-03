@@ -10,6 +10,7 @@ import UniformTypeIdentifiers
 //        swift run -c release SlicksSim --hash   (determinism fingerprints, see NetChecks.swift)
 //        swift run -c release SlicksSim --net    (online checks only)
 //        swift run SlicksSim --editor           (editor checks only)
+//        swift run -c release SlicksSim --physics (wall recovery checks only)
 
 let args = CommandLine.arguments
 if args.dropFirst().first == "--hash" {
@@ -90,15 +91,17 @@ func skidpad() {
     print(String(format: "== Skidpad: speed at turn-in %.0f, max drift angle %.0f°, drifting %.1fs of 2.5s, min speed in turn %.0f",
                  speedAtTurn, maxDrift, driftTime, minSpeed))
 }
-skidpad()
-failures += editorChecks()
-failures += looseSandCheck()
-failures += slipstreamCheck()
-failures += rubberCheck()
-failures += fencedInCheck()
-failures += netChecks()
-failures += loopbackChecks()
-failures += portMapperChecks()
+if args.dropFirst().first != "--physics" {
+    skidpad()
+    failures += editorChecks()
+    failures += looseSandCheck()
+    failures += slipstreamCheck()
+    failures += rubberCheck()
+    failures += fencedInCheck()
+    failures += netChecks()
+    failures += loopbackChecks()
+    failures += portMapperChecks()
+}
 
 /// Crash test: floor it head-on into a wall like a player would, keep the throttle pinned and
 /// steer left after the hit. The car should drive away forward and turn left, with no lingering
@@ -137,6 +140,88 @@ func crashTest() {
     if recovery > 0.4 || turned < 20 { print("  FAIL: crash recovery"); failures += 1 }
 }
 crashTest()
+
+func wallSteeringCheck() {
+    let points = (0..<12).map { index -> Vec2 in
+        let angle = Double(index) / 12 * 2 * .pi - .pi / 2
+        return Vec2(480 + 300 * cos(angle), 300 + 200 * sin(angle))
+    }
+    let track = Track(definition: TrackDefinition(
+        id: "wall-steering", name: "Wall Steering", roadWidth: 380, controlPoints: points,
+        background: .asphalt,
+        patches: [Patch(.wall, .rect(origin: Vec2(500, 100), size: Vec2(24, 400)), coversRoad: true)],
+        looseSand: false
+    ))
+    func startedRace() -> Race {
+        let race = Race(track: track, entrants: [Entrant(name: "P1", colorIndex: 0, playerIndex: 0)],
+                        laps: 99, rubberBuildsUp: false)
+        while race.phase == .countdown { race.step(dt: dt, humanInputs: []) }
+        let car = race.cars[0]
+        car.position = Vec2(480, 300)
+        car.heading = 0
+        car.velocity = .zero
+        car.angularVelocity = 0
+        return race
+    }
+    print("== Wall steering")
+    for throttle in [0.5, 1.0] {
+        for steer in [-1.0, 1.0] {
+            let race = startedRace()
+            let car = race.cars[0]
+            for _ in 0..<240 {
+                race.step(dt: dt, humanInputs: [CarInput(throttle: throttle)])
+            }
+            let start = car.position
+            let settledSpeed = car.speed
+            var turned = 0.0
+            var escaped = false
+            for _ in 0..<240 {
+                let heading = car.heading
+                race.step(dt: dt, humanInputs: [CarInput(throttle: throttle, steer: turned < .pi / 2 ? steer : 0)])
+                turned += wrapAngle(car.heading - heading) * steer
+                if car.forwardSpeed > 40, car.position.distance(to: start) > 30 { escaped = true }
+            }
+            print(String(format: "  throttle %.1f, steer %+.0f: settled speed %.1f, turn %.0f degrees, escaped %@",
+                         throttle, steer, settledSpeed, turned * 180 / .pi, escaped ? "yes" : "no"))
+            if settledSpeed > 5 || turned < .pi / 3 || !escaped || car.inReverse {
+                print("  FAIL: throttle and steering should escape a settled head-on wall contact")
+                failures += 1
+            }
+        }
+    }
+    let idle = startedRace()
+    idle.cars[0].position = Vec2(489, 300)
+    for _ in 0..<120 { idle.step(dt: dt, humanInputs: [CarInput(steer: 1)]) }
+    if abs(idle.cars[0].heading) > 1e-9 || idle.cars[0].speed > 1e-9 {
+        print("  FAIL: steering without power should not spin a stationary car")
+        failures += 1
+    }
+    let controls: [(String, Vec2, Double, CarInput)] = [
+        ("stationary launch", Vec2(300, 300), 0, CarInput(throttle: 1, steer: 1)),
+        ("open-road steering", Vec2(300, 300), 20, CarInput(throttle: 1, steer: 1)),
+        ("deliberate reverse", Vec2(489, 300), -20, CarInput(brake: 1, steer: 1)),
+        ("both pedals", Vec2(489, 300), 0, CarInput(throttle: 1, brake: 1, steer: 1))
+    ]
+    for (name, position, speed, input) in controls {
+        let race = startedRace()
+        let car = race.cars[0]
+        car.position = position
+        car.velocity = Vec2(speed, 0)
+        let direction = speed < 0 && input.brake > 0 && input.throttle == 0 ? -1.0 : 1.0
+        let expected = car.spec.turnRate * clamp(abs(speed) / 60, 0, 1)
+            * (1 - 0.25 * clamp(abs(speed) / car.spec.maxSpeed, 0, 1)) * direction * dt
+        race.step(dt: dt, humanInputs: [input])
+        if abs(wrapAngle(car.heading - expected)) > 1e-9 {
+            print("  FAIL: \(name) should retain its original steering behavior")
+            failures += 1
+        }
+    }
+}
+wallSteeringCheck()
+if args.dropFirst().first == "--physics" {
+    print(failures == 0 ? "ALL OK" : "\(failures) problem(s)")
+    exit(failures == 0 ? 0 : 1)
+}
 
 /// 16-bit stereo WAV.
 func writeWAV(_ left: [Float], _ right: [Float], sampleRate: Int, to url: URL) {

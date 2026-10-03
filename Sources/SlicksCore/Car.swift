@@ -148,7 +148,7 @@ public final class Car {
         surface = ground.surface
         let props = ground.properties
 
-        // Steering scales in with speed so the car can't spin on the spot,
+        // Steering normally scales in with speed so the car can't spin on the spot,
         // and flips when reversing like a real car.
         // Uses total speed so you can still steer while sliding sideways.
         let fwdSpeed = velocity.dot(forward)
@@ -161,7 +161,14 @@ public final class Car {
         } else if brake > 0, fwdSpeed <= 5 {
             inReverse = true
         }
-        let speedFactor = clamp(velocity.length / 60, 0, 1)
+        var speedFactor = clamp(velocity.length / 60, 0, 1)
+        let wallSteering = 0.35 * throttle
+        if speedFactor < wallSteering, brake == 0, input.steer != 0,
+           let contact = track.wallContact(center: collisionCircles.0, radius: spec.collisionRadius + 1,
+                                           level: level, aboveObstacles: isAboveObstacles),
+           contact.normal.dot(forward) < -0.25 {
+            speedFactor = wallSteering
+        }
         let highSpeedDamp = 1 - 0.25 * clamp(abs(fwdSpeed) / spec.maxSpeed, 0, 1)
         let direction: Double = inReverse && fwdSpeed < 0 ? -1 : 1
         let yaw = clamp(input.steer, -1, 1) * spec.turnRate * speedFactor * highSpeedDamp * direction
