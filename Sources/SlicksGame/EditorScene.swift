@@ -2107,6 +2107,14 @@ final class EditorScene: GameScene {
         } plus: { [unowned self] in
             perform { $0.curbWidth = min(EditorLimits.curbWidth.upperBound, $0.curbWidth + 1) }
         }
+        L.choices("Center line", [
+            Option(title: "Off", selected: !def.centerLine, tip: "Plain road") { [unowned self] in
+                perform { $0.centerLine = false }
+            },
+            Option(title: "On", selected: def.centerLine, tip: "Dashed white line down the middle of the road") { [unowned self] in
+                perform { $0.centerLine = true }
+            },
+        ])
         L.stepper("Laps", value: "\(def.defaultLaps)", tip: "Suggested number of laps") { [unowned self] in
             perform { $0.defaultLaps = max(1, $0.defaultLaps - 1) }
         } plus: { [unowned self] in

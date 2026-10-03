@@ -7,19 +7,10 @@ public enum BuiltInTracks {
         riversidePark,
     ] + ClassicTracks.all
 
-    /// Parkland circuit dressed up with scenery: pit garages and a painted grid on the start
-    /// straight, grandstands, trees (some solid, some to drive under), a river ford and mud.
+    /// Parkland circuit dressed up with scenery: pit garages by the start straight,
+    /// grandstands, trees (some solid, some to drive under), a river ford and mud.
     static let riversidePark: TrackDefinition = {
         let start = Vec2(420, 90)
-        // Grid box marks just ahead of each slot, as laid out by `Track.gridSlots`.
-        var grid: [PaintLine] = []
-        for k in 0..<8 {
-            let row = Double(k / 2)
-            let left = k % 2 == 0
-            let x = start.x - 24 - row * 32 - (left ? 0 : 8) + 13
-            let y = start.y + (left ? 18.5 : -18.5)
-            grid.append(PaintLine(points: [Vec2(x, y - 8), Vec2(x, y + 8)], width: 2, color: .white))
-        }
         return TrackDefinition(
             id: "riverside-park",
             name: "Riverside Park",
@@ -41,7 +32,7 @@ public enum BuiltInTracks {
                 Patch(.mud, .circle(center: Vec2(660, 560), radius: 50)),
                 Patch(.sand, .circle(center: Vec2(935, 90), radius: 60)),
             ],
-            lines: grid + [
+            lines: [
                 // Pit lane edge and the pit entry and exit.
                 PaintLine(points: [Vec2(270, 45), Vec2(650, 45)], width: 2, color: .white),
                 PaintLine(points: [Vec2(650, 45), Vec2(700, 52)], width: 2, color: .yellow),

@@ -389,7 +389,7 @@ public extension Track {
         }
         out += bridgeOverlaps()
 
-        if gridSlots(count: 8).contains(where: { surface(at: $0.position) != .asphalt }) {
+        if gridSlots(count: Track.gridSize).contains(where: { surface(at: $0.position) != .asphalt }) {
             out.append(TrackIssue(message: "Starting grid isn't all on asphalt", position: path[0]))
         }
         return out
