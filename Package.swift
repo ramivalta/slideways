@@ -13,7 +13,7 @@ let package = Package(
         // Little-endian byte coding shared by the game and the relay server.
         .target(name: "SlicksBytes"),
         // Platform-independent simulation: tracks, physics, AI, race rules.
-        .target(name: "SlicksCore", dependencies: ["SlicksBytes"]),
+        .target(name: "SlicksCore", dependencies: ["SlicksBytes"], resources: [.process("Resources")]),
         // UDP sockets and the rendezvous/relay protocol. Foundation only, so it builds on Linux.
         .target(name: "SlicksLink", dependencies: ["SlicksBytes"]),
         // Online play: encrypted UDP transport, lobby and race sync (no UI).

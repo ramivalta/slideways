@@ -12,11 +12,13 @@ ARCHS=(--arch arm64 --arch x86_64)
 [[ "${1:-}" == "--native" ]] && ARCHS=()
 
 swift build -c release --product SlicksMac "${ARCHS[@]}"
-BIN="$(swift build -c release "${ARCHS[@]}" --show-bin-path)/SlicksMac"
+BIN_DIR="$(swift build -c release "${ARCHS[@]}" --show-bin-path)"
+BIN="$BIN_DIR/SlicksMac"
 
 rm -rf "$BUNDLE"
 mkdir -p "$BUNDLE/Contents/MacOS" "$BUNDLE/Contents/Resources"
 cp "$BIN" "$BUNDLE/Contents/MacOS/${APP_NAME}"
+cp -R "$BIN_DIR/Slideways_SlicksCore.bundle" "$BUNDLE/Contents/Resources/"
 
 cat > "$BUNDLE/Contents/Info.plist" <<PLIST
 <?xml version="1.0" encoding="UTF-8"?>
@@ -28,7 +30,7 @@ cat > "$BUNDLE/Contents/Info.plist" <<PLIST
     <key>CFBundleIdentifier</key><string>com.example.slideways</string>
     <key>CFBundleExecutable</key><string>${APP_NAME}</string>
     <key>CFBundlePackageType</key><string>APPL</string>
-    <key>CFBundleShortVersionString</key><string>0.1.0</string>
+    <key>CFBundleShortVersionString</key><string>1.0.0</string>
     <key>CFBundleVersion</key><string>1</string>
     <key>LSMinimumSystemVersion</key><string>14.0</string>
     <key>LSApplicationCategoryType</key><string>public.app-category.racing-games</string>

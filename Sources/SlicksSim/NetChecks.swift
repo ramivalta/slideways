@@ -13,7 +13,7 @@ private func scriptedInputs(tick: Int, slots: Int) -> [CarInput] {
 /// Riverside Park (it has a jump ramp) with a sand trap across the road, so every car jumps
 /// and drags sand around: both have to stay in sync.
 func sandyRiverside() -> TrackDefinition {
-    var def = BuiltInTracks.all.first { $0.id == "riverside-park" }!
+    var def = BuiltInTracks.regressionFixtures.first { $0.id == "riverside-park" }!
     def.id = "riverside-sandy"
     def.patches.append(Patch(.sand, .circle(center: def.controlPoints[3], radius: 34), coversRoad: true))
     return def

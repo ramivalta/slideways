@@ -1,0 +1,5930 @@
+[
+  {
+    "background": 2,
+    "barrierDistance": 14,
+    "barrierThickness": 6,
+    "bridges": [],
+    "centerLine": true,
+    "controlPoints": [
+      {
+        "x": 426,
+        "y": 511.95652173913044
+      },
+      {
+        "x": 285,
+        "y": 511.95652173913044
+      },
+      {
+        "x": 186,
+        "y": 495.6521739130435
+      },
+      {
+        "x": 138,
+        "y": 430.4347826086956
+      },
+      {
+        "x": 126,
+        "y": 339.1304347826087
+      },
+      {
+        "x": 129,
+        "y": 241.30434782608694
+      },
+      {
+        "x": 150,
+        "y": 150
+      },
+      {
+        "x": 216,
+        "y": 94.56521739130437
+      },
+      {
+        "x": 330,
+        "y": 84.78260869565213
+      },
+      {
+        "x": 480,
+        "y": 84.78260869565213
+      },
+      {
+        "x": 630,
+        "y": 84.78260869565213
+      },
+      {
+        "x": 744,
+        "y": 97.82608695652175
+      },
+      {
+        "x": 810,
+        "y": 156.5217391304348
+      },
+      {
+        "x": 831,
+        "y": 257.60869565217394
+      },
+      {
+        "x": 825,
+        "y": 371.7391304347826
+      },
+      {
+        "x": 792,
+        "y": 456.52173913043475
+      },
+      {
+        "x": 720,
+        "y": 502.17391304347825
+      },
+      {
+        "x": 570,
+        "y": 511.95652173913044
+      }
+    ],
+    "curbWidth": 8,
+    "defaultLaps": 6,
+    "height": 600,
+    "id": "speedway",
+    "lines": [],
+    "looseSand": true,
+    "name": "Speedway",
+    "objects": [
+      {
+        "angle": 3.141592653589793,
+        "kind": "pitBuilding",
+        "position": {
+          "x": 477,
+          "y": 386
+        },
+        "size": {
+          "x": 204,
+          "y": 78.26086956521738
+        },
+        "solid": true
+      },
+      {
+        "angle": -1.5707963267948966,
+        "kind": "grandstand",
+        "position": {
+          "x": 283,
+          "y": 309
+        },
+        "size": {
+          "x": 110.86956521739131,
+          "y": 48
+        },
+        "solid": true
+      },
+      {
+        "angle": 1.5707963267948966,
+        "kind": "grandstand",
+        "position": {
+          "x": 678,
+          "y": 306
+        },
+        "size": {
+          "x": 110.86956521739131,
+          "y": 48
+        },
+        "solid": true
+      },
+      {
+        "angle": 0,
+        "kind": "grandstand",
+        "position": {
+          "x": 481,
+          "y": 241
+        },
+        "size": {
+          "x": 204,
+          "y": 58.69565217391306
+        },
+        "solid": true
+      },
+      {
+        "angle": 0,
+        "kind": "tree",
+        "position": {
+          "x": 269,
+          "y": 404
+        },
+        "size": {
+          "x": 40,
+          "y": 40
+        },
+        "solid": true
+      },
+      {
+        "angle": 0,
+        "kind": "tree",
+        "position": {
+          "x": 692,
+          "y": 406
+        },
+        "size": {
+          "x": 40,
+          "y": 40
+        },
+        "solid": true
+      },
+      {
+        "angle": 0,
+        "kind": "tree",
+        "position": {
+          "x": 271,
+          "y": 199
+        },
+        "size": {
+          "x": 40,
+          "y": 40
+        },
+        "solid": true
+      },
+      {
+        "angle": 0,
+        "kind": "tree",
+        "position": {
+          "x": 687,
+          "y": 197
+        },
+        "size": {
+          "x": 40,
+          "y": 40
+        },
+        "solid": true
+      }
+    ],
+    "patches": [
+      {
+        "coversRoad": false,
+        "onDeck": false,
+        "shape": {
+          "rect": {
+            "origin": {
+              "x": 238,
+              "y": 168
+            },
+            "size": {
+              "x": 480,
+              "y": 262
+            }
+          }
+        },
+        "surface": 3
+      }
+    ],
+    "pointWidths": [
+      96,
+      96,
+      110,
+      134,
+      140,
+      140,
+      124,
+      100,
+      92,
+      92,
+      92,
+      104,
+      130,
+      148,
+      148,
+      128,
+      104,
+      96
+    ],
+    "roadWidth": 96,
+    "theme": "summer",
+    "width": 960
+  },
+  {
+    "background": 2,
+    "barrierThickness": 7,
+    "bridges": [],
+    "centerLine": true,
+    "controlPoints": [
+      {
+        "x": 255,
+        "y": 86
+      },
+      {
+        "x": 397,
+        "y": 53
+      },
+      {
+        "x": 553,
+        "y": 54
+      },
+      {
+        "x": 667,
+        "y": 65
+      },
+      {
+        "x": 770,
+        "y": 137
+      },
+      {
+        "x": 828,
+        "y": 275
+      },
+      {
+        "x": 843,
+        "y": 498
+      },
+      {
+        "x": 633,
+        "y": 476
+      },
+      {
+        "x": 410,
+        "y": 189
+      },
+      {
+        "x": 245,
+        "y": 344
+      },
+      {
+        "x": 486,
+        "y": 460
+      },
+      {
+        "x": 461,
+        "y": 558
+      },
+      {
+        "x": 66,
+        "y": 387
+      },
+      {
+        "x": 178,
+        "y": 103
+      }
+    ],
+    "curbWidth": 4,
+    "defaultLaps": 5,
+    "height": 600,
+    "id": "pine-ridge",
+    "lines": [],
+    "looseSand": true,
+    "name": "Pine Ridge",
+    "objects": [
+      {
+        "angle": -1.6793254675378053,
+        "kind": "pine",
+        "position": {
+          "x": 740,
+          "y": 435
+        },
+        "size": {
+          "x": 48,
+          "y": 48
+        },
+        "solid": true
+      },
+      {
+        "angle": -2.5045112576210378,
+        "kind": "pine",
+        "position": {
+          "x": 798,
+          "y": 409
+        },
+        "size": {
+          "x": 38,
+          "y": 38
+        },
+        "solid": true
+      },
+      {
+        "angle": -2.903154514872819,
+        "kind": "pine",
+        "position": {
+          "x": 905,
+          "y": 324
+        },
+        "size": {
+          "x": 38,
+          "y": 38
+        },
+        "solid": true
+      },
+      {
+        "angle": 2.5645282559470637,
+        "kind": "pine",
+        "position": {
+          "x": 730,
+          "y": 574
+        },
+        "size": {
+          "x": 38,
+          "y": 38
+        },
+        "solid": true
+      },
+      {
+        "angle": -0.9422476989587549,
+        "kind": "pine",
+        "position": {
+          "x": 715,
+          "y": 187
+        },
+        "size": {
+          "x": 38,
+          "y": 38
+        },
+        "solid": true
+      },
+      {
+        "angle": 2.768260079338125,
+        "kind": "pine",
+        "position": {
+          "x": 871,
+          "y": 83
+        },
+        "size": {
+          "x": 28,
+          "y": 28
+        },
+        "solid": true
+      },
+      {
+        "angle": -2.380162940003058,
+        "kind": "pine",
+        "position": {
+          "x": 840,
+          "y": 86
+        },
+        "size": {
+          "x": 38,
+          "y": 38
+        },
+        "solid": true
+      },
+      {
+        "angle": -2.2185197144796085,
+        "kind": "pine",
+        "position": {
+          "x": 807,
+          "y": 87
+        },
+        "size": {
+          "x": 24,
+          "y": 24
+        },
+        "solid": true
+      },
+      {
+        "angle": 1.4331215510821602,
+        "kind": "pine",
+        "position": {
+          "x": 637,
+          "y": 132
+        },
+        "size": {
+          "x": 24,
+          "y": 24
+        },
+        "solid": true
+      },
+      {
+        "angle": -2.050069449209917,
+        "kind": "pine",
+        "position": {
+          "x": 671,
+          "y": 129
+        },
+        "size": {
+          "x": 24,
+          "y": 24
+        },
+        "solid": true
+      },
+      {
+        "angle": 2.6979845844931143,
+        "kind": "pine",
+        "position": {
+          "x": 738,
+          "y": 383
+        },
+        "size": {
+          "x": 24,
+          "y": 24
+        },
+        "solid": true
+      },
+      {
+        "angle": -0.44821001146033534,
+        "kind": "pine",
+        "position": {
+          "x": 712,
+          "y": 368
+        },
+        "size": {
+          "x": 24,
+          "y": 24
+        },
+        "solid": true
+      },
+      {
+        "angle": -0.36748427249785376,
+        "kind": "pine",
+        "position": {
+          "x": 685,
+          "y": 349
+        },
+        "size": {
+          "x": 24,
+          "y": 24
+        },
+        "solid": true
+      },
+      {
+        "angle": 0.02876213977285577,
+        "kind": "pine",
+        "position": {
+          "x": 661,
+          "y": 325
+        },
+        "size": {
+          "x": 24,
+          "y": 24
+        },
+        "solid": true
+      },
+      {
+        "angle": -2.6185052049207895,
+        "kind": "pine",
+        "position": {
+          "x": 625,
+          "y": 306
+        },
+        "size": {
+          "x": 24,
+          "y": 24
+        },
+        "solid": true
+      },
+      {
+        "angle": 1.1258460245088178,
+        "kind": "pine",
+        "position": {
+          "x": 588,
+          "y": 284
+        },
+        "size": {
+          "x": 24,
+          "y": 24
+        },
+        "solid": true
+      },
+      {
+        "angle": 0.02090048823494186,
+        "kind": "pine",
+        "position": {
+          "x": 588,
+          "y": 253
+        },
+        "size": {
+          "x": 24,
+          "y": 24
+        },
+        "solid": true
+      },
+      {
+        "angle": -2.877076841478763,
+        "kind": "pine",
+        "position": {
+          "x": 588,
+          "y": 206
+        },
+        "size": {
+          "x": 24,
+          "y": 24
+        },
+        "solid": true
+      },
+      {
+        "angle": 0.5561639094077878,
+        "kind": "pine",
+        "position": {
+          "x": 584,
+          "y": 157
+        },
+        "size": {
+          "x": 24,
+          "y": 24
+        },
+        "solid": true
+      },
+      {
+        "angle": 0.010641991715956636,
+        "kind": "pine",
+        "position": {
+          "x": 551,
+          "y": 118
+        },
+        "size": {
+          "x": 24,
+          "y": 24
+        },
+        "solid": true
+      },
+      {
+        "angle": -1.8398182074703406,
+        "kind": "pine",
+        "position": {
+          "x": 534,
+          "y": 114
+        },
+        "size": {
+          "x": 24,
+          "y": 24
+        },
+        "solid": true
+      },
+      {
+        "angle": -0.25627066537614507,
+        "kind": "pine",
+        "position": {
+          "x": 449,
+          "y": 114
+        },
+        "size": {
+          "x": 24,
+          "y": 24
+        },
+        "solid": true
+      },
+      {
+        "angle": 0.46709714991117773,
+        "kind": "pine",
+        "position": {
+          "x": 439,
+          "y": 98
+        },
+        "size": {
+          "x": 24,
+          "y": 24
+        },
+        "solid": true
+      },
+      {
+        "angle": 2.918494322751675,
+        "kind": "pine",
+        "position": {
+          "x": 428,
+          "y": 112
+        },
+        "size": {
+          "x": 24,
+          "y": 24
+        },
+        "solid": true
+      },
+      {
+        "angle": 0.8379370053825315,
+        "kind": "pine",
+        "position": {
+          "x": 392,
+          "y": 118
+        },
+        "size": {
+          "x": 24,
+          "y": 24
+        },
+        "solid": true
+      },
+      {
+        "angle": -2.1130585353124705,
+        "kind": "pine",
+        "position": {
+          "x": 373,
+          "y": 120
+        },
+        "size": {
+          "x": 24,
+          "y": 24
+        },
+        "solid": true
+      },
+      {
+        "angle": 2.1059638741685,
+        "kind": "pine",
+        "position": {
+          "x": 410,
+          "y": 105
+        },
+        "size": {
+          "x": 24,
+          "y": 24
+        },
+        "solid": true
+      },
+      {
+        "angle": 1.3621749396424494,
+        "kind": "pine",
+        "position": {
+          "x": 672,
+          "y": 556
+        },
+        "size": {
+          "x": 24,
+          "y": 24
+        },
+        "solid": true
+      },
+      {
+        "angle": 0.5806117282147152,
+        "kind": "pine",
+        "position": {
+          "x": 642,
+          "y": 548
+        },
+        "size": {
+          "x": 24,
+          "y": 24
+        },
+        "solid": true
+      },
+      {
+        "angle": -2.0129662889029323,
+        "kind": "pine",
+        "position": {
+          "x": 624,
+          "y": 535
+        },
+        "size": {
+          "x": 24,
+          "y": 24
+        },
+        "solid": true
+      },
+      {
+        "angle": 2.9188778179486468,
+        "kind": "pine",
+        "position": {
+          "x": 610,
+          "y": 524
+        },
+        "size": {
+          "x": 24,
+          "y": 24
+        },
+        "solid": true
+      },
+      {
+        "angle": 2.0690524614600014,
+        "kind": "pine",
+        "position": {
+          "x": 692,
+          "y": 557
+        },
+        "size": {
+          "x": 24,
+          "y": 24
+        },
+        "solid": true
+      },
+      {
+        "angle": 2.262717535930564,
+        "kind": "pine",
+        "position": {
+          "x": 605,
+          "y": 370
+        },
+        "size": {
+          "x": 24,
+          "y": 24
+        },
+        "solid": true
+      },
+      {
+        "angle": -2.4615597955602397,
+        "kind": "pine",
+        "position": {
+          "x": 203,
+          "y": 296
+        },
+        "size": {
+          "x": 24,
+          "y": 24
+        },
+        "solid": true
+      },
+      {
+        "angle": 1.8362708768983553,
+        "kind": "pine",
+        "position": {
+          "x": 195,
+          "y": 325
+        },
+        "size": {
+          "x": 24,
+          "y": 24
+        },
+        "solid": true
+      },
+      {
+        "angle": 1.13936423020206,
+        "kind": "pine",
+        "position": {
+          "x": 188,
+          "y": 214
+        },
+        "size": {
+          "x": 33,
+          "y": 33
+        },
+        "solid": true
+      },
+      {
+        "angle": 0.8587416198182305,
+        "kind": "pine",
+        "position": {
+          "x": 312,
+          "y": 323
+        },
+        "size": {
+          "x": 24,
+          "y": 24
+        },
+        "solid": true
+      },
+      {
+        "angle": -2.386011241756872,
+        "kind": "pine",
+        "position": {
+          "x": 367,
+          "y": 279
+        },
+        "size": {
+          "x": 24,
+          "y": 24
+        },
+        "solid": true
+      },
+      {
+        "angle": 0.47313719926347747,
+        "kind": "pine",
+        "position": {
+          "x": 477,
+          "y": 169
+        },
+        "size": {
+          "x": 24,
+          "y": 24
+        },
+        "solid": true
+      },
+      {
+        "angle": 0.03470631532591263,
+        "kind": "pine",
+        "position": {
+          "x": 561,
+          "y": 493
+        },
+        "size": {
+          "x": 24,
+          "y": 24
+        },
+        "solid": true
+      },
+      {
+        "angle": 2.883979755024248,
+        "kind": "pine",
+        "position": {
+          "x": 588,
+          "y": 486
+        },
+        "size": {
+          "x": 24,
+          "y": 24
+        },
+        "solid": true
+      },
+      {
+        "angle": 1.2025450639031,
+        "kind": "pine",
+        "position": {
+          "x": 590,
+          "y": 510
+        },
+        "size": {
+          "x": 24,
+          "y": 24
+        },
+        "solid": true
+      },
+      {
+        "angle": -2.093308532668443,
+        "kind": "pine",
+        "position": {
+          "x": 570,
+          "y": 528
+        },
+        "size": {
+          "x": 24,
+          "y": 24
+        },
+        "solid": true
+      },
+      {
+        "angle": 0.7477197602950072,
+        "kind": "pine",
+        "position": {
+          "x": 570,
+          "y": 508
+        },
+        "size": {
+          "x": 24,
+          "y": 24
+        },
+        "solid": true
+      },
+      {
+        "angle": -1.4354225222639885,
+        "kind": "pine",
+        "position": {
+          "x": 428,
+          "y": 512
+        },
+        "size": {
+          "x": 24,
+          "y": 24
+        },
+        "solid": true
+      },
+      {
+        "angle": 1.2126118128235994,
+        "kind": "pine",
+        "position": {
+          "x": 440,
+          "y": 501
+        },
+        "size": {
+          "x": 24,
+          "y": 24
+        },
+        "solid": true
+      },
+      {
+        "angle": -1.5800002115222105,
+        "kind": "pine",
+        "position": {
+          "x": 527,
+          "y": 576
+        },
+        "size": {
+          "x": 24,
+          "y": 24
+        },
+        "solid": true
+      },
+      {
+        "angle": 2.804787996849652,
+        "kind": "pine",
+        "position": {
+          "x": 425,
+          "y": 479
+        },
+        "size": {
+          "x": 24,
+          "y": 24
+        },
+        "solid": true
+      },
+      {
+        "angle": 2.462135038355697,
+        "kind": "pine",
+        "position": {
+          "x": 404,
+          "y": 494
+        },
+        "size": {
+          "x": 24,
+          "y": 24
+        },
+        "solid": true
+      },
+      {
+        "angle": 0.04247209306458369,
+        "kind": "pine",
+        "position": {
+          "x": 123,
+          "y": 377
+        },
+        "size": {
+          "x": 24,
+          "y": 24
+        },
+        "solid": true
+      },
+      {
+        "angle": -0.903994053060857,
+        "kind": "pine",
+        "position": {
+          "x": 111,
+          "y": 352
+        },
+        "size": {
+          "x": 24,
+          "y": 24
+        },
+        "solid": true
+      },
+      {
+        "angle": -1.9597563303231498,
+        "kind": "pine",
+        "position": {
+          "x": 127,
+          "y": 337
+        },
+        "size": {
+          "x": 24,
+          "y": 24
+        },
+        "solid": true
+      },
+      {
+        "angle": -2.927122964683532,
+        "kind": "pine",
+        "position": {
+          "x": 113,
+          "y": 322
+        },
+        "size": {
+          "x": 24,
+          "y": 24
+        },
+        "solid": true
+      },
+      {
+        "angle": -1.8268752445725553,
+        "kind": "pine",
+        "position": {
+          "x": 120,
+          "y": 313
+        },
+        "size": {
+          "x": 24,
+          "y": 24
+        },
+        "solid": true
+      },
+      {
+        "angle": 1.7111555688864328,
+        "kind": "pine",
+        "position": {
+          "x": 146,
+          "y": 296
+        },
+        "size": {
+          "x": 24,
+          "y": 24
+        },
+        "solid": true
+      },
+      {
+        "angle": 0.6461894068968264,
+        "kind": "pine",
+        "position": {
+          "x": 128,
+          "y": 284
+        },
+        "size": {
+          "x": 24,
+          "y": 24
+        },
+        "solid": true
+      },
+      {
+        "angle": -1.277614248710253,
+        "kind": "pine",
+        "position": {
+          "x": 265,
+          "y": 131
+        },
+        "size": {
+          "x": 24,
+          "y": 24
+        },
+        "solid": true
+      },
+      {
+        "angle": -2.2304080655857224,
+        "kind": "pine",
+        "position": {
+          "x": 247,
+          "y": 152
+        },
+        "size": {
+          "x": 24,
+          "y": 24
+        },
+        "solid": true
+      },
+      {
+        "angle": -0.9456991557314982,
+        "kind": "pine",
+        "position": {
+          "x": 333,
+          "y": 113
+        },
+        "size": {
+          "x": 24,
+          "y": 24
+        },
+        "solid": true
+      },
+      {
+        "angle": 2.2289699585970797,
+        "kind": "pine",
+        "position": {
+          "x": 232,
+          "y": 140
+        },
+        "size": {
+          "x": 24,
+          "y": 24
+        },
+        "solid": true
+      },
+      {
+        "angle": -1.7578461091177022,
+        "kind": "pine",
+        "position": {
+          "x": 215,
+          "y": 149
+        },
+        "size": {
+          "x": 24,
+          "y": 24
+        },
+        "solid": true
+      },
+      {
+        "angle": -1.3426166845969076,
+        "kind": "pine",
+        "position": {
+          "x": 182,
+          "y": 177
+        },
+        "size": {
+          "x": 24,
+          "y": 24
+        },
+        "solid": true
+      },
+      {
+        "angle": -0.4564551581952214,
+        "kind": "pine",
+        "position": {
+          "x": 629,
+          "y": 397
+        },
+        "size": {
+          "x": 24,
+          "y": 24
+        },
+        "solid": true
+      },
+      {
+        "angle": -2.386011241756872,
+        "kind": "pine",
+        "position": {
+          "x": 392,
+          "y": 263
+        },
+        "size": {
+          "x": 34,
+          "y": 34
+        },
+        "solid": true
+      },
+      {
+        "angle": -2.386011241756872,
+        "kind": "pine",
+        "position": {
+          "x": 417,
+          "y": 285
+        },
+        "size": {
+          "x": 24,
+          "y": 24
+        },
+        "solid": true
+      },
+      {
+        "angle": 2.462135038355697,
+        "kind": "pine",
+        "position": {
+          "x": 418,
+          "y": 480
+        },
+        "size": {
+          "x": 24,
+          "y": 24
+        },
+        "solid": true
+      },
+      {
+        "angle": 2.462135038355697,
+        "kind": "pine",
+        "position": {
+          "x": 306,
+          "y": 468
+        },
+        "size": {
+          "x": 24,
+          "y": 24
+        },
+        "solid": true
+      },
+      {
+        "angle": 2.462135038355697,
+        "kind": "pine",
+        "position": {
+          "x": 250,
+          "y": 451
+        },
+        "size": {
+          "x": 24,
+          "y": 24
+        },
+        "solid": true
+      },
+      {
+        "angle": 2.462135038355697,
+        "kind": "pine",
+        "position": {
+          "x": 212,
+          "y": 411
+        },
+        "size": {
+          "x": 24,
+          "y": 24
+        },
+        "solid": true
+      },
+      {
+        "angle": 2.462135038355697,
+        "kind": "pine",
+        "position": {
+          "x": 222,
+          "y": 430
+        },
+        "size": {
+          "x": 24,
+          "y": 24
+        },
+        "solid": true
+      },
+      {
+        "angle": 2.462135038355697,
+        "kind": "pine",
+        "position": {
+          "x": 194,
+          "y": 422
+        },
+        "size": {
+          "x": 24,
+          "y": 24
+        },
+        "solid": true
+      },
+      {
+        "angle": 2.462135038355697,
+        "kind": "pine",
+        "position": {
+          "x": 170,
+          "y": 392
+        },
+        "size": {
+          "x": 35,
+          "y": 35
+        },
+        "solid": true
+      },
+      {
+        "angle": 2.462135038355697,
+        "kind": "pine",
+        "position": {
+          "x": 344,
+          "y": 458
+        },
+        "size": {
+          "x": 39,
+          "y": 39
+        },
+        "solid": true
+      },
+      {
+        "angle": 2.462135038355697,
+        "kind": "pine",
+        "position": {
+          "x": 371,
+          "y": 487
+        },
+        "size": {
+          "x": 24,
+          "y": 24
+        },
+        "solid": true
+      },
+      {
+        "angle": 2.462135038355697,
+        "kind": "pine",
+        "position": {
+          "x": 356,
+          "y": 479
+        },
+        "size": {
+          "x": 22,
+          "y": 22
+        },
+        "solid": true
+      },
+      {
+        "angle": 2.462135038355697,
+        "kind": "pine",
+        "position": {
+          "x": 295,
+          "y": 455
+        },
+        "size": {
+          "x": 25,
+          "y": 25
+        },
+        "solid": true
+      },
+      {
+        "angle": 2.462135038355697,
+        "kind": "pine",
+        "position": {
+          "x": 272,
+          "y": 438
+        },
+        "size": {
+          "x": 24,
+          "y": 24
+        },
+        "solid": true
+      },
+      {
+        "angle": 1.13936423020206,
+        "kind": "pine",
+        "position": {
+          "x": 255,
+          "y": 199
+        },
+        "size": {
+          "x": 39,
+          "y": 39
+        },
+        "solid": true
+      },
+      {
+        "angle": 1.13936423020206,
+        "kind": "pine",
+        "position": {
+          "x": 290,
+          "y": 158
+        },
+        "size": {
+          "x": 34,
+          "y": 34
+        },
+        "solid": true
+      },
+      {
+        "angle": 1.13936423020206,
+        "kind": "pine",
+        "position": {
+          "x": 313,
+          "y": 137
+        },
+        "size": {
+          "x": 38,
+          "y": 38
+        },
+        "solid": true
+      },
+      {
+        "angle": 1.13936423020206,
+        "kind": "pine",
+        "position": {
+          "x": 225,
+          "y": 186
+        },
+        "size": {
+          "x": 33,
+          "y": 33
+        },
+        "solid": true
+      },
+      {
+        "angle": 1.13936423020206,
+        "kind": "pine",
+        "position": {
+          "x": 174,
+          "y": 255
+        },
+        "size": {
+          "x": 33,
+          "y": 33
+        },
+        "solid": true
+      },
+      {
+        "angle": 1.13936423020206,
+        "kind": "pine",
+        "position": {
+          "x": 226,
+          "y": 224
+        },
+        "size": {
+          "x": 31,
+          "y": 31
+        },
+        "solid": true
+      },
+      {
+        "angle": 1.13936423020206,
+        "kind": "pine",
+        "position": {
+          "x": 204,
+          "y": 246
+        },
+        "size": {
+          "x": 26,
+          "y": 26
+        },
+        "solid": true
+      },
+      {
+        "angle": 2.1139213995056565,
+        "kind": "pine",
+        "position": {
+          "x": 606,
+          "y": 289
+        },
+        "size": {
+          "x": 30,
+          "y": 30
+        },
+        "solid": true
+      },
+      {
+        "angle": -0.29337382568312886,
+        "kind": "pine",
+        "position": {
+          "x": 769,
+          "y": 369
+        },
+        "size": {
+          "x": 33,
+          "y": 33
+        },
+        "solid": true
+      },
+      {
+        "angle": -1.196696762149286,
+        "kind": "pine",
+        "position": {
+          "x": 145,
+          "y": 383
+        },
+        "size": {
+          "x": 33,
+          "y": 33
+        },
+        "solid": true
+      },
+      {
+        "angle": 2.586962724969891,
+        "kind": "pine",
+        "position": {
+          "x": 324,
+          "y": 478
+        },
+        "size": {
+          "x": 36,
+          "y": 36
+        },
+        "solid": true
+      },
+      {
+        "angle": 0.46316632414222075,
+        "kind": "pine",
+        "position": {
+          "x": 180,
+          "y": 285
+        },
+        "size": {
+          "x": 33,
+          "y": 33
+        },
+        "solid": true
+      },
+      {
+        "angle": -0.6634466907605399,
+        "kind": "pine",
+        "position": {
+          "x": 906,
+          "y": 263
+        },
+        "size": {
+          "x": 26,
+          "y": 26
+        },
+        "solid": true
+      },
+      {
+        "angle": -1.0750329109101058,
+        "kind": "pine",
+        "position": {
+          "x": 894,
+          "y": 223
+        },
+        "size": {
+          "x": 33,
+          "y": 33
+        },
+        "solid": true
+      },
+      {
+        "angle": -2.5061411122081663,
+        "kind": "pine",
+        "position": {
+          "x": 874,
+          "y": 180
+        },
+        "size": {
+          "x": 26,
+          "y": 26
+        },
+        "solid": true
+      },
+      {
+        "angle": 1.7384796016706456,
+        "kind": "pine",
+        "position": {
+          "x": 904,
+          "y": 151
+        },
+        "size": {
+          "x": 28,
+          "y": 28
+        },
+        "solid": true
+      },
+      {
+        "angle": 0.3715109720660537,
+        "kind": "pine",
+        "position": {
+          "x": 907,
+          "y": 94
+        },
+        "size": {
+          "x": 28,
+          "y": 28
+        },
+        "solid": true
+      },
+      {
+        "angle": -0.30957649775517115,
+        "kind": "pine",
+        "position": {
+          "x": 907,
+          "y": 23
+        },
+        "size": {
+          "x": 28,
+          "y": 28
+        },
+        "solid": true
+      },
+      {
+        "angle": 0.47313719926347747,
+        "kind": "pine",
+        "position": {
+          "x": 817,
+          "y": 38
+        },
+        "size": {
+          "x": 42,
+          "y": 42
+        },
+        "solid": true
+      },
+      {
+        "angle": -2.484281885980796,
+        "kind": "pine",
+        "position": {
+          "x": 729,
+          "y": 301
+        },
+        "size": {
+          "x": 53,
+          "y": 53
+        },
+        "solid": true
+      },
+      {
+        "angle": -0.8830935648259146,
+        "kind": "pine",
+        "position": {
+          "x": 927,
+          "y": 420
+        },
+        "size": {
+          "x": 50,
+          "y": 50
+        },
+        "solid": true
+      },
+      {
+        "angle": -2.497800091674038,
+        "kind": "pine",
+        "position": {
+          "x": 756,
+          "y": 22
+        },
+        "size": {
+          "x": 26,
+          "y": 26
+        },
+        "solid": true
+      },
+      {
+        "angle": -1.7136482876667465,
+        "kind": "pine",
+        "position": {
+          "x": 211,
+          "y": 20
+        },
+        "size": {
+          "x": 26,
+          "y": 26
+        },
+        "solid": true
+      },
+      {
+        "angle": 3.0626885168129254,
+        "kind": "pine",
+        "position": {
+          "x": 19,
+          "y": 236
+        },
+        "size": {
+          "x": 26,
+          "y": 26
+        },
+        "solid": true
+      },
+      {
+        "angle": 0.4481141376610929,
+        "kind": "pine",
+        "position": {
+          "x": 36,
+          "y": 173
+        },
+        "size": {
+          "x": 36,
+          "y": 36
+        },
+        "solid": true
+      },
+      {
+        "angle": -0.37055223407362536,
+        "kind": "pine",
+        "position": {
+          "x": 60,
+          "y": 525
+        },
+        "size": {
+          "x": 26,
+          "y": 26
+        },
+        "solid": true
+      },
+      {
+        "angle": -1.0953581563495902,
+        "kind": "pine",
+        "position": {
+          "x": 34,
+          "y": 483
+        },
+        "size": {
+          "x": 26,
+          "y": 26
+        },
+        "solid": true
+      },
+      {
+        "angle": 1.67980483653402,
+        "kind": "pine",
+        "position": {
+          "x": 43,
+          "y": 558
+        },
+        "size": {
+          "x": 26,
+          "y": 26
+        },
+        "solid": true
+      },
+      {
+        "angle": 0.308234264565771,
+        "kind": "pine",
+        "position": {
+          "x": 115,
+          "y": 575
+        },
+        "size": {
+          "x": 26,
+          "y": 26
+        },
+        "solid": true
+      },
+      {
+        "angle": -1.598503854776081,
+        "kind": "pine",
+        "position": {
+          "x": 81,
+          "y": 62
+        },
+        "size": {
+          "x": 26,
+          "y": 26
+        },
+        "solid": true
+      },
+      {
+        "angle": -1.6046397779276234,
+        "kind": "pine",
+        "position": {
+          "x": 353,
+          "y": 125
+        },
+        "size": {
+          "x": 20,
+          "y": 20
+        },
+        "solid": true
+      }
+    ],
+    "patches": [
+      {
+        "coversRoad": false,
+        "onDeck": false,
+        "shape": {
+          "circle": {
+            "center": {
+              "x": 543,
+              "y": 212
+            },
+            "radius": 21
+          }
+        },
+        "surface": 6
+      },
+      {
+        "coversRoad": false,
+        "onDeck": false,
+        "shape": {
+          "circle": {
+            "center": {
+              "x": 516,
+              "y": 188
+            },
+            "radius": 26
+          }
+        },
+        "surface": 6
+      },
+      {
+        "coversRoad": false,
+        "onDeck": false,
+        "shape": {
+          "circle": {
+            "center": {
+              "x": 511,
+              "y": 147
+            },
+            "radius": 19
+          }
+        },
+        "surface": 6
+      },
+      {
+        "coversRoad": false,
+        "onDeck": false,
+        "shape": {
+          "circle": {
+            "center": {
+              "x": 499,
+              "y": 118
+            },
+            "radius": 17
+          }
+        },
+        "surface": 6
+      },
+      {
+        "coversRoad": false,
+        "onDeck": false,
+        "shape": {
+          "circle": {
+            "center": {
+              "x": 527,
+              "y": 157
+            },
+            "radius": 21
+          }
+        },
+        "surface": 6
+      },
+      {
+        "coversRoad": false,
+        "onDeck": false,
+        "shape": {
+          "circle": {
+            "center": {
+              "x": 479,
+              "y": 139
+            },
+            "radius": 19
+          }
+        },
+        "surface": 6
+      },
+      {
+        "coversRoad": true,
+        "onDeck": false,
+        "shape": {
+          "circle": {
+            "center": {
+              "x": 500,
+              "y": 227
+            },
+            "radius": 12
+          }
+        },
+        "surface": 4
+      },
+      {
+        "coversRoad": true,
+        "onDeck": false,
+        "shape": {
+          "circle": {
+            "center": {
+              "x": 468,
+              "y": 197
+            },
+            "radius": 24
+          }
+        },
+        "surface": 4
+      },
+      {
+        "coversRoad": true,
+        "onDeck": false,
+        "shape": {
+          "circle": {
+            "center": {
+              "x": 439,
+              "y": 168
+            },
+            "radius": 20
+          }
+        },
+        "surface": 4
+      },
+      {
+        "coversRoad": true,
+        "onDeck": false,
+        "shape": {
+          "circle": {
+            "center": {
+              "x": 476,
+              "y": 105
+            },
+            "radius": 19
+          }
+        },
+        "surface": 4
+      },
+      {
+        "coversRoad": true,
+        "onDeck": false,
+        "shape": {
+          "circle": {
+            "center": {
+              "x": 493,
+              "y": 204
+            },
+            "radius": 20
+          }
+        },
+        "surface": 4
+      },
+      {
+        "coversRoad": true,
+        "onDeck": false,
+        "shape": {
+          "circle": {
+            "center": {
+              "x": 408,
+              "y": 157
+            },
+            "radius": 18
+          }
+        },
+        "surface": 4
+      },
+      {
+        "coversRoad": true,
+        "onDeck": false,
+        "shape": {
+          "circle": {
+            "center": {
+              "x": 452,
+              "y": 177
+            },
+            "radius": 24
+          }
+        },
+        "surface": 4
+      },
+      {
+        "coversRoad": true,
+        "onDeck": false,
+        "shape": {
+          "circle": {
+            "center": {
+              "x": 381,
+              "y": 151
+            },
+            "radius": 18
+          }
+        },
+        "surface": 4
+      },
+      {
+        "coversRoad": true,
+        "onDeck": false,
+        "shape": {
+          "circle": {
+            "center": {
+              "x": 431,
+              "y": 146
+            },
+            "radius": 18
+          }
+        },
+        "surface": 4
+      },
+      {
+        "coversRoad": true,
+        "onDeck": false,
+        "shape": {
+          "capsule": {
+            "from": {
+              "x": 549,
+              "y": 474
+            },
+            "radius": 3,
+            "to": {
+              "x": 442,
+              "y": 303
+            }
+          }
+        },
+        "surface": 5
+      },
+      {
+        "coversRoad": false,
+        "onDeck": false,
+        "shape": {
+          "circle": {
+            "center": {
+              "x": 820,
+              "y": 584
+            },
+            "radius": 30
+          }
+        },
+        "surface": 3
+      },
+      {
+        "coversRoad": false,
+        "onDeck": false,
+        "shape": {
+          "circle": {
+            "center": {
+              "x": 868,
+              "y": 563
+            },
+            "radius": 30
+          }
+        },
+        "surface": 3
+      },
+      {
+        "coversRoad": false,
+        "onDeck": false,
+        "shape": {
+          "circle": {
+            "center": {
+              "x": 917,
+              "y": 554
+            },
+            "radius": 30
+          }
+        },
+        "surface": 3
+      },
+      {
+        "coversRoad": false,
+        "onDeck": false,
+        "shape": {
+          "circle": {
+            "center": {
+              "x": 923,
+              "y": 515
+            },
+            "radius": 30
+          }
+        },
+        "surface": 3
+      },
+      {
+        "coversRoad": true,
+        "onDeck": false,
+        "shape": {
+          "circle": {
+            "center": {
+              "x": 883,
+              "y": 524
+            },
+            "radius": 15
+          }
+        },
+        "surface": 3
+      },
+      {
+        "coversRoad": true,
+        "onDeck": false,
+        "shape": {
+          "circle": {
+            "center": {
+              "x": 786,
+              "y": 567
+            },
+            "radius": 18
+          }
+        },
+        "surface": 3
+      },
+      {
+        "coversRoad": false,
+        "onDeck": false,
+        "shape": {
+          "circle": {
+            "center": {
+              "x": 803,
+              "y": 453
+            },
+            "radius": 16
+          }
+        },
+        "surface": 3
+      },
+      {
+        "coversRoad": false,
+        "onDeck": false,
+        "shape": {
+          "circle": {
+            "center": {
+              "x": 779,
+              "y": 468
+            },
+            "radius": 20
+          }
+        },
+        "surface": 3
+      },
+      {
+        "coversRoad": false,
+        "onDeck": false,
+        "shape": {
+          "circle": {
+            "center": {
+              "x": 812,
+              "y": 443
+            },
+            "radius": 10
+          }
+        },
+        "surface": 3
+      }
+    ],
+    "pointWidths": [],
+    "roadWidth": 78,
+    "theme": "winter",
+    "width": 960
+  },
+  {
+    "background": 2,
+    "barrierThickness": 10,
+    "bridges": [],
+    "centerLine": true,
+    "controlPoints": [
+      {
+        "x": 485,
+        "y": 67
+      },
+      {
+        "x": 692,
+        "y": 66
+      },
+      {
+        "x": 818,
+        "y": 61
+      },
+      {
+        "x": 876,
+        "y": 85
+      },
+      {
+        "x": 901,
+        "y": 131
+      },
+      {
+        "x": 890,
+        "y": 256
+      },
+      {
+        "x": 892,
+        "y": 377
+      },
+      {
+        "x": 890,
+        "y": 531
+      },
+      {
+        "x": 647,
+        "y": 529
+      },
+      {
+        "x": 538,
+        "y": 475
+      },
+      {
+        "x": 485,
+        "y": 398
+      },
+      {
+        "x": 413,
+        "y": 244
+      },
+      {
+        "x": 319,
+        "y": 214
+      },
+      {
+        "x": 240,
+        "y": 234
+      },
+      {
+        "x": 223,
+        "y": 309
+      },
+      {
+        "x": 239,
+        "y": 368
+      },
+      {
+        "x": 273,
+        "y": 446
+      },
+      {
+        "x": 265,
+        "y": 530
+      },
+      {
+        "x": 194,
+        "y": 574
+      },
+      {
+        "x": 106,
+        "y": 553
+      },
+      {
+        "x": 74,
+        "y": 494
+      },
+      {
+        "x": 82,
+        "y": 383
+      },
+      {
+        "x": 62,
+        "y": 295
+      },
+      {
+        "x": 59,
+        "y": 146
+      },
+      {
+        "x": 90,
+        "y": 91
+      },
+      {
+        "x": 172,
+        "y": 60
+      },
+      {
+        "x": 285,
+        "y": 63
+      }
+    ],
+    "curbWidth": 10,
+    "defaultLaps": 5,
+    "height": 600,
+    "id": "quickstep",
+    "lines": [],
+    "looseSand": true,
+    "name": "Quickstep",
+    "objects": [
+      {
+        "angle": 3.070166673153868,
+        "kind": "tree",
+        "position": {
+          "x": 794,
+          "y": 458
+        },
+        "size": {
+          "x": 40,
+          "y": 40
+        },
+        "solid": true
+      },
+      {
+        "angle": 0.48531317176731975,
+        "kind": "tree",
+        "position": {
+          "x": 690,
+          "y": 427
+        },
+        "size": {
+          "x": 40,
+          "y": 40
+        },
+        "solid": true
+      },
+      {
+        "angle": -1.2867222596383243,
+        "kind": "tree",
+        "position": {
+          "x": 747,
+          "y": 432
+        },
+        "size": {
+          "x": 50,
+          "y": 50
+        },
+        "solid": true
+      },
+      {
+        "angle": 0,
+        "kind": "grandstand",
+        "position": {
+          "x": 656,
+          "y": 184
+        },
+        "size": {
+          "x": 302,
+          "y": 80
+        },
+        "solid": true
+      },
+      {
+        "angle": -2.4797758174163818,
+        "kind": "tree",
+        "position": {
+          "x": 346,
+          "y": 562
+        },
+        "size": {
+          "x": 45,
+          "y": 45
+        },
+        "solid": true
+      },
+      {
+        "angle": 1.8350245175081983,
+        "kind": "tree",
+        "position": {
+          "x": 414,
+          "y": 561
+        },
+        "size": {
+          "x": 55,
+          "y": 55
+        },
+        "solid": true
+      },
+      {
+        "angle": 0.5219369630780895,
+        "kind": "pine",
+        "position": {
+          "x": 354,
+          "y": 502
+        },
+        "size": {
+          "x": 57,
+          "y": 57
+        },
+        "solid": true
+      },
+      {
+        "angle": -1.8519941799741835,
+        "kind": "pine",
+        "position": {
+          "x": 400,
+          "y": 460
+        },
+        "size": {
+          "x": 71,
+          "y": 71
+        },
+        "solid": true
+      },
+      {
+        "angle": -2.9139882541872613,
+        "kind": "pine",
+        "position": {
+          "x": 403,
+          "y": 512
+        },
+        "size": {
+          "x": 40,
+          "y": 40
+        },
+        "solid": true
+      },
+      {
+        "angle": 2.051699303797045,
+        "kind": "pine",
+        "position": {
+          "x": 452,
+          "y": 529
+        },
+        "size": {
+          "x": 34,
+          "y": 34
+        },
+        "solid": true
+      },
+      {
+        "angle": -2.4232102758630987,
+        "kind": "pine",
+        "position": {
+          "x": 459,
+          "y": 578
+        },
+        "size": {
+          "x": 33,
+          "y": 33
+        },
+        "solid": true
+      },
+      {
+        "angle": -2.1393279563050127,
+        "kind": "tree",
+        "position": {
+          "x": 636,
+          "y": 391
+        },
+        "size": {
+          "x": 52,
+          "y": 52
+        },
+        "solid": true
+      },
+      {
+        "angle": -2.8846508716189483,
+        "kind": "tree",
+        "position": {
+          "x": 707,
+          "y": 378
+        },
+        "size": {
+          "x": 40,
+          "y": 40
+        },
+        "solid": true
+      },
+      {
+        "angle": 0.7033301912455665,
+        "kind": "tree",
+        "position": {
+          "x": 612,
+          "y": 324
+        },
+        "size": {
+          "x": 59,
+          "y": 59
+        },
+        "solid": true
+      },
+      {
+        "angle": 0.4655631691232921,
+        "kind": "pine",
+        "position": {
+          "x": 792,
+          "y": 326
+        },
+        "size": {
+          "x": 40,
+          "y": 40
+        },
+        "solid": true
+      },
+      {
+        "angle": -0.7083156288061945,
+        "kind": "pine",
+        "position": {
+          "x": 749,
+          "y": 314
+        },
+        "size": {
+          "x": 40,
+          "y": 40
+        },
+        "solid": true
+      },
+      {
+        "angle": 2.381409299393215,
+        "kind": "pine",
+        "position": {
+          "x": 772,
+          "y": 293
+        },
+        "size": {
+          "x": 48,
+          "y": 48
+        },
+        "solid": true
+      },
+      {
+        "angle": 0.4665219071157206,
+        "kind": "pine",
+        "position": {
+          "x": 771,
+          "y": 326
+        },
+        "size": {
+          "x": 28,
+          "y": 28
+        },
+        "solid": true
+      },
+      {
+        "angle": -2.0256216304029895,
+        "kind": "pine",
+        "position": {
+          "x": 754,
+          "y": 340
+        },
+        "size": {
+          "x": 40,
+          "y": 40
+        },
+        "solid": true
+      },
+      {
+        "angle": 2.315256377915647,
+        "kind": "tree",
+        "position": {
+          "x": 948,
+          "y": 35
+        },
+        "size": {
+          "x": 40,
+          "y": 40
+        },
+        "solid": true
+      },
+      {
+        "angle": -2.1438340248694265,
+        "kind": "tree",
+        "position": {
+          "x": 512,
+          "y": 580
+        },
+        "size": {
+          "x": 40,
+          "y": 40
+        },
+        "solid": true
+      },
+      {
+        "angle": -0.9750365382998103,
+        "kind": "pine",
+        "position": {
+          "x": 174,
+          "y": 466
+        },
+        "size": {
+          "x": 63,
+          "y": 63
+        },
+        "solid": true
+      },
+      {
+        "angle": -0.696906646696295,
+        "kind": "pine",
+        "position": {
+          "x": 182,
+          "y": 433
+        },
+        "size": {
+          "x": 36,
+          "y": 36
+        },
+        "solid": true
+      }
+    ],
+    "patches": [
+      {
+        "coversRoad": false,
+        "onDeck": false,
+        "shape": {
+          "capsule": {
+            "from": {
+              "x": 167,
+              "y": 413
+            },
+            "radius": 8,
+            "to": {
+              "x": 146,
+              "y": 309
+            }
+          }
+        },
+        "surface": 5
+      },
+      {
+        "coversRoad": false,
+        "onDeck": false,
+        "shape": {
+          "capsule": {
+            "from": {
+              "x": 145,
+              "y": 286
+            },
+            "radius": 8,
+            "to": {
+              "x": 151,
+              "y": 206
+            }
+          }
+        },
+        "surface": 5
+      },
+      {
+        "coversRoad": false,
+        "onDeck": false,
+        "shape": {
+          "capsule": {
+            "from": {
+              "x": 158,
+              "y": 182
+            },
+            "radius": 8,
+            "to": {
+              "x": 216,
+              "y": 143
+            }
+          }
+        },
+        "surface": 5
+      },
+      {
+        "coversRoad": false,
+        "onDeck": false,
+        "shape": {
+          "capsule": {
+            "from": {
+              "x": 241,
+              "y": 138
+            },
+            "radius": 8,
+            "to": {
+              "x": 415,
+              "y": 141
+            }
+          }
+        },
+        "surface": 5
+      },
+      {
+        "coversRoad": false,
+        "onDeck": false,
+        "shape": {
+          "circle": {
+            "center": {
+              "x": 352,
+              "y": 415
+            },
+            "radius": 21
+          }
+        },
+        "surface": 3
+      },
+      {
+        "coversRoad": false,
+        "onDeck": false,
+        "shape": {
+          "circle": {
+            "center": {
+              "x": 377,
+              "y": 369
+            },
+            "radius": 30
+          }
+        },
+        "surface": 3
+      },
+      {
+        "coversRoad": false,
+        "onDeck": false,
+        "shape": {
+          "circle": {
+            "center": {
+              "x": 341,
+              "y": 343
+            },
+            "radius": 30
+          }
+        },
+        "surface": 3
+      },
+      {
+        "coversRoad": false,
+        "onDeck": false,
+        "shape": {
+          "circle": {
+            "center": {
+              "x": 324,
+              "y": 305
+            },
+            "radius": 30
+          }
+        },
+        "surface": 3
+      },
+      {
+        "coversRoad": false,
+        "onDeck": false,
+        "shape": {
+          "circle": {
+            "center": {
+              "x": 381,
+              "y": 421
+            },
+            "radius": 26
+          }
+        },
+        "surface": 3
+      },
+      {
+        "coversRoad": false,
+        "onDeck": false,
+        "shape": {
+          "circle": {
+            "center": {
+              "x": 351,
+              "y": 378
+            },
+            "radius": 30
+          }
+        },
+        "surface": 3
+      },
+      {
+        "coversRoad": false,
+        "onDeck": false,
+        "shape": {
+          "circle": {
+            "center": {
+              "x": 364,
+              "y": 319
+            },
+            "radius": 21
+          }
+        },
+        "surface": 3
+      },
+      {
+        "coversRoad": false,
+        "onDeck": false,
+        "shape": {
+          "capsule": {
+            "from": {
+              "x": 441,
+              "y": 148
+            },
+            "radius": 8,
+            "to": {
+              "x": 491,
+              "y": 169
+            }
+          }
+        },
+        "surface": 5
+      },
+      {
+        "coversRoad": false,
+        "onDeck": false,
+        "shape": {
+          "circle": {
+            "center": {
+              "x": 291,
+              "y": 289
+            },
+            "radius": 30
+          }
+        },
+        "surface": 3
+      },
+      {
+        "coversRoad": true,
+        "onDeck": false,
+        "shape": {
+          "circle": {
+            "center": {
+              "x": 289,
+              "y": 285
+            },
+            "radius": 15
+          }
+        },
+        "surface": 3
+      }
+    ],
+    "pointWidths": [],
+    "roadWidth": 100,
+    "theme": "summer",
+    "width": 960
+  },
+  {
+    "background": 2,
+    "barrierDistance": 22,
+    "barrierThickness": 7,
+    "bridges": [],
+    "centerLine": true,
+    "controlPoints": [
+      {
+        "x": 330,
+        "y": 80
+      },
+      {
+        "x": 640,
+        "y": 80
+      },
+      {
+        "x": 820,
+        "y": 100
+      },
+      {
+        "x": 885,
+        "y": 190
+      },
+      {
+        "x": 880,
+        "y": 400
+      },
+      {
+        "x": 860,
+        "y": 500
+      },
+      {
+        "x": 805,
+        "y": 545
+      },
+      {
+        "x": 745,
+        "y": 505
+      },
+      {
+        "x": 732,
+        "y": 420
+      },
+      {
+        "x": 728,
+        "y": 335
+      },
+      {
+        "x": 714,
+        "y": 288
+      },
+      {
+        "x": 672,
+        "y": 266
+      },
+      {
+        "x": 600,
+        "y": 262
+      },
+      {
+        "x": 520,
+        "y": 262
+      },
+      {
+        "x": 470,
+        "y": 272
+      },
+      {
+        "x": 442,
+        "y": 308
+      },
+      {
+        "x": 432,
+        "y": 365
+      },
+      {
+        "x": 425,
+        "y": 440
+      },
+      {
+        "x": 385,
+        "y": 515
+      },
+      {
+        "x": 300,
+        "y": 545
+      },
+      {
+        "x": 200,
+        "y": 525
+      },
+      {
+        "x": 140,
+        "y": 450
+      },
+      {
+        "x": 120,
+        "y": 300
+      },
+      {
+        "x": 135,
+        "y": 165
+      },
+      {
+        "x": 200,
+        "y": 95
+      }
+    ],
+    "curbWidth": 4,
+    "defaultLaps": 5,
+    "height": 600,
+    "id": "proving-grounds",
+    "lines": [],
+    "looseSand": true,
+    "name": "Proving Grounds",
+    "objects": [
+      {
+        "angle": 2.4404675597268124,
+        "kind": "pine",
+        "position": {
+          "x": 285,
+          "y": 319
+        },
+        "size": {
+          "x": 65,
+          "y": 65
+        },
+        "solid": true
+      },
+      {
+        "angle": -0.6657476619423681,
+        "kind": "pine",
+        "position": {
+          "x": 320,
+          "y": 284
+        },
+        "size": {
+          "x": 45,
+          "y": 45
+        },
+        "solid": true
+      },
+      {
+        "angle": -2.4358656173631554,
+        "kind": "pine",
+        "position": {
+          "x": 643,
+          "y": 449
+        },
+        "size": {
+          "x": 26,
+          "y": 26
+        },
+        "solid": true
+      },
+      {
+        "angle": 0.21715415528506107,
+        "kind": "pine",
+        "position": {
+          "x": 642,
+          "y": 422
+        },
+        "size": {
+          "x": 26,
+          "y": 26
+        },
+        "solid": true
+      },
+      {
+        "angle": 0.14975487441733573,
+        "kind": "pine",
+        "position": {
+          "x": 624,
+          "y": 410
+        },
+        "size": {
+          "x": 26,
+          "y": 26
+        },
+        "solid": true
+      },
+      {
+        "angle": -1.2022574425053714,
+        "kind": "pine",
+        "position": {
+          "x": 628,
+          "y": 394
+        },
+        "size": {
+          "x": 26,
+          "y": 26
+        },
+        "solid": true
+      },
+      {
+        "angle": 2.883500386028034,
+        "kind": "pine",
+        "position": {
+          "x": 620,
+          "y": 380
+        },
+        "size": {
+          "x": 26,
+          "y": 26
+        },
+        "solid": true
+      },
+      {
+        "angle": -2.3839020181735293,
+        "kind": "pine",
+        "position": {
+          "x": 634,
+          "y": 368
+        },
+        "size": {
+          "x": 26,
+          "y": 26
+        },
+        "solid": true
+      },
+      {
+        "angle": -2.047672604228845,
+        "kind": "pine",
+        "position": {
+          "x": 644,
+          "y": 384
+        },
+        "size": {
+          "x": 26,
+          "y": 26
+        },
+        "solid": true
+      },
+      {
+        "angle": -1.901656807981981,
+        "kind": "pine",
+        "position": {
+          "x": 459,
+          "y": 584
+        },
+        "size": {
+          "x": 26,
+          "y": 26
+        },
+        "solid": true
+      },
+      {
+        "angle": 2.229928696589508,
+        "kind": "pine",
+        "position": {
+          "x": 482,
+          "y": 579
+        },
+        "size": {
+          "x": 26,
+          "y": 26
+        },
+        "solid": true
+      },
+      {
+        "angle": 1.3769395047258486,
+        "kind": "pine",
+        "position": {
+          "x": 479,
+          "y": 563
+        },
+        "size": {
+          "x": 26,
+          "y": 26
+        },
+        "solid": true
+      },
+      {
+        "angle": 2.8116909103951375,
+        "kind": "pine",
+        "position": {
+          "x": 480,
+          "y": 535
+        },
+        "size": {
+          "x": 26,
+          "y": 26
+        },
+        "solid": true
+      },
+      {
+        "angle": 1.4082902370782615,
+        "kind": "pine",
+        "position": {
+          "x": 588,
+          "y": 576
+        },
+        "size": {
+          "x": 26,
+          "y": 26
+        },
+        "solid": true
+      },
+      {
+        "angle": -1.9056835075501803,
+        "kind": "pine",
+        "position": {
+          "x": 590,
+          "y": 560
+        },
+        "size": {
+          "x": 26,
+          "y": 26
+        },
+        "solid": true
+      },
+      {
+        "angle": -1.4398327170291596,
+        "kind": "pine",
+        "position": {
+          "x": 619,
+          "y": 565
+        },
+        "size": {
+          "x": 26,
+          "y": 26
+        },
+        "solid": true
+      },
+      {
+        "angle": -2.964801367785973,
+        "kind": "pine",
+        "position": {
+          "x": 605,
+          "y": 545
+        },
+        "size": {
+          "x": 26,
+          "y": 26
+        },
+        "solid": true
+      }
+    ],
+    "patches": [
+      {
+        "coversRoad": false,
+        "onDeck": false,
+        "shape": {
+          "circle": {
+            "center": {
+              "x": 935,
+              "y": 90
+            },
+            "radius": 70
+          }
+        },
+        "surface": 3
+      },
+      {
+        "coversRoad": false,
+        "onDeck": false,
+        "shape": {
+          "circle": {
+            "center": {
+              "x": 50,
+              "y": 560
+            },
+            "radius": 90
+          }
+        },
+        "surface": 3
+      },
+      {
+        "coversRoad": false,
+        "onDeck": false,
+        "shape": {
+          "circle": {
+            "center": {
+              "x": 275,
+              "y": 300
+            },
+            "radius": 62
+          }
+        },
+        "surface": 3
+      },
+      {
+        "coversRoad": false,
+        "onDeck": false,
+        "shape": {
+          "circle": {
+            "center": {
+              "x": 534,
+              "y": 583
+            },
+            "radius": 44
+          }
+        },
+        "surface": 6
+      },
+      {
+        "coversRoad": false,
+        "onDeck": false,
+        "shape": {
+          "circle": {
+            "center": {
+              "x": 602,
+              "y": 575
+            },
+            "radius": 30
+          }
+        },
+        "surface": 6
+      },
+      {
+        "coversRoad": false,
+        "onDeck": false,
+        "shape": {
+          "circle": {
+            "center": {
+              "x": 573,
+              "y": 550
+            },
+            "radius": 30
+          }
+        },
+        "surface": 6
+      },
+      {
+        "coversRoad": false,
+        "onDeck": false,
+        "shape": {
+          "circle": {
+            "center": {
+              "x": 551,
+              "y": 516
+            },
+            "radius": 30
+          }
+        },
+        "surface": 6
+      },
+      {
+        "coversRoad": false,
+        "onDeck": false,
+        "shape": {
+          "circle": {
+            "center": {
+              "x": 583,
+              "y": 483
+            },
+            "radius": 30
+          }
+        },
+        "surface": 6
+      },
+      {
+        "coversRoad": false,
+        "onDeck": false,
+        "shape": {
+          "circle": {
+            "center": {
+              "x": 597,
+              "y": 523
+            },
+            "radius": 30
+          }
+        },
+        "surface": 6
+      },
+      {
+        "coversRoad": false,
+        "onDeck": false,
+        "shape": {
+          "circle": {
+            "center": {
+              "x": 646,
+              "y": 585
+            },
+            "radius": 30
+          }
+        },
+        "surface": 6
+      },
+      {
+        "coversRoad": false,
+        "onDeck": false,
+        "shape": {
+          "circle": {
+            "center": {
+              "x": 628,
+              "y": 547
+            },
+            "radius": 30
+          }
+        },
+        "surface": 6
+      },
+      {
+        "coversRoad": false,
+        "onDeck": false,
+        "shape": {
+          "circle": {
+            "center": {
+              "x": 624,
+              "y": 499
+            },
+            "radius": 30
+          }
+        },
+        "surface": 6
+      },
+      {
+        "coversRoad": false,
+        "onDeck": false,
+        "shape": {
+          "circle": {
+            "center": {
+              "x": 550,
+              "y": 482
+            },
+            "radius": 9
+          }
+        },
+        "surface": 3
+      },
+      {
+        "coversRoad": false,
+        "onDeck": false,
+        "shape": {
+          "circle": {
+            "center": {
+              "x": 553,
+              "y": 469
+            },
+            "radius": 14
+          }
+        },
+        "surface": 3
+      },
+      {
+        "coversRoad": false,
+        "onDeck": false,
+        "shape": {
+          "circle": {
+            "center": {
+              "x": 565,
+              "y": 456
+            },
+            "radius": 19
+          }
+        },
+        "surface": 3
+      },
+      {
+        "coversRoad": false,
+        "onDeck": false,
+        "shape": {
+          "circle": {
+            "center": {
+              "x": 582,
+              "y": 486
+            },
+            "radius": 30
+          }
+        },
+        "surface": 6
+      }
+    ],
+    "pointWidths": [],
+    "roadWidth": 86,
+    "theme": "summer",
+    "width": 960
+  },
+  {
+    "background": 2,
+    "barrierDistance": 26,
+    "barrierThickness": 7,
+    "bridges": [
+      {
+        "controlPoint": 9
+      }
+    ],
+    "centerLine": true,
+    "controlPoints": [
+      {
+        "x": 562,
+        "y": 51
+      },
+      {
+        "x": 695,
+        "y": 54
+      },
+      {
+        "x": 842,
+        "y": 52
+      },
+      {
+        "x": 930,
+        "y": 113
+      },
+      {
+        "x": 945,
+        "y": 234
+      },
+      {
+        "x": 901,
+        "y": 281
+      },
+      {
+        "x": 841,
+        "y": 266
+      },
+      {
+        "x": 800,
+        "y": 218
+      },
+      {
+        "x": 754,
+        "y": 193
+      },
+      {
+        "x": 479,
+        "y": 435
+      },
+      {
+        "x": 128,
+        "y": 546
+      },
+      {
+        "x": 68,
+        "y": 517
+      },
+      {
+        "x": 52,
+        "y": 435
+      },
+      {
+        "x": 57,
+        "y": 304
+      },
+      {
+        "x": 54,
+        "y": 212
+      },
+      {
+        "x": 62,
+        "y": 89
+      },
+      {
+        "x": 118,
+        "y": 40
+      },
+      {
+        "x": 193,
+        "y": 77
+      },
+      {
+        "x": 210,
+        "y": 247
+      },
+      {
+        "x": 306,
+        "y": 318
+      },
+      {
+        "x": 543,
+        "y": 505
+      },
+      {
+        "x": 664,
+        "y": 554
+      },
+      {
+        "x": 883,
+        "y": 549
+      },
+      {
+        "x": 917,
+        "y": 480
+      },
+      {
+        "x": 882,
+        "y": 430
+      },
+      {
+        "x": 677,
+        "y": 407
+      },
+      {
+        "x": 462,
+        "y": 259
+      },
+      {
+        "x": 364,
+        "y": 177
+      },
+      {
+        "x": 367,
+        "y": 110
+      },
+      {
+        "x": 395,
+        "y": 74
+      },
+      {
+        "x": 479,
+        "y": 52
+      }
+    ],
+    "curbWidth": 8,
+    "defaultLaps": 5,
+    "height": 600,
+    "id": "bridge-run",
+    "lines": [],
+    "looseSand": true,
+    "name": "Bridge Run",
+    "objects": [
+      {
+        "angle": 0.8476202591060596,
+        "kind": "palm",
+        "position": {
+          "x": 140,
+          "y": 442
+        },
+        "size": {
+          "x": 55,
+          "y": 55
+        },
+        "solid": true
+      },
+      {
+        "angle": 2.787051343989724,
+        "kind": "palm",
+        "position": {
+          "x": 188,
+          "y": 418
+        },
+        "size": {
+          "x": 26,
+          "y": 26
+        },
+        "solid": true
+      },
+      {
+        "angle": 2.4274287230297844,
+        "kind": "palm",
+        "position": {
+          "x": 166,
+          "y": 410
+        },
+        "size": {
+          "x": 26,
+          "y": 26
+        },
+        "solid": true
+      },
+      {
+        "angle": -1.349615471941636,
+        "kind": "palm",
+        "position": {
+          "x": 557,
+          "y": 175
+        },
+        "size": {
+          "x": 60,
+          "y": 60
+        },
+        "solid": true
+      },
+      {
+        "angle": 2.1242757698238846,
+        "kind": "palm",
+        "position": {
+          "x": 161,
+          "y": 368
+        },
+        "size": {
+          "x": 64,
+          "y": 64
+        },
+        "solid": true
+      },
+      {
+        "angle": 3.0808086648698247,
+        "kind": "palm",
+        "position": {
+          "x": 368,
+          "y": 592
+        },
+        "size": {
+          "x": 57,
+          "y": 57
+        },
+        "solid": true
+      }
+    ],
+    "patches": [
+      {
+        "coversRoad": false,
+        "onDeck": false,
+        "shape": {
+          "circle": {
+            "center": {
+              "x": 596,
+              "y": 445
+            },
+            "radius": 12
+          }
+        },
+        "surface": 5
+      },
+      {
+        "coversRoad": false,
+        "onDeck": false,
+        "shape": {
+          "circle": {
+            "center": {
+              "x": 462,
+              "y": 352
+            },
+            "radius": 12
+          }
+        },
+        "surface": 5
+      }
+    ],
+    "pointWidths": [
+      null,
+      null,
+      null,
+      88,
+      99,
+      92,
+      74,
+      76,
+      78,
+      94,
+      null,
+      null,
+      null,
+      null,
+      null,
+      null,
+      null,
+      82,
+      86,
+      84,
+      90,
+      90,
+      76,
+      76,
+      76,
+      84,
+      86,
+      82,
+      92,
+      84,
+      null
+    ],
+    "roadWidth": 82,
+    "theme": "desert",
+    "width": 960
+  },
+  {
+    "background": 2,
+    "barrierDistance": 20,
+    "barrierThickness": 7,
+    "bridges": [
+      {
+        "controlPoint": 18
+      }
+    ],
+    "centerLine": true,
+    "controlPoints": [
+      {
+        "x": 620,
+        "y": 548
+      },
+      {
+        "x": 420,
+        "y": 552
+      },
+      {
+        "x": 230,
+        "y": 540
+      },
+      {
+        "x": 100,
+        "y": 490
+      },
+      {
+        "x": 60,
+        "y": 370
+      },
+      {
+        "x": 80,
+        "y": 230
+      },
+      {
+        "x": 160,
+        "y": 120
+      },
+      {
+        "x": 290,
+        "y": 110
+      },
+      {
+        "x": 390,
+        "y": 190
+      },
+      {
+        "x": 480,
+        "y": 255
+      },
+      {
+        "x": 600,
+        "y": 260
+      },
+      {
+        "x": 690,
+        "y": 262
+      },
+      {
+        "x": 760,
+        "y": 295
+      },
+      {
+        "x": 782,
+        "y": 355
+      },
+      {
+        "x": 752,
+        "y": 420
+      },
+      {
+        "x": 690,
+        "y": 442
+      },
+      {
+        "x": 628,
+        "y": 420
+      },
+      {
+        "x": 603,
+        "y": 350
+      },
+      {
+        "x": 600,
+        "y": 260
+      },
+      {
+        "x": 600,
+        "y": 150
+      },
+      {
+        "x": 640,
+        "y": 75
+      },
+      {
+        "x": 760,
+        "y": 55
+      },
+      {
+        "x": 880,
+        "y": 90
+      },
+      {
+        "x": 915,
+        "y": 230
+      },
+      {
+        "x": 905,
+        "y": 400
+      },
+      {
+        "x": 860,
+        "y": 510
+      },
+      {
+        "x": 760,
+        "y": 550
+      }
+    ],
+    "curbWidth": 4,
+    "defaultLaps": 4,
+    "height": 600,
+    "id": "cloverleaf",
+    "lines": [],
+    "looseSand": true,
+    "name": "Cloverleaf",
+    "objects": [
+      {
+        "angle": 1.089893349792748,
+        "kind": "tree",
+        "position": {
+          "x": 481,
+          "y": 451
+        },
+        "size": {
+          "x": 26,
+          "y": 26
+        },
+        "solid": true
+      },
+      {
+        "angle": 1.0656372785843065,
+        "kind": "tree",
+        "position": {
+          "x": 466,
+          "y": 416
+        },
+        "size": {
+          "x": 26,
+          "y": 26
+        },
+        "solid": true
+      },
+      {
+        "angle": -2.7244457530841415,
+        "kind": "tree",
+        "position": {
+          "x": 491,
+          "y": 392
+        },
+        "size": {
+          "x": 26,
+          "y": 26
+        },
+        "solid": true
+      },
+      {
+        "angle": 2.8298110584520364,
+        "kind": "tree",
+        "position": {
+          "x": 55,
+          "y": 572
+        },
+        "size": {
+          "x": 26,
+          "y": 26
+        },
+        "solid": true
+      },
+      {
+        "angle": 0.8642064263750731,
+        "kind": "tree",
+        "position": {
+          "x": 29,
+          "y": 561
+        },
+        "size": {
+          "x": 26,
+          "y": 26
+        },
+        "solid": true
+      },
+      {
+        "angle": -1.8489262183984119,
+        "kind": "tree",
+        "position": {
+          "x": 17,
+          "y": 536
+        },
+        "size": {
+          "x": 26,
+          "y": 26
+        },
+        "solid": true
+      },
+      {
+        "angle": -0.9642027989853688,
+        "kind": "tree",
+        "position": {
+          "x": 29,
+          "y": 107
+        },
+        "size": {
+          "x": 26,
+          "y": 26
+        },
+        "solid": true
+      },
+      {
+        "angle": 0.3218483440582561,
+        "kind": "tree",
+        "position": {
+          "x": 78,
+          "y": 52
+        },
+        "size": {
+          "x": 26,
+          "y": 26
+        },
+        "solid": true
+      },
+      {
+        "angle": -2.377574347423501,
+        "kind": "tree",
+        "position": {
+          "x": 63,
+          "y": 20
+        },
+        "size": {
+          "x": 26,
+          "y": 26
+        },
+        "solid": true
+      },
+      {
+        "angle": 1.7858412584966148,
+        "kind": "tree",
+        "position": {
+          "x": 501,
+          "y": 138
+        },
+        "size": {
+          "x": 29,
+          "y": 29
+        },
+        "solid": true
+      },
+      {
+        "angle": -1.6413594430376364,
+        "kind": "tree",
+        "position": {
+          "x": 482,
+          "y": 131
+        },
+        "size": {
+          "x": 29,
+          "y": 29
+        },
+        "solid": true
+      },
+      {
+        "angle": -1.702239305556847,
+        "kind": "tree",
+        "position": {
+          "x": 500,
+          "y": 106
+        },
+        "size": {
+          "x": 26,
+          "y": 26
+        },
+        "solid": true
+      },
+      {
+        "angle": -0.465179673926321,
+        "kind": "tree",
+        "position": {
+          "x": 487,
+          "y": 88
+        },
+        "size": {
+          "x": 34,
+          "y": 34
+        },
+        "solid": true
+      },
+      {
+        "angle": -0.7773447642610485,
+        "kind": "tree",
+        "position": {
+          "x": 462,
+          "y": 108
+        },
+        "size": {
+          "x": 33,
+          "y": 33
+        },
+        "solid": true
+      },
+      {
+        "angle": -1.8913024376637528,
+        "kind": "tree",
+        "position": {
+          "x": 436,
+          "y": 92
+        },
+        "size": {
+          "x": 26,
+          "y": 26
+        },
+        "solid": true
+      },
+      {
+        "angle": -2.845630235327107,
+        "kind": "tree",
+        "position": {
+          "x": 452,
+          "y": 76
+        },
+        "size": {
+          "x": 38,
+          "y": 38
+        },
+        "solid": true
+      },
+      {
+        "angle": -1.5954358932003094,
+        "kind": "tree",
+        "position": {
+          "x": 461,
+          "y": 35
+        },
+        "size": {
+          "x": 26,
+          "y": 26
+        },
+        "solid": true
+      },
+      {
+        "angle": 2.7993231902928093,
+        "kind": "tree",
+        "position": {
+          "x": 495,
+          "y": 31
+        },
+        "size": {
+          "x": 26,
+          "y": 26
+        },
+        "solid": true
+      },
+      {
+        "angle": -2.30998331895729,
+        "kind": "tree",
+        "position": {
+          "x": 485,
+          "y": 70
+        },
+        "size": {
+          "x": 37,
+          "y": 37
+        },
+        "solid": true
+      },
+      {
+        "angle": -1.1947792861644286,
+        "kind": "tree",
+        "position": {
+          "x": 506,
+          "y": 48
+        },
+        "size": {
+          "x": 26,
+          "y": 26
+        },
+        "solid": true
+      },
+      {
+        "angle": -1.0799224746714913,
+        "kind": "tree",
+        "position": {
+          "x": 800,
+          "y": 188
+        },
+        "size": {
+          "x": 26,
+          "y": 26
+        },
+        "solid": true
+      }
+    ],
+    "patches": [
+      {
+        "coversRoad": false,
+        "onDeck": false,
+        "shape": {
+          "circle": {
+            "center": {
+              "x": 275,
+              "y": 330
+            },
+            "radius": 80
+          }
+        },
+        "surface": 3
+      },
+      {
+        "coversRoad": false,
+        "onDeck": false,
+        "shape": {
+          "circle": {
+            "center": {
+              "x": 935,
+              "y": 560
+            },
+            "radius": 60
+          }
+        },
+        "surface": 3
+      },
+      {
+        "coversRoad": false,
+        "onDeck": false,
+        "shape": {
+          "capsule": {
+            "from": {
+              "x": 566,
+              "y": 485
+            },
+            "radius": 4,
+            "to": {
+              "x": 695,
+              "y": 497
+            }
+          }
+        },
+        "surface": 5
+      },
+      {
+        "coversRoad": true,
+        "onDeck": false,
+        "shape": {
+          "circle": {
+            "center": {
+              "x": 337,
+              "y": 379
+            },
+            "radius": 55
+          }
+        },
+        "surface": 3
+      },
+      {
+        "coversRoad": false,
+        "onDeck": false,
+        "shape": {
+          "capsule": {
+            "from": {
+              "x": 699,
+              "y": 497
+            },
+            "radius": 4,
+            "to": {
+              "x": 787,
+              "y": 477
+            }
+          }
+        },
+        "surface": 5
+      }
+    ],
+    "pointWidths": [],
+    "roadWidth": 82,
+    "theme": "summer",
+    "width": 960
+  },
+  {
+    "background": 2,
+    "barrierDistance": 20,
+    "barrierThickness": 7,
+    "bridges": [
+      {
+        "controlPoint": 16
+      },
+      {
+        "back": 80,
+        "controlPoint": 13
+      },
+      {
+        "ahead": 176,
+        "controlPoint": 11
+      }
+    ],
+    "centerLine": true,
+    "controlPoints": [
+      {
+        "x": 620,
+        "y": 548
+      },
+      {
+        "x": 420,
+        "y": 552
+      },
+      {
+        "x": 230,
+        "y": 540
+      },
+      {
+        "x": 100,
+        "y": 490
+      },
+      {
+        "x": 60,
+        "y": 370
+      },
+      {
+        "x": 80,
+        "y": 230
+      },
+      {
+        "x": 160,
+        "y": 120
+      },
+      {
+        "x": 290,
+        "y": 110
+      },
+      {
+        "x": 390,
+        "y": 190
+      },
+      {
+        "x": 480,
+        "y": 255
+      },
+      {
+        "x": 591,
+        "y": 261
+      },
+      {
+        "x": 642,
+        "y": 141
+      },
+      {
+        "x": 869,
+        "y": 114
+      },
+      {
+        "x": 890,
+        "y": 382
+      },
+      {
+        "x": 657,
+        "y": 422
+      },
+      {
+        "x": 475,
+        "y": 375
+      },
+      {
+        "x": 458,
+        "y": 233
+      },
+      {
+        "x": 515,
+        "y": 91
+      },
+      {
+        "x": 697,
+        "y": 87
+      },
+      {
+        "x": 733,
+        "y": 252
+      },
+      {
+        "x": 770,
+        "y": 319
+      },
+      {
+        "x": 822,
+        "y": 453
+      },
+      {
+        "x": 779,
+        "y": 535
+      }
+    ],
+    "curbWidth": 4,
+    "defaultLaps": 4,
+    "height": 600,
+    "id": "cloverleaf-crossing",
+    "lines": [],
+    "looseSand": true,
+    "name": "Cloverleaf Crossing",
+    "objects": [
+      {
+        "angle": -2.7658632343570537,
+        "kind": "pine",
+        "position": {
+          "x": 275,
+          "y": 335
+        },
+        "size": {
+          "x": 90,
+          "y": 90
+        },
+        "solid": true
+      },
+      {
+        "angle": -1.6569868723142207,
+        "kind": "pine",
+        "position": {
+          "x": 365,
+          "y": 443
+        },
+        "size": {
+          "x": 57,
+          "y": 57
+        },
+        "solid": true
+      },
+      {
+        "angle": 2.6674008425346445,
+        "kind": "pine",
+        "position": {
+          "x": 306,
+          "y": 438
+        },
+        "size": {
+          "x": 37,
+          "y": 37
+        },
+        "solid": true
+      },
+      {
+        "angle": -1.8811398149440102,
+        "kind": "pine",
+        "position": {
+          "x": 334,
+          "y": 415
+        },
+        "size": {
+          "x": 26,
+          "y": 26
+        },
+        "solid": true
+      }
+    ],
+    "patches": [
+      {
+        "coversRoad": false,
+        "onDeck": false,
+        "shape": {
+          "circle": {
+            "center": {
+              "x": 275,
+              "y": 330
+            },
+            "radius": 80
+          }
+        },
+        "surface": 3
+      },
+      {
+        "coversRoad": false,
+        "onDeck": false,
+        "shape": {
+          "circle": {
+            "center": {
+              "x": 935,
+              "y": 560
+            },
+            "radius": 60
+          }
+        },
+        "surface": 3
+      },
+      {
+        "coversRoad": true,
+        "onDeck": false,
+        "shape": {
+          "capsule": {
+            "from": {
+              "x": 952,
+              "y": 186
+            },
+            "radius": 5,
+            "to": {
+              "x": 940,
+              "y": 140
+            }
+          }
+        },
+        "surface": 5
+      },
+      {
+        "coversRoad": true,
+        "onDeck": false,
+        "shape": {
+          "capsule": {
+            "from": {
+              "x": 549,
+              "y": 357
+            },
+            "radius": 5,
+            "to": {
+              "x": 624,
+              "y": 367
+            }
+          }
+        },
+        "surface": 5
+      }
+    ],
+    "pointWidths": [],
+    "roadWidth": 82,
+    "theme": "summer",
+    "width": 960
+  },
+  {
+    "background": 2,
+    "barrierDistance": 10,
+    "barrierThickness": 8,
+    "bridges": [
+      {
+        "ahead": 280,
+        "back": 70,
+        "controlPoint": 4
+      },
+      {
+        "controlPoint": 27
+      }
+    ],
+    "centerLine": true,
+    "controlPoints": [
+      {
+        "x": 263,
+        "y": 88
+      },
+      {
+        "x": 300,
+        "y": 91.30434782608694
+      },
+      {
+        "x": 375,
+        "y": 110.86956521739131
+      },
+      {
+        "x": 435,
+        "y": 163.04347826086956
+      },
+      {
+        "x": 492,
+        "y": 208.69565217391306
+      },
+      {
+        "x": 582,
+        "y": 277.17391304347825
+      },
+      {
+        "x": 664.5,
+        "y": 342.39130434782606
+      },
+      {
+        "x": 735,
+        "y": 397.82608695652175
+      },
+      {
+        "x": 804,
+        "y": 450
+      },
+      {
+        "x": 855,
+        "y": 498.9130434782609
+      },
+      {
+        "x": 840,
+        "y": 541.304347826087
+      },
+      {
+        "x": 768,
+        "y": 544.5652173913044
+      },
+      {
+        "x": 690,
+        "y": 534.7826086956521
+      },
+      {
+        "x": 636,
+        "y": 495.6521739130435
+      },
+      {
+        "x": 624,
+        "y": 430.4347826086956
+      },
+      {
+        "x": 664.5,
+        "y": 342.39130434782606
+      },
+      {
+        "x": 714,
+        "y": 273.9130434782609
+      },
+      {
+        "x": 786,
+        "y": 228.26086956521738
+      },
+      {
+        "x": 810,
+        "y": 163.04347826086956
+      },
+      {
+        "x": 771,
+        "y": 120.6521739130435
+      },
+      {
+        "x": 702,
+        "y": 107.60869565217394
+      },
+      {
+        "x": 615,
+        "y": 117.39130434782606
+      },
+      {
+        "x": 546,
+        "y": 143.4782608695652
+      },
+      {
+        "x": 492,
+        "y": 208.69565217391306
+      },
+      {
+        "x": 450,
+        "y": 270.6521739130435
+      },
+      {
+        "x": 405,
+        "y": 319.5652173913044
+      },
+      {
+        "x": 354,
+        "y": 371.7391304347826
+      },
+      {
+        "x": 324,
+        "y": 430.4347826086956
+      },
+      {
+        "x": 354,
+        "y": 521.7391304347826
+      },
+      {
+        "x": 420,
+        "y": 538.0434782608695
+      },
+      {
+        "x": 489,
+        "y": 528.2608695652174
+      },
+      {
+        "x": 519,
+        "y": 482.6086956521739
+      },
+      {
+        "x": 495,
+        "y": 436.95652173913044
+      },
+      {
+        "x": 420,
+        "y": 420.6521739130435
+      },
+      {
+        "x": 324,
+        "y": 430.4347826086956
+      },
+      {
+        "x": 246,
+        "y": 469.5652173913044
+      },
+      {
+        "x": 174,
+        "y": 502.17391304347825
+      },
+      {
+        "x": 108,
+        "y": 489.1304347826087
+      },
+      {
+        "x": 72,
+        "y": 430.4347826086956
+      },
+      {
+        "x": 66,
+        "y": 345.6521739130435
+      },
+      {
+        "x": 72,
+        "y": 273.9130434782609
+      },
+      {
+        "x": 81,
+        "y": 202.17391304347825
+      },
+      {
+        "x": 126,
+        "y": 127.17391304347825
+      },
+      {
+        "x": 174,
+        "y": 97.82608695652175
+      }
+    ],
+    "curbWidth": 6,
+    "defaultLaps": 4,
+    "height": 600,
+    "id": "scramble",
+    "lines": [],
+    "looseSand": true,
+    "name": "Scramble",
+    "objects": [
+      {
+        "angle": -1.5707963267948966,
+        "kind": "grandstand",
+        "position": {
+          "x": 210,
+          "y": 260.8695652173913
+        },
+        "size": {
+          "x": 117.39130434782612,
+          "y": 48
+        },
+        "solid": true
+      },
+      {
+        "angle": -1.5707963267948966,
+        "kind": "pitBuilding",
+        "position": {
+          "x": 918,
+          "y": 376.63043478260875
+        },
+        "size": {
+          "x": 88.04347826086956,
+          "y": 60
+        },
+        "solid": true
+      },
+      {
+        "angle": 0,
+        "kind": "tree",
+        "position": {
+          "x": 846,
+          "y": 371.7391304347826
+        },
+        "size": {
+          "x": 36,
+          "y": 36
+        },
+        "solid": true
+      },
+      {
+        "angle": 0,
+        "kind": "tree",
+        "position": {
+          "x": 708,
+          "y": 195.6521739130435
+        },
+        "size": {
+          "x": 34,
+          "y": 34
+        },
+        "solid": true
+      },
+      {
+        "angle": 0,
+        "kind": "tree",
+        "position": {
+          "x": 528,
+          "y": 26.086956521739125
+        },
+        "size": {
+          "x": 30,
+          "y": 30
+        },
+        "solid": true
+      },
+      {
+        "angle": 0,
+        "kind": "tree",
+        "position": {
+          "x": 27,
+          "y": 254.3478260869565
+        },
+        "size": {
+          "x": 30,
+          "y": 30
+        },
+        "solid": true
+      },
+      {
+        "angle": 0,
+        "kind": "tree",
+        "position": {
+          "x": 615,
+          "y": 577.1739130434783
+        },
+        "size": {
+          "x": 30,
+          "y": 30
+        },
+        "solid": true
+      }
+    ],
+    "patches": [
+      {
+        "coversRoad": false,
+        "onDeck": false,
+        "shape": {
+          "rect": {
+            "origin": {
+              "x": 150,
+              "y": 195.6521739130435
+            },
+            "size": {
+              "x": 150,
+              "y": 143.4782608695652
+            }
+          }
+        },
+        "surface": 3
+      },
+      {
+        "coversRoad": false,
+        "onDeck": false,
+        "shape": {
+          "rect": {
+            "origin": {
+              "x": 174,
+              "y": 153.26086956521738
+            },
+            "size": {
+              "x": 102,
+              "y": 32.608695652173935
+            }
+          }
+        },
+        "surface": 6
+      },
+      {
+        "coversRoad": false,
+        "onDeck": false,
+        "shape": {
+          "capsule": {
+            "from": {
+              "x": 933,
+              "y": 273.9130434782609
+            },
+            "radius": 45,
+            "to": {
+              "x": 942,
+              "y": 0
+            }
+          }
+        },
+        "surface": 6
+      }
+    ],
+    "pointWidths": [
+      90,
+      90,
+      88,
+      84,
+      80,
+      80,
+      80,
+      80,
+      80,
+      80,
+      80,
+      80,
+      80,
+      80,
+      82,
+      84,
+      86,
+      88,
+      88,
+      86,
+      86,
+      86,
+      84,
+      84,
+      80,
+      76,
+      72,
+      72,
+      70,
+      70,
+      70,
+      70,
+      70,
+      70,
+      72,
+      80,
+      90,
+      96,
+      96,
+      90,
+      70,
+      80,
+      90,
+      90
+    ],
+    "roadWidth": 84,
+    "theme": "summer",
+    "width": 960
+  },
+  {
+    "background": 2,
+    "barrierDistance": 18,
+    "barrierThickness": 7,
+    "bridges": [
+      {
+        "ahead": 112,
+        "back": 110,
+        "controlPoint": 16
+      },
+      {
+        "back": 400,
+        "controlPoint": 5
+      }
+    ],
+    "centerLine": true,
+    "controlPoints": [
+      {
+        "x": 300,
+        "y": 80
+      },
+      {
+        "x": 461,
+        "y": 73
+      },
+      {
+        "x": 624,
+        "y": 51
+      },
+      {
+        "x": 894,
+        "y": 104
+      },
+      {
+        "x": 894,
+        "y": 311
+      },
+      {
+        "x": 910,
+        "y": 433
+      },
+      {
+        "x": 832,
+        "y": 490
+      },
+      {
+        "x": 745,
+        "y": 464
+      },
+      {
+        "x": 677,
+        "y": 390
+      },
+      {
+        "x": 609,
+        "y": 366
+      },
+      {
+        "x": 537,
+        "y": 311
+      },
+      {
+        "x": 359,
+        "y": 181
+      },
+      {
+        "x": 182,
+        "y": 306
+      },
+      {
+        "x": 216,
+        "y": 412
+      },
+      {
+        "x": 394,
+        "y": 452
+      },
+      {
+        "x": 538,
+        "y": 433
+      },
+      {
+        "x": 586.4879386203764,
+        "y": 380.17963410993303
+      },
+      {
+        "x": 625,
+        "y": 281
+      },
+      {
+        "x": 627,
+        "y": 201
+      },
+      {
+        "x": 702,
+        "y": 160
+      },
+      {
+        "x": 805,
+        "y": 229
+      },
+      {
+        "x": 833,
+        "y": 389
+      },
+      {
+        "x": 713,
+        "y": 544
+      },
+      {
+        "x": 274,
+        "y": 553
+      },
+      {
+        "x": 120,
+        "y": 500
+      },
+      {
+        "x": 65,
+        "y": 300
+      },
+      {
+        "x": 140,
+        "y": 130
+      }
+    ],
+    "curbWidth": 4,
+    "defaultLaps": 4,
+    "height": 600,
+    "id": "hairpin-valley",
+    "lines": [],
+    "looseSand": true,
+    "name": "Hairpin Valley",
+    "objects": [
+      {
+        "angle": 0.9841445492278816,
+        "kind": "palm",
+        "position": {
+          "x": 631,
+          "y": 472
+        },
+        "size": {
+          "x": 42,
+          "y": 42
+        },
+        "solid": true
+      },
+      {
+        "angle": 1.6566033771172497,
+        "kind": "palm",
+        "position": {
+          "x": 689,
+          "y": 470
+        },
+        "size": {
+          "x": 26,
+          "y": 26
+        },
+        "solid": false
+      },
+      {
+        "angle": 0.4394854957292362,
+        "kind": "pine",
+        "position": {
+          "x": 659,
+          "y": 442
+        },
+        "size": {
+          "x": 32,
+          "y": 32
+        },
+        "solid": false
+      },
+      {
+        "angle": 2.1068267383616854,
+        "kind": "pine",
+        "position": {
+          "x": 317,
+          "y": 343
+        },
+        "size": {
+          "x": 26,
+          "y": 26
+        },
+        "solid": true
+      },
+      {
+        "angle": -0.18465293734173382,
+        "kind": "pine",
+        "position": {
+          "x": 352,
+          "y": 344
+        },
+        "size": {
+          "x": 42,
+          "y": 42
+        },
+        "solid": true
+      },
+      {
+        "angle": 2.0943951023931953,
+        "kind": "pitBuilding",
+        "position": {
+          "x": 52,
+          "y": 84
+        },
+        "size": {
+          "x": 150,
+          "y": 40
+        },
+        "solid": true
+      },
+      {
+        "angle": -2.3095998237603186,
+        "kind": "pine",
+        "position": {
+          "x": 288,
+          "y": 308
+        },
+        "size": {
+          "x": 32,
+          "y": 32
+        },
+        "solid": false
+      },
+      {
+        "angle": -0.8834770600228863,
+        "kind": "pine",
+        "position": {
+          "x": 172,
+          "y": 430
+        },
+        "size": {
+          "x": 32,
+          "y": 32
+        },
+        "solid": false
+      },
+      {
+        "angle": -2.486007614367167,
+        "kind": "pine",
+        "position": {
+          "x": 202,
+          "y": 445
+        },
+        "size": {
+          "x": 32,
+          "y": 32
+        },
+        "solid": false
+      },
+      {
+        "angle": 2.5293425716249365,
+        "kind": "pine",
+        "position": {
+          "x": 307,
+          "y": 284
+        },
+        "size": {
+          "x": 32,
+          "y": 32
+        },
+        "solid": false
+      },
+      {
+        "angle": 2.1095112047404854,
+        "kind": "pine",
+        "position": {
+          "x": 452,
+          "y": 359
+        },
+        "size": {
+          "x": 32,
+          "y": 32
+        },
+        "solid": false
+      },
+      {
+        "angle": -0.8255692852802037,
+        "kind": "pine",
+        "position": {
+          "x": 150,
+          "y": 23
+        },
+        "size": {
+          "x": 32,
+          "y": 32
+        },
+        "solid": false
+      },
+      {
+        "angle": -0.5631626967525163,
+        "kind": "pine",
+        "position": {
+          "x": 530,
+          "y": 186
+        },
+        "size": {
+          "x": 32,
+          "y": 32
+        },
+        "solid": false
+      },
+      {
+        "angle": 2.1697199506649967,
+        "kind": "pine",
+        "position": {
+          "x": 497,
+          "y": 159
+        },
+        "size": {
+          "x": 32,
+          "y": 32
+        },
+        "solid": false
+      },
+      {
+        "angle": 0.2160995434933897,
+        "kind": "pine",
+        "position": {
+          "x": 724,
+          "y": 318
+        },
+        "size": {
+          "x": 39,
+          "y": 39
+        },
+        "solid": false
+      },
+      {
+        "angle": -2.415252750525942,
+        "kind": "pine",
+        "position": {
+          "x": 717,
+          "y": 260
+        },
+        "size": {
+          "x": 32,
+          "y": 32
+        },
+        "solid": false
+      },
+      {
+        "angle": 2.737580463580412,
+        "kind": "pine",
+        "position": {
+          "x": 260,
+          "y": 472
+        },
+        "size": {
+          "x": 28,
+          "y": 28
+        },
+        "solid": false
+      },
+      {
+        "angle": -0.7639224323670497,
+        "kind": "pine",
+        "position": {
+          "x": 277,
+          "y": 486
+        },
+        "size": {
+          "x": 28,
+          "y": 28
+        },
+        "solid": false
+      },
+      {
+        "angle": -0.95317731207244,
+        "kind": "pine",
+        "position": {
+          "x": 299,
+          "y": 401
+        },
+        "size": {
+          "x": 26,
+          "y": 26
+        },
+        "solid": false
+      }
+    ],
+    "patches": [
+      {
+        "coversRoad": true,
+        "onDeck": false,
+        "shape": {
+          "circle": {
+            "center": {
+              "x": 362,
+              "y": 243
+            },
+            "radius": 18
+          }
+        },
+        "surface": 3
+      },
+      {
+        "coversRoad": false,
+        "onDeck": false,
+        "shape": {
+          "circle": {
+            "center": {
+              "x": 273,
+              "y": 362
+            },
+            "radius": 15
+          }
+        },
+        "surface": 3
+      },
+      {
+        "coversRoad": true,
+        "onDeck": false,
+        "shape": {
+          "circle": {
+            "center": {
+              "x": 379,
+              "y": 238
+            },
+            "radius": 16
+          }
+        },
+        "surface": 3
+      },
+      {
+        "coversRoad": true,
+        "onDeck": false,
+        "shape": {
+          "circle": {
+            "center": {
+              "x": 396,
+              "y": 238
+            },
+            "radius": 12
+          }
+        },
+        "surface": 3
+      },
+      {
+        "coversRoad": false,
+        "onDeck": false,
+        "shape": {
+          "circle": {
+            "center": {
+              "x": 270,
+              "y": 353
+            },
+            "radius": 15
+          }
+        },
+        "surface": 3
+      },
+      {
+        "coversRoad": true,
+        "onDeck": false,
+        "shape": {
+          "circle": {
+            "center": {
+              "x": 261,
+              "y": 467
+            },
+            "radius": 15
+          }
+        },
+        "surface": 2
+      },
+      {
+        "coversRoad": true,
+        "onDeck": false,
+        "shape": {
+          "circle": {
+            "center": {
+              "x": 275,
+              "y": 453
+            },
+            "radius": 12
+          }
+        },
+        "surface": 2
+      },
+      {
+        "coversRoad": true,
+        "onDeck": false,
+        "shape": {
+          "circle": {
+            "center": {
+              "x": 283,
+              "y": 475
+            },
+            "radius": 12
+          }
+        },
+        "surface": 2
+      },
+      {
+        "coversRoad": true,
+        "onDeck": false,
+        "shape": {
+          "circle": {
+            "center": {
+              "x": 289,
+              "y": 440
+            },
+            "radius": 14
+          }
+        },
+        "surface": 2
+      },
+      {
+        "coversRoad": true,
+        "onDeck": false,
+        "shape": {
+          "circle": {
+            "center": {
+              "x": 261,
+              "y": 445
+            },
+            "radius": 12
+          }
+        },
+        "surface": 2
+      },
+      {
+        "coversRoad": true,
+        "onDeck": false,
+        "shape": {
+          "circle": {
+            "center": {
+              "x": 301,
+              "y": 453
+            },
+            "radius": 22
+          }
+        },
+        "surface": 3
+      }
+    ],
+    "pointWidths": [
+      null,
+      64,
+      56,
+      null,
+      null,
+      null,
+      null,
+      null,
+      null,
+      null,
+      null,
+      null,
+      null,
+      null,
+      null,
+      null,
+      null,
+      null,
+      68,
+      56,
+      null,
+      96,
+      null,
+      null,
+      86,
+      null,
+      96
+    ],
+    "roadWidth": 72,
+    "theme": "summer",
+    "width": 960
+  },
+  {
+    "background": 2,
+    "barrierThickness": 7,
+    "bridges": [
+      {
+        "controlPoint": 10
+      }
+    ],
+    "centerLine": true,
+    "controlPoints": [
+      {
+        "x": 387,
+        "y": 202
+      },
+      {
+        "x": 481.1439987238428,
+        "y": 300.94330271828704
+      },
+      {
+        "x": 491,
+        "y": 310
+      },
+      {
+        "x": 600,
+        "y": 420
+      },
+      {
+        "x": 677.4819386681559,
+        "y": 510.27717797604157
+      },
+      {
+        "x": 837,
+        "y": 499
+      },
+      {
+        "x": 879.5267938444613,
+        "y": 282.6026058018557
+      },
+      {
+        "x": 805,
+        "y": 124
+      },
+      {
+        "x": 668,
+        "y": 112
+      },
+      {
+        "x": 580,
+        "y": 190
+      },
+      {
+        "x": 481.14399872384286,
+        "y": 300.94330271828704
+      },
+      {
+        "x": 474.3790721839451,
+        "y": 308.70899930141763
+      },
+      {
+        "x": 370,
+        "y": 430
+      },
+      {
+        "x": 279,
+        "y": 502
+      },
+      {
+        "x": 142,
+        "y": 471
+      },
+      {
+        "x": 80.47320615553878,
+        "y": 282.60260580185525
+      },
+      {
+        "x": 167.1047480907028,
+        "y": 101.88863988828948
+      },
+      {
+        "x": 277,
+        "y": 108
+      }
+    ],
+    "curbWidth": 7,
+    "defaultLaps": 5,
+    "height": 600,
+    "id": "figure-eight",
+    "lines": [],
+    "looseSand": true,
+    "name": "Figure Eight",
+    "objects": [
+      {
+        "angle": 5.152545592708626,
+        "kind": "pine",
+        "position": {
+          "x": 413,
+          "y": 556
+        },
+        "size": {
+          "x": 60,
+          "y": 60
+        },
+        "solid": true
+      },
+      {
+        "angle": 5.718488629639184,
+        "kind": "pine",
+        "position": {
+          "x": 479,
+          "y": 523
+        },
+        "size": {
+          "x": 26,
+          "y": 26
+        },
+        "solid": true
+      },
+      {
+        "angle": 3.4587431814851493,
+        "kind": "pine",
+        "position": {
+          "x": 484,
+          "y": 555
+        },
+        "size": {
+          "x": 40,
+          "y": 40
+        },
+        "solid": true
+      },
+      {
+        "angle": 0.2755412990239583,
+        "kind": "pine",
+        "position": {
+          "x": 503,
+          "y": 535
+        },
+        "size": {
+          "x": 26,
+          "y": 26
+        },
+        "solid": true
+      },
+      {
+        "angle": 0.7853981633974483,
+        "kind": "grandstand",
+        "position": {
+          "x": 283,
+          "y": 274
+        },
+        "size": {
+          "x": 140,
+          "y": 68
+        },
+        "solid": true
+      },
+      {
+        "angle": 5.066738542386273,
+        "kind": "pine",
+        "position": {
+          "x": 354,
+          "y": 43
+        },
+        "size": {
+          "x": 26,
+          "y": 26
+        },
+        "solid": true
+      },
+      {
+        "angle": 1.3488484815476929,
+        "kind": "pine",
+        "position": {
+          "x": 310,
+          "y": 29
+        },
+        "size": {
+          "x": 26,
+          "y": 26
+        },
+        "solid": true
+      },
+      {
+        "angle": 3.075247984513739,
+        "kind": "pine",
+        "position": {
+          "x": 280,
+          "y": 23
+        },
+        "size": {
+          "x": 26,
+          "y": 26
+        },
+        "solid": true
+      },
+      {
+        "angle": 2.9187819441494036,
+        "kind": "pine",
+        "position": {
+          "x": 335,
+          "y": 21
+        },
+        "size": {
+          "x": 26,
+          "y": 26
+        },
+        "solid": true
+      },
+      {
+        "angle": 1.0550911606675926,
+        "kind": "pine",
+        "position": {
+          "x": 365,
+          "y": 15
+        },
+        "size": {
+          "x": 26,
+          "y": 26
+        },
+        "solid": true
+      },
+      {
+        "angle": 4.869430263544483,
+        "kind": "pine",
+        "position": {
+          "x": 383,
+          "y": 65
+        },
+        "size": {
+          "x": 26,
+          "y": 26
+        },
+        "solid": true
+      },
+      {
+        "angle": 0.6921129567341527,
+        "kind": "pine",
+        "position": {
+          "x": 25,
+          "y": 133
+        },
+        "size": {
+          "x": 26,
+          "y": 26
+        },
+        "solid": true
+      },
+      {
+        "angle": 2.7074760906181567,
+        "kind": "pine",
+        "position": {
+          "x": 27,
+          "y": 114
+        },
+        "size": {
+          "x": 26,
+          "y": 26
+        },
+        "solid": true
+      },
+      {
+        "angle": 4.421028504485661,
+        "kind": "pine",
+        "position": {
+          "x": 44,
+          "y": 91
+        },
+        "size": {
+          "x": 26,
+          "y": 26
+        },
+        "solid": true
+      },
+      {
+        "angle": 1.7565997497275447,
+        "kind": "pine",
+        "position": {
+          "x": 37,
+          "y": 490
+        },
+        "size": {
+          "x": 26,
+          "y": 26
+        },
+        "solid": true
+      },
+      {
+        "angle": 3.290484663813943,
+        "kind": "pine",
+        "position": {
+          "x": 70,
+          "y": 543
+        },
+        "size": {
+          "x": 26,
+          "y": 26
+        },
+        "solid": true
+      },
+      {
+        "angle": 3.7006327769748664,
+        "kind": "pine",
+        "position": {
+          "x": 20,
+          "y": 561
+        },
+        "size": {
+          "x": 26,
+          "y": 26
+        },
+        "solid": true
+      },
+      {
+        "angle": 0.258188141361002,
+        "kind": "pine",
+        "position": {
+          "x": 120,
+          "y": 577
+        },
+        "size": {
+          "x": 60,
+          "y": 60
+        },
+        "solid": true
+      },
+      {
+        "angle": 0.29423668987631457,
+        "kind": "pine",
+        "position": {
+          "x": 168,
+          "y": 587
+        },
+        "size": {
+          "x": 26,
+          "y": 26
+        },
+        "solid": true
+      },
+      {
+        "angle": 1.8077963585232282,
+        "kind": "pine",
+        "position": {
+          "x": 909,
+          "y": 568
+        },
+        "size": {
+          "x": 26,
+          "y": 26
+        },
+        "solid": true
+      },
+      {
+        "angle": 2.152654414399769,
+        "kind": "pine",
+        "position": {
+          "x": 919,
+          "y": 544
+        },
+        "size": {
+          "x": 26,
+          "y": 26
+        },
+        "solid": true
+      },
+      {
+        "angle": 1.5707963267948966,
+        "kind": "grandstand",
+        "position": {
+          "x": 762,
+          "y": 329
+        },
+        "size": {
+          "x": 140,
+          "y": 68
+        },
+        "solid": true
+      },
+      {
+        "angle": 4.458706907588102,
+        "kind": "pine",
+        "position": {
+          "x": 676,
+          "y": 375
+        },
+        "size": {
+          "x": 38,
+          "y": 38
+        },
+        "solid": true
+      },
+      {
+        "angle": 3.7936303622404335,
+        "kind": "pine",
+        "position": {
+          "x": 636,
+          "y": 318
+        },
+        "size": {
+          "x": 44,
+          "y": 44
+        },
+        "solid": true
+      },
+      {
+        "angle": 6.133622180360736,
+        "kind": "pine",
+        "position": {
+          "x": 754,
+          "y": 230
+        },
+        "size": {
+          "x": 26,
+          "y": 26
+        },
+        "solid": true
+      },
+      {
+        "angle": 2.6380634599663315,
+        "kind": "pine",
+        "position": {
+          "x": 667,
+          "y": 234
+        },
+        "size": {
+          "x": 26,
+          "y": 26
+        },
+        "solid": true
+      },
+      {
+        "angle": 4.175975073620929,
+        "kind": "pine",
+        "position": {
+          "x": 713,
+          "y": 210
+        },
+        "size": {
+          "x": 26,
+          "y": 26
+        },
+        "solid": true
+      }
+    ],
+    "patches": [
+      {
+        "coversRoad": false,
+        "onDeck": false,
+        "shape": {
+          "circle": {
+            "center": {
+              "x": 467,
+              "y": 62
+            },
+            "radius": 30
+          }
+        },
+        "surface": 6
+      },
+      {
+        "coversRoad": false,
+        "onDeck": false,
+        "shape": {
+          "circle": {
+            "center": {
+              "x": 523,
+              "y": 39
+            },
+            "radius": 30
+          }
+        },
+        "surface": 6
+      },
+      {
+        "coversRoad": false,
+        "onDeck": false,
+        "shape": {
+          "circle": {
+            "center": {
+              "x": 498,
+              "y": 98
+            },
+            "radius": 30
+          }
+        },
+        "surface": 6
+      },
+      {
+        "coversRoad": false,
+        "onDeck": false,
+        "shape": {
+          "circle": {
+            "center": {
+              "x": 510,
+              "y": 69
+            },
+            "radius": 30
+          }
+        },
+        "surface": 6
+      },
+      {
+        "coversRoad": false,
+        "onDeck": false,
+        "shape": {
+          "circle": {
+            "center": {
+              "x": 565,
+              "y": 10
+            },
+            "radius": 30
+          }
+        },
+        "surface": 6
+      },
+      {
+        "coversRoad": false,
+        "onDeck": false,
+        "shape": {
+          "circle": {
+            "center": {
+              "x": 489,
+              "y": 22
+            },
+            "radius": 30
+          }
+        },
+        "surface": 6
+      },
+      {
+        "coversRoad": false,
+        "onDeck": false,
+        "shape": {
+          "circle": {
+            "center": {
+              "x": 436,
+              "y": 20
+            },
+            "radius": 30
+          }
+        },
+        "surface": 6
+      },
+      {
+        "coversRoad": false,
+        "onDeck": false,
+        "shape": {
+          "circle": {
+            "center": {
+              "x": 440,
+              "y": 66
+            },
+            "radius": 30
+          }
+        },
+        "surface": 6
+      },
+      {
+        "coversRoad": false,
+        "onDeck": false,
+        "shape": {
+          "circle": {
+            "center": {
+              "x": 460,
+              "y": 107
+            },
+            "radius": 22
+          }
+        },
+        "surface": 6
+      },
+      {
+        "coversRoad": false,
+        "onDeck": false,
+        "shape": {
+          "circle": {
+            "center": {
+              "x": 420,
+              "y": 27
+            },
+            "radius": 30
+          }
+        },
+        "surface": 6
+      },
+      {
+        "coversRoad": false,
+        "onDeck": false,
+        "shape": {
+          "circle": {
+            "center": {
+              "x": 479,
+              "y": 132
+            },
+            "radius": 30
+          }
+        },
+        "surface": 6
+      },
+      {
+        "coversRoad": false,
+        "onDeck": false,
+        "shape": {
+          "circle": {
+            "center": {
+              "x": 501,
+              "y": 159
+            },
+            "radius": 30
+          }
+        },
+        "surface": 6
+      },
+      {
+        "coversRoad": false,
+        "onDeck": false,
+        "shape": {
+          "circle": {
+            "center": {
+              "x": 519,
+              "y": 128
+            },
+            "radius": 30
+          }
+        },
+        "surface": 6
+      }
+    ],
+    "pointWidths": [
+      88,
+      70,
+      94,
+      94,
+      96,
+      null,
+      null,
+      114,
+      118,
+      null,
+      84,
+      null,
+      null,
+      null,
+      null,
+      null,
+      null,
+      null
+    ],
+    "roadWidth": 92,
+    "theme": "summer",
+    "width": 960
+  }
+]

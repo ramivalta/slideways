@@ -18,7 +18,7 @@ public enum DebugHarness {
         setvbuf(stdout, nil, _IOLBF, 0)
         let out = URL(fileURLWithPath: dir)
         try? FileManager.default.createDirectory(at: out, withIntermediateDirectories: true)
-        let track = Int(ProcessInfo.processInfo.environment["SLIDEWAYS_TRACK"] ?? "") ?? 1
+        let track = Int(ProcessInfo.processInfo.environment["SLIDEWAYS_TRACK"] ?? "") ?? 0
 
         func snap(_ name: String) {
             guard let scene = view.scene, let cg = view.texture(from: scene)?.cgImage(),
@@ -38,7 +38,7 @@ public enum DebugHarness {
 
         if ProcessInfo.processInfo.environment["SLIDEWAYS_SHARING_TEST"] != nil {
             let coordinator = GameCoordinator.shared
-            let track = BuiltInTracks.all.first { $0.id == "twin-bridges" }!
+            let track = BuiltInTracks.all.first { $0.id == "cloverleaf-crossing" }!
             let file = out.appendingPathComponent("renamed-download.slideways-track")
             do {
                 try TrackStore.exportData(track).write(to: file)

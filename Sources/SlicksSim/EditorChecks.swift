@@ -10,9 +10,31 @@ func editorChecks() -> Int {
     }
     print("== Editor operations")
     trackStoreChecks(check)
+    check(BuiltInTracks.all.map(\.name) == [
+        "Speedway", "Pine Ridge", "Quickstep", "Proving Grounds", "Bridge Run",
+        "Cloverleaf", "Cloverleaf Crossing", "Scramble", "Hairpin Valley", "Figure Eight",
+    ], "release catalog has exactly the ten approved tracks")
+    check(Set(BuiltInTracks.all.map(\.id)).count == 10, "built-in track IDs are unique")
+    check(BuiltInTracks.all.allSatisfy { !TrackStore.isCustom($0.id) }, "release tracks are built-in, not custom")
+    check(BuiltInTracks.all[RaceSettings().trackIndex].id == "speedway", "Speedway is the default track")
+    let hairpinTrack = Track(definition: BuiltInTracks.all.first { $0.id == "hairpin-valley" }!)
+    let blockedLowerSamples = hairpinTrack.path.indices.filter {
+        hairpinTrack.sampleLevels[$0] == 0
+            && hairpinTrack.wallContact(center: hairpinTrack.path[$0], radius: 3, level: 0) != nil
+    }
+    check(blockedLowerSamples.isEmpty, "Hairpin Valley lower centerline is clear of walls: \(blockedLowerSamples.map { hairpinTrack.path[$0] })")
+    for level in [0, 1] {
+        let blockedCrossing = hairpinTrack.path.indices.filter { Int(hairpinTrack.sampleLevels[$0]) == level }.flatMap { sample in
+            [-20.0, 0, 20].map { hairpinTrack.path[sample] + hairpinTrack.normals[sample] * $0 }
+        }.filter {
+            $0.distance(to: Vec2(586, 380)) < 90
+                && hairpinTrack.wallContact(center: $0, radius: 5, level: level) != nil
+        }
+        check(blockedCrossing.isEmpty, "Hairpin Valley crossing level \(level) has clear driving width: \(blockedCrossing)")
+    }
 
     // Start/reverse keep bridges on the same physical point.
-    var d = BuiltInTracks.all.first { $0.id == "twin-bridges" }!
+    var d = BuiltInTracks.regressionFixtures.first { $0.id == "twin-bridges" }!
     let bridgePoints = d.bridges.map { d.controlPoints[$0.controlPoint] }
     d.makeStart(5)
     check(d.bridges.map { d.controlPoints[$0.controlPoint] } == bridgePoints, "makeStart moves bridges")
@@ -72,7 +94,7 @@ func editorChecks() -> Int {
         print("  figure eight: \(f.controlPoints.count) points, issues \(t.issues().map(\.message))")
     }
 
-    var underBridge = BuiltInTracks.all.first { $0.id == "twin-bridges" }!
+    var underBridge = BuiltInTracks.regressionFixtures.first { $0.id == "twin-bridges" }!
     let twin = Track(definition: underBridge)
     let lowerCell = (0..<twin.height).lazy.flatMap { y in (0..<twin.width).lazy.map { x in Vec2(Double(x) + 0.5, Double(y) + 0.5) } }
         .first { twin.deck(x: Int($0.x), y: Int($0.y)) != nil && twin.surface(at: $0) == .asphalt }
@@ -98,7 +120,7 @@ func editorChecks() -> Int {
     let rampCell = twin.path[((b0.centerSample + Int((b0.deckEnd + b0.rampLength / 2) / twin.spacing)) % twin.sampleCount)]
     check(twin.elevation(x: Int(rampCell.x), y: Int(rampCell.y))?.rampDistance != nil, "ramp test point is on a bridge ramp")
     for onDeck in [false, true] {
-        var onRamp = BuiltInTracks.all.first { $0.id == "twin-bridges" }!
+        var onRamp = BuiltInTracks.regressionFixtures.first { $0.id == "twin-bridges" }!
         onRamp.patches.append(Patch(.sand, .circle(center: rampCell, radius: 10), coversRoad: true, onDeck: onDeck))
         let t = Track(definition: onRamp)
         check(t.surface(at: rampCell, level: 1) == .sand, "\(onDeck ? "deck" : "ground") patch covers bridge ramp")
@@ -106,10 +128,10 @@ func editorChecks() -> Int {
         check(image != TrackRenderer.makeImage(for: twin).dataProvider!.data! as Data, "patch is visible on bridge ramp")
     }
     let pastRamp = twin.path[((b0.centerSample + Int((b0.deckEnd + b0.rampLength + 12) / twin.spacing)) % twin.sampleCount)]
-    var spill = BuiltInTracks.all.first { $0.id == "twin-bridges" }!
+    var spill = BuiltInTracks.regressionFixtures.first { $0.id == "twin-bridges" }!
     spill.patches.append(Patch(.sand, .capsule(from: rampCell, to: pastRamp, radius: 10), onDeck: true))
     check(Track(definition: spill).surface(at: pastRamp, level: 0) == .sand, "bridge patch runs on past the bottom of the ramp")
-    var jump = BuiltInTracks.all.first { $0.id == "twin-bridges" }!
+    var jump = BuiltInTracks.regressionFixtures.first { $0.id == "twin-bridges" }!
     jump.objects.append(TrackObject(.ramp, at: rampCell, size: Vec2(30, 18)))
     let jumpTrack = Track(definition: jump)
     check(jumpTrack.rampAffects(jumpTrack.ramps.last!, level: 1, at: rampCell), "jump ramp on bridge ramp lifts cars driving up it")
@@ -256,7 +278,7 @@ private func trackStoreChecks(_ check: (Bool, String) -> Void) {
         try TrackStore.delete(id: other.id)
         check(TrackStore.loadAll().isEmpty, "delete removes all saved tracks")
 
-        track = BuiltInTracks.all.first { $0.id == "twin-bridges" }!
+        track = BuiltInTracks.regressionFixtures.first { $0.id == "twin-bridges" }!
         let shared = try TrackStore.exportData(track)
         let imported = try TrackStore.importData(shared)
         var expected = track
@@ -325,7 +347,7 @@ private func trackStoreChecks(_ check: (Bool, String) -> Void) {
 /// Built-in layouts with per-point widths, raced by the main loop like the built-ins.
 func widthTestTracks() -> [TrackDefinition] {
     // Wide start straight pinching into a narrow hairpin section.
-    var hairpin = BuiltInTracks.all.first { $0.id == "hairpin-valley" }!
+    var hairpin = BuiltInTracks.regressionFixtures.first { $0.id == "hairpin-valley" }!
     hairpin.id = "width-hairpin"
     hairpin.name = "Width test: hairpin"
     for (i, w) in [(0, 120.0), (1, 110), (4, 56), (5, 50), (6, 50), (7, 60), (11, 100), (13, 64)] {
@@ -333,7 +355,7 @@ func widthTestTracks() -> [TrackDefinition] {
     }
 
     // Narrow lower road under a wide bridge, with a very wide sweeper elsewhere.
-    var overpass = BuiltInTracks.all.first { $0.id == "overpass" }!
+    var overpass = BuiltInTracks.regressionFixtures.first { $0.id == "overpass" }!
     overpass.id = "width-overpass"
     overpass.name = "Width test: overpass"
     for (i, w) in [(7, 104.0), (15, 60), (3, 130), (11, 56)] {

@@ -1,8 +1,22 @@
 import Foundation
 
-/// Original tracks shipped with the game. All fit on a single 960x600 screen.
+/// Release tracks shipped with the game. Speedway is first for new race settings.
 public enum BuiltInTracks {
-    public static let all: [TrackDefinition] = [
+    public static let all: [TrackDefinition] = {
+        let resourceBundle = Bundle.main.resourceURL.flatMap {
+            Bundle(url: $0.appendingPathComponent("Slideways_SlicksCore.bundle"))
+        } ?? Bundle.module
+        guard let url = resourceBundle.url(forResource: "BuiltInTracks", withExtension: "json") else {
+            preconditionFailure("Missing built-in track catalog")
+        }
+        do {
+            return try JSONDecoder().decode([TrackDefinition].self, from: Data(contentsOf: url))
+        } catch {
+            preconditionFailure("Invalid built-in track catalog: \(error)")
+        }
+    }()
+
+    public static let regressionFixtures: [TrackDefinition] = [
         provingGrounds, overpass, hairpinValley, twinBridges, cloverleaf, figureEight, desertDunes, frozenLake, canyon,
         riversidePark,
     ] + ClassicTracks.all

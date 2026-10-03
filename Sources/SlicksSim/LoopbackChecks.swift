@@ -365,7 +365,7 @@ func loopbackChecks() -> Int {
         let proxy = try! EvilProxy(to: SocketAddress(numeric: "127.0.0.1", port: hostPort)!)
         let carol = TestClient(port: proxy.socket.port, name: "Carol", secret: secret)
         check(wait(6) { carol.welcomed && carol.lobby != nil }, "player behind a tampering network didn't get in: \(carol.closedReason ?? "timeout")")
-        var big = BuiltInTracks.all[0]
+        var big = BuiltInTracks.regressionFixtures[0]
         big.patches = (0..<200).map { (k: Int) -> Patch in
             let x = Double(40 + (k * 37) % 880)
             let y = Double(40 + (k * 53) % 520)
@@ -589,7 +589,7 @@ private struct RaceSettingsLite {
     var ai: Int
 
     func setup(trackID: String, seed: UInt64, ai aiOverride: Int? = nil) -> RaceSetup {
-        setup(track: BuiltInTracks.all.first { $0.id == trackID }!, seed: seed, ai: aiOverride)
+        setup(track: (BuiltInTracks.regressionFixtures + BuiltInTracks.all).first { $0.id == trackID }!, seed: seed, ai: aiOverride)
     }
 
     func setup(track def: TrackDefinition, seed: UInt64, ai aiOverride: Int? = nil) -> RaceSetup {
