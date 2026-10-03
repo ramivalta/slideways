@@ -334,15 +334,40 @@ public final class Track: @unchecked Sendable {
         return ((c - bestPoint) / bestD, r - bestD)
     }
 
-    /// Grid slots behind the start line, two abreast. Returns position, heading and path index.
+    /// Slots painted on the starting grid: the most cars a race can have.
+    public static let gridSize = 8
+    /// Distance along the road from the start line back to the pole car's center.
+    static let gridFront = 22.0
+    /// Distance between cars in the same lane. The other lane is staggered by half of it.
+    static let gridPitch = 32.0
+
+    /// Distance along the road from the start line back to grid slot `k`'s car center.
+    static func gridDistance(_ k: Int) -> Double { gridFront + Double(k) * gridPitch / 2 }
+
+    /// Grid slots behind the start line in a staggered two-lane grid, pole on the left.
+    /// Returns position, heading and nearest path index.
     public func gridSlots(count: Int) -> [(position: Vec2, heading: Double, index: Int)] {
         let n = sampleCount
         return (0..<count).map { k in
-            let row = k / 2
             let side: Double = k % 2 == 0 ? 1 : -1
-            let i = ((n - 6 - row * 8) % n + n) % n
-            let pos = path[i] + normals[i] * (side * halfWidths[i] * 0.45) - tangents[i] * (Double(k % 2) * 8)
-            return (pos, tangents[i].angle, i)
+            func lane(_ j: Int) -> Vec2 {
+                let i = (n - j % n) % n
+                return path[i] + normals[i] * (side * min(halfWidths[i] * 0.5, 22))
+            }
+            // Measure along the lane itself, so cars on the inside of a bend aren't bunched up.
+            let target = Track.gridDistance(k)
+            var walked = 0.0, j = 0
+            var a = lane(0), b = lane(1)
+            while walked + a.distance(to: b) < target, j < n - 1 {
+                walked += a.distance(to: b)
+                j += 1
+                a = b
+                b = lane(j + 1)
+            }
+            let t = clamp((target - walked) / max(a.distance(to: b), 1e-9), 0, 1)
+            let i0 = (n - j % n) % n, i1 = (n - (j + 1) % n) % n
+            let tangent = (tangents[i0] * (1 - t) + tangents[i1] * t).normalized
+            return (a + (b - a) * t, tangent.angle, t < 0.5 ? i0 : i1)
         }
     }
 

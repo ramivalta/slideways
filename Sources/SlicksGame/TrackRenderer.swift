@@ -39,6 +39,10 @@ public enum TrackRenderer {
         let pal = palette(def.theme)
         let start = track.path[0], startT = track.tangents[0], startN = track.normals[0]
         let startHalf = track.halfWidths[0]
+        let slots = track.gridSlots(count: Track.gridSize)
+        let grid = slots.map { (position: $0.position, forward: Vec2(cos($0.heading), sin($0.heading))) }
+        let gridStart = gridStartDistance(track, slots)
+        let step = track.length / Double(track.sampleCount)
         let hasBridges = !track.bridges.isEmpty
         let paint = paintLayer(for: def)
         let ground = track.groundSurfaces
@@ -81,6 +85,10 @@ public enum TrackRenderer {
                         if l.lateral >= b.driveHalfWidth || s == .asphalt || s == .curb {
                             c = rampColor(surface: s, along: l.along, lateral: l.lateral, height: e.height,
                                           capped: ramp > b.rampLength - 14, bridge: b, half: b.roadHalf, pal: pal, noise: noise)
+                            if s == .asphalt, isCenterDash(along: Double(b.centerSample) * step + l.along, lateral: l.lateral,
+                                                           track: track, gridStart: gridStart) {
+                                c = paintColor(.white).scaled(1 + noise * 0.08)
+                            }
                             c = painted(c, x, y, noise)
                             c = applyWallShadow(c, track: track, x: x, y: y, surface: s)
                             write(c, x: x, y: y, w: w, h: h, into: &pixels)
@@ -105,6 +113,15 @@ public enum TrackRenderer {
                         c = checker ? RGB(240, 240, 240) : RGB(24, 24, 24)
                     } else if d > half - 1.5 {
                         c = c.scaled(1.25)
+                    } else if isGridMark(Vec2(Double(x) + 0.5, Double(y) + 0.5), grid) {
+                        c = paintColor(.white).scaled(1 + noise * 0.08)
+                    } else if def.centerLine, track.nearestSample[i] >= 0 {
+                        let s = Int(track.nearestSample[i])
+                        let q = Vec2(Double(x) + 0.5, Double(y) + 0.5) - track.path[s]
+                        if isCenterDash(along: Double(s) * step + q.dot(track.tangents[s]),
+                                        lateral: abs(q.dot(track.normals[s])), track: track, gridStart: gridStart) {
+                            c = paintColor(.white).scaled(1 + noise * 0.08)
+                        }
                     }
                 case .curb:
                     let idx = Int(track.nearestSample[i])
@@ -162,6 +179,39 @@ public enum TrackRenderer {
             }
         }
         return makeCGImage(pixels: pixels, width: w, height: h)
+    }
+
+    /// Grid box mark in front of each slot: a bar across the nose with short legs back
+    /// along both sides of the car.
+    static func isGridMark(_ p: Vec2, _ grid: [(position: Vec2, forward: Vec2)]) -> Bool {
+        let front = 13.5, bar = 2.0, leg = 8.0, halfBox = 8.5, legWidth = 1.6
+        for slot in grid {
+            let d = p - slot.position
+            let u = d.dot(slot.forward)
+            guard u > front - leg, u < front + bar else { continue }
+            let v = abs(d.dot(slot.forward.perp))
+            guard v < halfBox else { continue }
+            if u > front || v > halfBox - legWidth { return true }
+        }
+        return false
+    }
+
+    static let centerDashLength = 10.0
+
+    /// Distance along the track where the starting grid begins, measured from the start line.
+    static func gridStartDistance(_ track: Track, _ slots: [(position: Vec2, heading: Double, index: Int)]) -> Double {
+        let n = track.sampleCount
+        let back = slots.map { Double((n - $0.index) % n) }.max() ?? 0
+        return track.length - back * track.length / Double(n) - 16
+    }
+
+    /// Dashed center line, `along` measured from the start line. Left off the start line and grid.
+    static func isCenterDash(along: Double, lateral: Double, track: Track, gridStart: Double) -> Bool {
+        guard lateral < 0.8, track.definition.centerLine else { return false }
+        let a = (along.truncatingRemainder(dividingBy: track.length) + track.length)
+            .truncatingRemainder(dividingBy: track.length)
+        guard a > 8, a < gridStart else { return false }
+        return Int(floor(a / centerDashLength)) & 1 == 0
     }
 
     /// How far the deck's shadow reaches onto the road underneath, in cells (down-right).
@@ -260,6 +310,8 @@ public enum TrackRenderer {
         let pal = palette(track.definition.theme)
         let half = b.roadHalf
         let paint = paintLayer(for: track.definition)
+        let step = track.length / Double(track.sampleCount)
+        let gridStart = gridStartDistance(track, track.gridSlots(count: Track.gridSize))
         var pixels = [UInt8](repeating: 0, count: w * h * 4)
         for row in 0..<h {
             for px in 0..<w {
@@ -274,6 +326,10 @@ public enum TrackRenderer {
                 var c = surface == .asphalt
                     ? deckColor(along: along, lateral: lateral, bridge: b, half: half, pal: pal, noise: noise)
                     : flatColor(surface, pal).scaled(1 + noise * 0.08)
+                if surface == .asphalt, isCenterDash(along: Double(b.centerSample) * step + along, lateral: lateral,
+                                                     track: track, gridStart: gridStart) {
+                    c = paintColor(.white).scaled(1 + noise * 0.08)
+                }
                 let x = Int(floor(p.x)), y = Int(floor(p.y))
                 if lateral <= half, let paint, x >= 0, y >= 0, x < track.width, y < track.height {
                     let offset = ((track.height - 1 - y) * track.width + x) * 4
@@ -811,6 +867,16 @@ public enum TrackRenderer {
         def.patches.filter { !$0.onDeck && !$0.coversRoad }.forEach(fill)
         band(extra: def.curbWidth, color(.curb))
         band(extra: 0, color(.asphalt))
+        if def.centerLine {
+            ctx.saveGState()
+            ctx.addPath(road)
+            ctx.setLineWidth(1.6)
+            ctx.setLineCap(.butt)
+            ctx.setLineDash(phase: 0, lengths: [centerDashLength, centerDashLength])
+            ctx.setStrokeColor(cgColor(paintColor(.white)))
+            ctx.strokePath()
+            ctx.restoreGState()
+        }
         def.patches.filter { !$0.onDeck && $0.coversRoad }.forEach(fill)
         drawLines(def.lines, in: ctx)
         ctx.setStrokeColor(color(.wall))

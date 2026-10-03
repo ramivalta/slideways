@@ -12,6 +12,8 @@ public struct TrackDefinition: Codable, Sendable, Identifiable, Equatable {
     /// Road width wherever a control point doesn't set its own.
     public var roadWidth: Double
     public var curbWidth: Double
+    /// Whether a dashed white line is painted down the middle of the road.
+    public var centerLine: Bool
     public var controlPoints: [Vec2]
     /// Optional road width at each control point, parallel to `controlPoints`. Nil (or a
     /// missing entry) uses `roadWidth`. The width eases smoothly between points.
@@ -40,6 +42,7 @@ public struct TrackDefinition: Codable, Sendable, Identifiable, Equatable {
         height: Int = 600,
         roadWidth: Double = 82,
         curbWidth: Double = Track.curbWidth,
+        centerLine: Bool = false,
         controlPoints: [Vec2],
         pointWidths: [Double?] = [],
         defaultLaps: Int = 5,
@@ -59,6 +62,7 @@ public struct TrackDefinition: Codable, Sendable, Identifiable, Equatable {
         self.height = height
         self.roadWidth = roadWidth
         self.curbWidth = curbWidth
+        self.centerLine = centerLine
         self.controlPoints = controlPoints
         self.pointWidths = pointWidths
         self.defaultLaps = defaultLaps
@@ -82,6 +86,7 @@ public struct TrackDefinition: Codable, Sendable, Identifiable, Equatable {
         height = try c.decodeIfPresent(Int.self, forKey: .height) ?? 600
         roadWidth = try c.decodeIfPresent(Double.self, forKey: .roadWidth) ?? 82
         curbWidth = try c.decodeIfPresent(Double.self, forKey: .curbWidth) ?? Track.curbWidth
+        centerLine = try c.decodeIfPresent(Bool.self, forKey: .centerLine) ?? false
         controlPoints = try c.decode([Vec2].self, forKey: .controlPoints)
         pointWidths = try c.decodeIfPresent([Double?].self, forKey: .pointWidths) ?? []
         defaultLaps = try c.decodeIfPresent(Int.self, forKey: .defaultLaps) ?? 5

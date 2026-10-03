@@ -449,7 +449,7 @@ for def in simTracks {
         let sample = ov.prefix(3).map { "(\($0.0),\($0.1)) d=\(Int($0.2)) at \(Int(track.path[$0.0].x)),\(Int(track.path[$0.0].y))" }
         print("  NOTE: \(ov.count) close pairs (crossing or tight legs): \(sample.joined(separator: " "))")
     }
-    for slot in track.gridSlots(count: 8) where track.surface(at: slot.position) != .asphalt {
+    for slot in track.gridSlots(count: Track.gridSize) where track.surface(at: slot.position) != .asphalt {
         print("  WARN: grid slot off asphalt at \(slot.position)"); failures += 1
     }
 
