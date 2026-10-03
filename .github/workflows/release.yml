@@ -9,8 +9,29 @@ permissions:
   contents: write
 
 jobs:
+  build-relay-linux:
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: swift-actions/setup-swift@v2
+        with:
+          swift-version: "6.0"
+
+      - name: Build Linux relay
+        run: swift build -c release --product SlicksRelay
+
+      - name: Archive Linux relay
+        run: tar -czf SlicksRelay-linux-x86_64.tar.gz -C .build/release SlicksRelay
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: SlicksRelay-linux-x86_64
+          path: SlicksRelay-linux-x86_64.tar.gz
+
   release:
     runs-on: macos-15
+    needs: build-relay-linux
     steps:
       - uses: actions/checkout@v4
 
@@ -20,7 +41,12 @@ jobs:
       - name: Archive app
         run: ditto -c -k --keepParent build/Slideways.app Slideways-macOS-universal.zip
 
+      - uses: actions/download-artifact@v4
+        with:
+          name: SlicksRelay-linux-x86_64
+          path: dist
+
       - name: Publish GitHub Release
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-        run: gh release create "$GITHUB_REF_NAME" Slideways-macOS-universal.zip --verify-tag --title "$GITHUB_REF_NAME" --generate-notes
+        run: gh release create "$GITHUB_REF_NAME" Slideways-macOS-universal.zip dist/SlicksRelay-linux-x86_64.tar.gz --verify-tag --title "$GITHUB_REF_NAME" --generate-notes

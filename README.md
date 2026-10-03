@@ -130,9 +130,21 @@ bridge steps. The editor regression checks pass.
 | SlicksRelay | Rendezvous and relay server |
 | SlicksSim | Headless simulation and regression checks |
 
-The relay server can be built on macOS or Linux with
-`swift build -c release --product SlicksRelay`. It listens on UDP port 47810
-by default and needs a publicly reachable host with that port open.
+GitHub Releases include a Linux x86_64 relay server archive named
+`SlicksRelay-linux-x86_64.tar.gz`. On a Linux machine, download and extract the
+archive, then run the server. The machine needs compatible Swift 6 runtime
+libraries installed; installing the Swift 6 toolchain provides them.
+
+```sh
+tar -xzf SlicksRelay-linux-x86_64.tar.gz
+./SlicksRelay
+```
+
+The relay listens on UDP port 47810 by default; pass a port number to use a
+different port. Make that UDP port publicly reachable through the machine's
+firewall and any network firewall. The server must stay running while players
+use it. The relay can also be built from source on macOS or Linux with
+`swift build -c release --product SlicksRelay`.
 
 Pushing a tag triggers the GitHub Actions workflow to build the universal app
-and publish its ZIP as a GitHub Release.
+and Linux relay, then publish both archives as GitHub Release assets.
