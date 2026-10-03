@@ -53,6 +53,41 @@ or use its code. Online races send the track to participants, so everyone can
 race on a custom layout without installing it first. Receiving a track for a
 race does not add it to your local track library.
 
+## Relay Server
+
+A relay server helps players join an online race by code when they are on
+different networks. The player hosting the race still runs the game; the relay
+does not host the race or simulate cars. It lets the host register a room and
+lets other players look it up by code. Slideways first tries to connect the
+players directly over UDP. If their routers prevent that, the relay forwards
+their game packets. Those packets are encrypted end to end, so the relay can
+route them but cannot read the join secret or race data.
+
+You do not need a relay for games on the same local network: nearby games are
+discovered and joined directly. For internet play, running or using a relay
+lets players join by code without configuring port forwarding on the race
+host's router. The project provides the relay program, not a hosted relay
+service, so use a server address supplied by someone you trust or run one
+yourself for your group.
+
+To use a relay, the host and everyone joining by code enter the same server
+address in **Online > Relay Server**, such as `relay.example.net` or
+`relay.example.net:47810`. The server must be running on a publicly reachable
+machine with its UDP port open. GitHub Releases provide a Linux x86_64 archive,
+`SlicksRelay-linux-x86_64.tar.gz`; the machine needs compatible Swift 6 runtime
+libraries. Pushing a tag publishes the Linux relay alongside the universal
+macOS app. Extract the archive and start the server:
+
+```sh
+tar -xzf SlicksRelay-linux-x86_64.tar.gz
+./SlicksRelay
+```
+
+It listens on UDP port 47810 by default; pass a port number to use another one.
+If you change the port, include it in the address entered in Slideways. The
+relay can also be built from source on macOS or Linux with
+`swift build -c release --product SlicksRelay`.
+
 ## Custom Tracks
 
 The editor supports road layouts and widths, bridges, surface patches, scenery,
@@ -129,22 +164,3 @@ bridge steps. The editor regression checks pass.
 | SlicksNet | Online sessions and race synchronization |
 | SlicksRelay | Rendezvous and relay server |
 | SlicksSim | Headless simulation and regression checks |
-
-GitHub Releases include a Linux x86_64 relay server archive named
-`SlicksRelay-linux-x86_64.tar.gz`. On a Linux machine, download and extract the
-archive, then run the server. The machine needs compatible Swift 6 runtime
-libraries installed; installing the Swift 6 toolchain provides them.
-
-```sh
-tar -xzf SlicksRelay-linux-x86_64.tar.gz
-./SlicksRelay
-```
-
-The relay listens on UDP port 47810 by default; pass a port number to use a
-different port. Make that UDP port publicly reachable through the machine's
-firewall and any network firewall. The server must stay running while players
-use it. The relay can also be built from source on macOS or Linux with
-`swift build -c release --product SlicksRelay`.
-
-Pushing a tag triggers the GitHub Actions workflow to build the universal app
-and Linux relay, then publish both archives as GitHub Release assets.
