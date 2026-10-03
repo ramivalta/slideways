@@ -2,6 +2,7 @@
 import AppKit
 import SlicksCore
 import SpriteKit
+import UniformTypeIdentifiers
 
 /// Mouse-driven level editor. The map is edited as a `TrackDefinition`; every change rebuilds
 /// the real `Track` in the background so the map shows exactly what will be raced, while a
@@ -1466,6 +1467,72 @@ final class EditorScene: GameScene {
         confirmDiscard { [unowned self] in showOpenBrowser(page: 0, confirmDelete: nil) }
     }
 
+    private static let sharedTrackType = UTType(importedAs: "com.slideways.track", conformingTo: .json)
+
+    private func importTrack() {
+        let panel = NSOpenPanel()
+        panel.title = "Import Track"
+        panel.allowedContentTypes = [Self.sharedTrackType]
+        panel.allowsMultipleSelection = false
+        panel.canChooseDirectories = false
+        Input.shared.releaseAll()
+        guard panel.runModal() == .OK, let url = panel.url else { return }
+        importTrack(at: url)
+    }
+
+    func importTrack(at url: URL) {
+        do {
+            let track = try TrackStore.readShared(at: url)
+            confirmDiscard { [unowned self] in showImportPreview(track) }
+        } catch {
+            showMessage("Couldn't import the track: \(error.localizedDescription)")
+        }
+    }
+
+    private func showImportPreview(_ track: TrackDefinition) {
+        let box = beginModal(size: CGSize(width: 440, height: 350))
+        let title = makeLabel(String(track.name.prefix(40)), size: 16, color: .accent, align: .center)
+        if title.frame.width > 384 { title.fontSize *= 384 / title.frame.width }
+        title.position = CGPoint(x: 0, y: 140)
+        title.zPosition = 2
+        box.addChild(title)
+        let preview = SKSpriteNode(texture: SKTexture(cgImage: TrackRenderer.makeQuickPreview(for: track)))
+        preview.size = CGSize(width: 384, height: 240)
+        preview.position = CGPoint(x: 0, y: 0)
+        preview.zPosition = 2
+        box.addChild(preview)
+        dialogButton("Cancel", at: CGPoint(x: -65, y: -145), in: box) { [unowned self] in closeModal() }
+        dialogButton("Import", at: CGPoint(x: 65, y: -145), in: box, selected: true) { [unowned self] in
+            do {
+                try TrackStore.save(track)
+                TrackLibrary.shared.reload()
+                closeModal()
+                load(track)
+                flash("Imported \"\(track.name)\"")
+            } catch {
+                showMessage("Couldn't save the imported track: \(error.localizedDescription)")
+            }
+        }
+    }
+
+    private func exportTrack() {
+        endNameEditing()
+        do {
+            let data = try TrackStore.exportData(def)
+            let panel = NSSavePanel()
+            panel.title = "Export Track"
+            panel.allowedContentTypes = [Self.sharedTrackType]
+            panel.nameFieldStringValue = TrackStore.exportFilename(for: def)
+            Input.shared.releaseAll()
+            guard panel.runModal() == .OK, let url = panel.url else { return }
+            try data.write(to: url, options: .atomic)
+            closeModal()
+            flash("Exported \"\(def.name)\"")
+        } catch {
+            showMessage("Couldn't export the track: \(error.localizedDescription)")
+        }
+    }
+
     private func save() {
         endNameEditing()
         let name = def.name.trimmingCharacters(in: .whitespaces)
@@ -1537,8 +1604,8 @@ final class EditorScene: GameScene {
         if flags.contains(.command) {
             switch chars {
             case "z": flags.contains(.shift) ? redo() : undo()
-            case "s": if modal == nil { save() }
-            case "o": if modal == nil { openTrack() }
+            case "s": if modal == nil { flags.contains(.shift) ? exportTrack() : save() }
+            case "o": if modal == nil { flags.contains(.shift) ? importTrack() : openTrack() }
             case "n": if modal == nil { newTrack() }
             case "d": duplicateSelection()
             default: super.keyDown(with: event)
@@ -2638,17 +2705,19 @@ final class EditorScene: GameScene {
         }
 
         let fy = -top + 28
-        dialogButton("< Prev", width: 80, at: CGPoint(x: -230, y: fy), in: box) { [unowned self] in
+        dialogButton("< Prev", width: 64, at: CGPoint(x: -240, y: fy), in: box) { [unowned self] in
             showOpenBrowser(page: page - 1, confirmDelete: nil)
         }
-        let pageLabel = makeLabel("page \(page + 1) of \(pages)", size: 11, color: .dim, align: .center)
-        pageLabel.position = CGPoint(x: -120, y: fy)
+        let pageLabel = makeLabel("\(page + 1)/\(pages)", size: 11, color: .dim, align: .center)
+        pageLabel.position = CGPoint(x: -170, y: fy)
         pageLabel.zPosition = 2
         box.addChild(pageLabel)
-        dialogButton("Next >", width: 80, at: CGPoint(x: -10, y: fy), in: box) { [unowned self] in
+        dialogButton("Next >", width: 64, at: CGPoint(x: -100, y: fy), in: box) { [unowned self] in
             showOpenBrowser(page: page + 1, confirmDelete: nil)
         }
-        dialogButton("Cancel", at: CGPoint(x: 205, y: fy), in: box) { [unowned self] in closeModal() }
+        dialogButton("Import", width: 80, at: CGPoint(x: -10, y: fy), in: box) { [unowned self] in importTrack() }
+        dialogButton("Export", width: 80, at: CGPoint(x: 85, y: fy), in: box) { [unowned self] in exportTrack() }
+        dialogButton("Cancel", width: 90, at: CGPoint(x: 210, y: fy), in: box) { [unowned self] in closeModal() }
     }
 }
 
