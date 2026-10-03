@@ -36,6 +36,32 @@ public enum DebugHarness {
             Timer.scheduledTimer(withTimeInterval: t, repeats: false) { _ in block() }
         }
 
+        if ProcessInfo.processInfo.environment["SLIDEWAYS_SHARING_TEST"] != nil {
+            let coordinator = GameCoordinator.shared
+            let track = BuiltInTracks.all.first { $0.id == "twin-bridges" }!
+            let file = out.appendingPathComponent("renamed-download.slideways-track")
+            do {
+                try TrackStore.exportData(track).write(to: file)
+            } catch {
+                print("sharing test: export failed: \(error)")
+                NSApplication.shared.terminate(nil)
+                return
+            }
+            after(0.5) { coordinator.showEditor(editing: track) }
+            after(1) {
+                (coordinator.currentScene as? EditorScene)?.debugClick("Open")
+                snap("sharing-browser")
+            }
+            after(1.5) { NSApp.delegate?.application?(NSApp, open: [file]) }
+            after(2) { snap("sharing-preview") }
+            after(2.5) { (coordinator.currentScene as? EditorScene)?.debugClick("Import") }
+            after(3.5) {
+                snap("sharing-imported")
+                print("sharing test: \(TrackStore.loadAll().count) saved track(s)")
+                NSApplication.shared.terminate(nil)
+            }
+            return
+        }
         if ProcessInfo.processInfo.environment["SLIDEWAYS_EDITOR_TEST"] != nil {
             return runEditorScript(view: view, snap: snap, after: after)
         }

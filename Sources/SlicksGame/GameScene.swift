@@ -82,6 +82,21 @@ public final class GameCoordinator {
         present(scene)
     }
 
+    public func openSharedTrack(at url: URL) {
+        guard online == nil, !(currentScene is RaceScene) else {
+            let alert = NSAlert()
+            alert.messageText = "Finish or leave the race before importing a track."
+            alert.runModal()
+            return
+        }
+        if let editor {
+            if currentScene !== editor { present(editor) }
+        } else {
+            showEditor()
+        }
+        editor?.importTrack(at: url)
+    }
+
     /// Leaves the editor for the menu, with `trackID` selected if given.
     func closeEditor(selecting trackID: String?) {
         editor = nil

@@ -255,6 +255,68 @@ private func trackStoreChecks(_ check: (Bool, String) -> Void) {
         try TrackStore.delete(id: track.id)
         try TrackStore.delete(id: other.id)
         check(TrackStore.loadAll().isEmpty, "delete removes all saved tracks")
+
+        track = BuiltInTracks.all.first { $0.id == "twin-bridges" }!
+        let shared = try TrackStore.exportData(track)
+        let imported = try TrackStore.importData(shared)
+        var expected = track
+        expected.id = imported.id
+        check(imported == expected, "shared track preserves all fields except local ID")
+        check(TrackStore.loadAll().contains { $0.id == imported.id }, "import persists to local library")
+        let duplicate = try TrackStore.importData(shared)
+        check(duplicate.id != imported.id && TrackStore.loadAll().count == 2, "duplicate import never overwrites")
+        let download = directory.appendingPathComponent("renamed-download.slideways-track")
+        try shared.write(to: download)
+        check(try TrackStore.readShared(at: download).name == track.name, "renamed download imports")
+        check(TrackStore.loadAll().first { $0.id == imported.id } == expected, "import content survives library reload")
+        expected.name = "../Night / Run: Finals"
+        check(TrackStore.exportFilename(for: expected) == "night-run-finals.slideways-track", "safe export filename")
+        expected.name = " / : "
+        check(TrackStore.exportFilename(for: expected) == "untitled.slideways-track", "empty export filename fallback")
+
+        func rejects(_ data: Data, _ message: String) {
+            do {
+                _ = try TrackStore.importData(data)
+                check(false, message)
+            } catch {
+                check(TrackStore.loadAll().count == 2, message)
+            }
+        }
+        rejects(Data("not json".utf8), "malformed import leaves library unchanged")
+        rejects(Data(repeating: 32, count: TrackStore.maxSharedFileSize + 1), "oversized import rejected")
+        try Data(repeating: 32, count: TrackStore.maxSharedFileSize + 1).write(to: download)
+        do {
+            _ = try TrackStore.readShared(at: download)
+            check(false, "oversized file read rejected")
+        } catch TrackStore.SharingError.tooLarge {
+            check(true, "oversized file read rejected")
+        }
+        var document = try JSONSerialization.jsonObject(with: shared) as! [String: Any]
+        document["version"] = 99
+        rejects(try JSONSerialization.data(withJSONObject: document), "future version rejected")
+        document["version"] = 1
+        document["format"] = "other-game"
+        rejects(try JSONSerialization.data(withJSONObject: document), "foreign format rejected")
+        document["format"] = "slideways-track"
+        var invalid = document["track"] as! [String: Any]
+        invalid["roadWidth"] = 200
+        document["track"] = invalid
+        rejects(try JSONSerialization.data(withJSONObject: document), "import rejects values that local loading would change")
+        invalid["roadWidth"] = track.roadWidth
+        invalid["curbWidth"] = -1
+        document["track"] = invalid
+        rejects(try JSONSerialization.data(withJSONObject: document), "invalid curb width rejected")
+        invalid["curbWidth"] = track.curbWidth
+        invalid["defaultLaps"] = 0
+        document["track"] = invalid
+        rejects(try JSONSerialization.data(withJSONObject: document), "invalid lap count rejected")
+        invalid["defaultLaps"] = track.defaultLaps
+        invalid["controlPoints"] = []
+        document["track"] = invalid
+        rejects(try JSONSerialization.data(withJSONObject: document), "invalid geometry rejected")
+        invalid["controlPoints"] = [["x": 1e100, "y": 0], ["x": 0, "y": 0], ["x": 100, "y": 100]]
+        document["track"] = invalid
+        rejects(try JSONSerialization.data(withJSONObject: document), "extreme geometry rejected")
     } catch {
         check(false, "track filename persistence: \(error)")
     }

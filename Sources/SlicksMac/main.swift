@@ -4,6 +4,8 @@ import SpriteKit
 
 final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate {
     private var window: NSWindow!
+    private var pendingTrack: URL?
+    private var hasLaunched = false
 
     func applicationDidFinishLaunching(_ notification: Notification) {
         let scene = GameInfo.sceneSize
@@ -28,6 +30,11 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate {
         window.makeKeyAndOrderFront(nil)
 
         GameCoordinator.shared.start(in: view)
+        hasLaunched = true
+        if let url = pendingTrack {
+            pendingTrack = nil
+            GameCoordinator.shared.openSharedTrack(at: url)
+        }
         NSApp.activate()
         if DisplaySettings.fullScreen && shouldRestoreFullScreen {
             window.toggleFullScreen(nil)
@@ -35,6 +42,15 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate {
         #if DEBUG
         DebugHarness.runIfRequested(view: view)
         #endif
+    }
+
+    func application(_ application: NSApplication, open urls: [URL]) {
+        guard let url = urls.first else { return }
+        if hasLaunched {
+            GameCoordinator.shared.openSharedTrack(at: url)
+        } else {
+            pendingTrack = url
+        }
     }
 
     /// Opens in full screen only for a normal launch: not a second copy (play-local.sh puts

@@ -4,6 +4,84 @@ import SlicksCore
 /// Custom tracks made in the editor, stored as one JSON file each in Application Support.
 public enum TrackStore {
     public static let idPrefix = "custom-"
+    public static let sharedExtension = "slideways-track"
+    public static let maxSharedFileSize = 1_048_576
+
+    private struct SharedTrack: Codable {
+        var format: String
+        var version: Int
+        var track: TrackDefinition
+    }
+
+    public enum SharingError: LocalizedError {
+        case tooLarge, unsupportedFormat, invalidTrack(String)
+
+        public var errorDescription: String? {
+            switch self {
+            case .tooLarge: return "Track files must be no larger than 1 MB."
+            case .unsupportedFormat: return "This track file uses an unsupported format or version."
+            case let .invalidTrack(reason): return "This track can't be imported: \(reason)."
+            }
+        }
+    }
+
+    public static func exportData(_ track: TrackDefinition) throws -> Data {
+        try validateShared(track)
+        let encoder = JSONEncoder()
+        encoder.outputFormatting = [.prettyPrinted, .sortedKeys]
+        let data = try encoder.encode(SharedTrack(format: "slideways-track", version: 1, track: track))
+        guard data.count <= maxSharedFileSize else { throw SharingError.tooLarge }
+        return data
+    }
+
+    public static func decodeShared(_ data: Data) throws -> TrackDefinition {
+        guard data.count <= maxSharedFileSize else { throw SharingError.tooLarge }
+        let file = try JSONDecoder().decode(SharedTrack.self, from: data)
+        guard file.format == "slideways-track", file.version == 1 else { throw SharingError.unsupportedFormat }
+        try validateShared(file.track)
+        var track = file.track
+        track.id = idPrefix + UUID().uuidString.lowercased()
+        return track
+    }
+
+    public static func importData(_ data: Data) throws -> TrackDefinition {
+        let track = try decodeShared(data)
+        try save(track)
+        return track
+    }
+
+    public static func readShared(at url: URL) throws -> TrackDefinition {
+        let file = try FileHandle(forReadingFrom: url)
+        defer { try? file.close() }
+        let data = try file.read(upToCount: maxSharedFileSize + 1) ?? Data()
+        return try decodeShared(data)
+    }
+
+    public static func exportFilename(for track: TrackDefinition) -> String {
+        filenameSlug(track.name) + "." + sharedExtension
+    }
+
+    private static func filenameSlug(_ name: String) -> String {
+        let allowed = CharacterSet(charactersIn: "abcdefghijklmnopqrstuvwxyz0123456789")
+        let slug = name.lowercased().unicodeScalars.map { allowed.contains($0) ? String($0) : "-" }
+            .joined().split(separator: "-").joined(separator: "-")
+        return slug.isEmpty ? "untitled" : String(slug.prefix(80))
+    }
+
+    private static func validateShared(_ track: TrackDefinition) throws {
+        guard !track.name.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty,
+              track.name.count <= 80 else { throw SharingError.invalidTrack("invalid name") }
+        guard track.curbWidth.isFinite, (0...20).contains(track.curbWidth) else {
+            throw SharingError.invalidTrack("curb width")
+        }
+        guard (1...20).contains(track.defaultLaps) else { throw SharingError.invalidTrack("lap count") }
+        if let problem = OnlineRules.trackProblem(track) { throw SharingError.invalidTrack(problem) }
+        var local = track
+        local.id = idPrefix + "validation"
+        guard sanitized(local, fileID: local.id) == local else {
+            throw SharingError.invalidTrack("values outside the editor's supported limits")
+        }
+    }
 
     /// `SLIDEWAYS_TRACKS_DIR` overrides the location (used by tests and the debug harness).
     public static var directory: URL {
@@ -44,10 +122,7 @@ public enum TrackStore {
 
     public static func save(_ def: TrackDefinition) throws {
         guard url(for: def.id) != nil else { throw CocoaError(.fileWriteInvalidFileName) }
-        let allowed = CharacterSet(charactersIn: "abcdefghijklmnopqrstuvwxyz0123456789")
-        let slug = def.name.lowercased().unicodeScalars.map { allowed.contains($0) ? String($0) : "-" }
-            .joined().split(separator: "-").joined(separator: "-")
-        let name = slug.isEmpty ? "untitled" : String(slug.prefix(80))
+        let name = filenameSlug(def.name)
         let url = directory.appendingPathComponent(def.id + "--" + name + ".json")
         try FileManager.default.createDirectory(at: directory, withIntermediateDirectories: true)
         let previousFiles = try files(for: def.id)

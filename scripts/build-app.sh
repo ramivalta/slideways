@@ -36,6 +36,23 @@ cat > "$BUNDLE/Contents/Info.plist" <<PLIST
     <key>GCSupportsControllerUserInteraction</key><true/>
     <key>NSLocalNetworkUsageDescription</key><string>${APP_NAME} finds and hosts online races with players on your network.</string>
     <key>NSBonjourServices</key><array><string>_slideways._udp</string></array>
+    <key>UTExportedTypeDeclarations</key>
+    <array><dict>
+        <key>UTTypeIdentifier</key><string>com.slideways.track</string>
+        <key>UTTypeDescription</key><string>Slideways Track</string>
+        <key>UTTypeConformsTo</key><array><string>public.json</string></array>
+        <key>UTTypeTagSpecification</key><dict>
+            <key>public.filename-extension</key><array><string>slideways-track</string></array>
+            <key>public.mime-type</key><string>application/vnd.slideways.track+json</string>
+        </dict>
+    </dict></array>
+    <key>CFBundleDocumentTypes</key>
+    <array><dict>
+        <key>CFBundleTypeName</key><string>Slideways Track</string>
+        <key>CFBundleTypeRole</key><string>Viewer</string>
+        <key>LSHandlerRank</key><string>Owner</string>
+        <key>LSItemContentTypes</key><array><string>com.slideways.track</string></array>
+    </dict></array>
 </dict>
 </plist>
 PLIST
