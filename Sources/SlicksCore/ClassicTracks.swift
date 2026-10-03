@@ -1,6 +1,6 @@
 import Foundation
 
-/// Tracks ported from the original Slicks 'n' Slide (the `.SS` files in `slix151-source/TRACKS`).
+/// Tracks adapted from original Slicks 'n' Slide layouts.
 ///
 /// The originals are hand-placed sprites on a 320x184 playfield, so they're traced here as
 /// splines: coordinates are in original playfield pixels (x right, y down) and mapped onto our
