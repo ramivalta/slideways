@@ -553,8 +553,9 @@ public enum TrackRenderer {
         ctx.endTransparencyLayer()
         ctx.restoreGState()
 
-        for o in objects where !o.kind.isTree { drawObject(o, theme: theme, in: ctx) }
+        for o in objects where !o.kind.isTree && o.kind != .footbridge { drawObject(o, theme: theme, in: ctx) }
         for o in objects where o.kind.isTree { drawObject(o, theme: theme, in: ctx) }
+        for o in objects where o.kind == .footbridge { drawObject(o, theme: theme, in: ctx) }
     }
 
     /// How far down-right an object's shadow falls.
@@ -565,6 +566,8 @@ public enum TrackRenderer {
         case .grandstand: 7
         case .pitBuilding: 5
         case .ramp: 3.5
+        case .boat: 2.5
+        case .footbridge: 9
         }
     }
 
@@ -578,7 +581,10 @@ public enum TrackRenderer {
             ctx.addPath(starPath(center: c, outer: o.radius, inner: o.radius * 0.72, points: 9, rotation: o.angle))
         case .palm:
             ctx.addPath(palmFronds(o))
-        case .grandstand, .pitBuilding, .ramp:
+        case .boat:
+            var t = CGAffineTransform(translationX: c.x, y: c.y).rotated(by: o.angle)
+            if let hull = boatHull(o).copy(using: &t) { ctx.addPath(hull) }
+        case .grandstand, .pitBuilding, .ramp, .footbridge:
             ctx.addLines(between: o.corners.map { CGPoint(x: $0.x, y: $0.y) })
             ctx.closePath()
         }
@@ -703,6 +709,103 @@ public enum TrackRenderer {
             ctx.translateBy(x: c.x, y: c.y)
             ctx.rotate(by: o.angle)
             drawRamp(o, in: ctx)
+        case .boat:
+            ctx.translateBy(x: c.x, y: c.y)
+            ctx.rotate(by: o.angle)
+            drawBoat(o, snowy: snowy, in: ctx)
+        case .footbridge:
+            ctx.translateBy(x: c.x, y: c.y)
+            ctx.rotate(by: o.angle)
+            drawFootbridge(o, in: ctx)
+        }
+    }
+
+    /// Hull outline in local coordinates: square stern at -x, pointed bow at +x.
+    static func boatHull(_ o: TrackObject) -> CGPath {
+        let hl = o.size.x / 2, hd = o.size.y / 2
+        let path = CGMutablePath()
+        path.move(to: CGPoint(x: -hl, y: -hd * 0.85))
+        path.addLine(to: CGPoint(x: hl * 0.35, y: -hd))
+        path.addQuadCurve(to: CGPoint(x: hl, y: 0), control: CGPoint(x: hl * 0.85, y: -hd * 0.9))
+        path.addQuadCurve(to: CGPoint(x: hl * 0.35, y: hd), control: CGPoint(x: hl * 0.85, y: hd * 0.9))
+        path.addLine(to: CGPoint(x: -hl, y: hd * 0.85))
+        path.closeSubpath()
+        return path
+    }
+
+    /// Motor yacht from above: white hull, teak deck, cabin with dark windows. Local coordinates.
+    static func drawBoat(_ o: TrackObject, snowy: Bool, in ctx: CGContext) {
+        let hl = o.size.x / 2, hd = o.size.y / 2
+        let hull = boatHull(o)
+        ctx.addPath(hull)
+        ctx.setFillColor(cgColor(RGB(244, 244, 240)))
+        ctx.fillPath()
+        ctx.addPath(hull)
+        ctx.setStrokeColor(cgColor(RGB(40, 52, 78)))
+        ctx.setLineWidth(max(0.6, hd * 0.12))
+        ctx.strokePath()
+        // Teak deck inset from the hull.
+        var inset = CGAffineTransform(translationX: -hl * 0.06, y: 0).scaledBy(x: 0.82, y: 0.7)
+        if let deck = hull.copy(using: &inset) {
+            ctx.addPath(deck)
+            ctx.setFillColor(cgColor(snowy ? RGB(214, 220, 226) : RGB(184, 136, 88)))
+            ctx.fillPath()
+        }
+        func rect(_ x0: Double, _ y0: Double, _ x1: Double, _ y1: Double, _ c: RGB) {
+            ctx.setFillColor(cgColor(c))
+            ctx.fill(CGRect(x: x0, y: y0, width: x1 - x0, height: y1 - y0))
+        }
+        let accents = [RGB(30, 60, 130), RGB(176, 36, 40), RGB(24, 24, 30), RGB(30, 120, 140)]
+        let accent = accents[Int(objectHash(o, 70) * Double(accents.count)) % accents.count]
+        // Cabin with a wraparound band of windows and a radar mast.
+        let cx0 = -hl * 0.5, cx1 = hl * 0.25, cy = hd * 0.5
+        rect(cx0, -cy, cx1, cy, RGB(236, 238, 242))
+        rect(cx0 + 1, -cy + 0.8, cx1 - 1, -cy + 1.8, accent)
+        rect(cx0 + 1, cy - 1.8, cx1 - 1, cy - 0.8, accent)
+        rect(cx1 - 2.2, -cy + 1, cx1 - 0.8, cy - 1, accent)
+        rect(cx0 + hl * 0.25, -cy * 0.4, cx0 + hl * 0.25 + 2, cy * 0.4, RGB(150, 154, 164))
+        // Swim platform at the stern.
+        rect(-hl - 1.5, -hd * 0.6, -hl, hd * 0.6, RGB(200, 200, 196))
+    }
+
+    /// Footbridge over the road along local x: stair towers at both ends, a railed walkway
+    /// and sponsor banners down both sides. Local coordinates.
+    static func drawFootbridge(_ o: TrackObject, in ctx: CGContext) {
+        let hl = o.size.x / 2, hd = o.size.y / 2
+        func rect(_ x0: Double, _ y0: Double, _ x1: Double, _ y1: Double, _ c: RGB) {
+            ctx.setFillColor(cgColor(c))
+            ctx.fill(CGRect(x: x0, y: y0, width: x1 - x0, height: y1 - y0))
+        }
+        let tower = min(16, o.size.x * 0.14)
+        // Walkway: deck, planks, railings and banners.
+        rect(-hl + tower, -hd, hl - tower, hd, RGB(192, 194, 200))
+        var px = -hl + tower + 3
+        while px < hl - tower {
+            rect(px - 0.25, -hd + 2, px + 0.25, hd - 2, RGB(168, 170, 178))
+            px += 4
+        }
+        let banner = min(3.5, o.size.y * 0.25)
+        let colors = [RGB(206, 44, 40), RGB(244, 244, 240)]
+        var bx = -hl + tower, k = 0
+        while bx < hl - tower {
+            let x1 = min(bx + 14, hl - tower)
+            rect(bx, -hd, x1, -hd + banner, colors[k % 2])
+            rect(bx, hd - banner, x1, hd, colors[(k + 1) % 2])
+            bx = x1
+            k += 1
+        }
+        rect(-hl + tower, -hd + banner, hl - tower, -hd + banner + 0.8, RGB(70, 74, 84))
+        rect(-hl + tower, hd - banner - 0.8, hl - tower, hd - banner, RGB(70, 74, 84))
+        // Stair towers: concrete blocks with steps running up toward the walkway.
+        for side in [-1.0, 1.0] {
+            let x0 = side < 0 ? -hl : hl - tower, x1 = x0 + tower
+            rect(x0, -hd - 2, x1, hd + 2, RGB(118, 120, 128))
+            rect(x0 + 1, -hd - 1, x1 - 1, hd + 1, RGB(150, 152, 160))
+            var sy = -hd
+            while sy < hd {
+                rect(x0 + 2, sy, x1 - 2, sy + 0.6, RGB(126, 128, 136))
+                sy += 2.2
+            }
         }
     }
 

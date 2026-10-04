@@ -944,12 +944,13 @@ final class EditorScene: GameScene {
     }
 
     /// A new object of the current kind. Buildings turn to face the nearest road; ramps line
-    /// up with it, launching cars the way the race goes.
+    /// up with it, launching cars the way the race goes; footbridges span it.
     private func newObject(at p: Vec2) -> TrackObject {
         if objectKind.isTree {
             return TrackObject(objectKind, at: p, size: Vec2(treeSize, treeSize), angle: objectHash(p), solid: treeSolid)
         }
-        return TrackObject(objectKind, at: p, angle: objectKind.isRamp ? raceAngle(at: p) : facingAngle(at: p))
+        let across = objectKind.isRamp || objectKind == .footbridge
+        return TrackObject(objectKind, at: p, angle: across ? raceAngle(at: p) : facingAngle(at: p))
     }
 
     /// Angle that points a ramp's jump the way the race runs on the road nearest `p`.
@@ -2499,7 +2500,8 @@ final class EditorScene: GameScene {
 
     private func newObjectSection(_ L: PanelLayout) {
         L.header("NEW OBJECT")
-        L.note("Trees, buildings and jump ramps. Buildings are solid; trees can be solid or just scenery cars drive under.")
+        L.note("Trees, buildings, boats, footbridges and jump ramps. Buildings and boats are solid; trees can be solid or "
+               + "just scenery cars drive under, and cars always drive under footbridges.")
         L.choices("Kind", kindOptions(selected: objectKind) { [unowned self] k in
             objectKind = k
             refreshAll()
@@ -2515,7 +2517,7 @@ final class EditorScene: GameScene {
             }
         }
         L.note("Click on the map to place one; hold and drag to put it in place. Buildings turn to face the nearest road; "
-               + "ramps line up to jump the way the race goes.")
+               + "ramps line up to jump the way the race goes and footbridges span the road.")
     }
 
     private func objectSection(_ L: PanelLayout, _ i: Int) {
@@ -2526,11 +2528,13 @@ final class EditorScene: GameScene {
             let tree = treeSize
             let aligned = raceAngle(at: o.position)
             updateObject(i) { obj in
-                // Trees, buildings and ramps don't share sizes; keep the size within each group.
-                func group(_ k: TrackObjectKind) -> Int { k.isTree ? 0 : k.isRamp ? 2 : 1 }
+                // Trees, buildings, boats, footbridges and ramps don't share sizes; keep the size within each group.
+                func group(_ k: TrackObjectKind) -> Int {
+                    k.isTree ? 0 : k.isRamp ? 2 : k == .boat ? 3 : k == .footbridge ? 4 : 1
+                }
                 if group(k) != group(obj.kind) {
                     obj.size = k.isTree ? Vec2(tree, tree) : k.defaultSize
-                    if k.isRamp { obj.angle = aligned }
+                    if k.isRamp || k == .footbridge { obj.angle = aligned }
                 }
                 obj.kind = k
             }
@@ -2558,8 +2562,9 @@ final class EditorScene: GameScene {
             }
             let deg = Int((o.angle * 180 / .pi).rounded())
             let ramp = o.kind.isRamp
-            L.stepper(ramp ? "Turn" : "Facing", value: "\((deg % 360 + 360) % 360)°",
-                      tip: ramp ? "Which way the ramp launches cars" : "Which way the front faces") { [unowned self] in
+            let turnLabel = ramp || o.kind == .footbridge
+            L.stepper(turnLabel ? "Turn" : "Facing", value: "\((deg % 360 + 360) % 360)°",
+                      tip: ramp ? "Which way the ramp launches cars" : turnLabel ? "Which way the bridge runs" : "Which way the front faces") { [unowned self] in
                 updateObject(i) { $0.angle = self.snapAngle($0.angle - .pi / 12, step: 5) }
             } plus: { [unowned self] in
                 updateObject(i) { $0.angle = self.snapAngle($0.angle + .pi / 12, step: 5) }
@@ -2576,12 +2581,18 @@ final class EditorScene: GameScene {
                 ])
                 L.note("Drive up from the chevron end to jump over walls, water and other cars. Hitting the lip "
                        + "end or the sides is just a bump that slows you down.")
+            } else if o.kind == .footbridge {
+                L.choices(nil, [Option(title: "Span road", tip: "Turn it to cross the nearest road") { [unowned self] in
+                    let a = raceAngle(at: o.position)
+                    updateObject(i) { $0.angle = a }
+                }])
+                L.note("Scenery: cars drive under footbridges. Make it long enough to reach past the walls.")
             } else {
                 L.choices(nil, [Option(title: "Face the road", tip: "Turn the front toward the nearest road") { [unowned self] in
                     let a = facingAngle(at: o.position)
                     updateObject(i) { $0.angle = a }
                 }])
-                L.note("Buildings are always solid.")
+                L.note(o.kind == .boat ? "Boats are always solid. Moor them in water off the track." : "Buildings are always solid.")
             }
         }
         L.choices(nil, [
@@ -2770,6 +2781,8 @@ extension TrackObjectKind {
         case .grandstand: "Grandstand"
         case .pitBuilding: "Pit building"
         case .ramp: "Ramp"
+        case .boat: "Boat"
+        case .footbridge: "Footbridge"
         }
     }
 
@@ -2778,6 +2791,7 @@ extension TrackObjectKind {
         switch self {
         case .grandstand: "Stand"
         case .pitBuilding: "Pits"
+        case .footbridge: "Bridge"
         default: displayName
         }
     }
@@ -2790,6 +2804,8 @@ extension TrackObjectKind {
         case .grandstand: "Grandstand full of spectators, seats facing the front"
         case .pitBuilding: "Pit garages with the doors along the front"
         case .ramp: "Jump ramp: launches cars driving up from the chevron end, bumps anyone coming the other way"
+        case .boat: "Moored boat, bow at the right end. Solid"
+        case .footbridge: "Footbridge over the road with stairs at both ends. Cars drive under it"
         }
     }
 }
