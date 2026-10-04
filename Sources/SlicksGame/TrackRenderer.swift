@@ -46,7 +46,7 @@ public enum TrackRenderer {
         let grid = slots.map { (position: $0.position, forward: Vec2(cos($0.heading), sin($0.heading))) }
         let gridStart = gridStartDistance(track, slots)
         let step = track.length / Double(track.sampleCount)
-        let clearBlocks = def.theme == .urban ? cityBlocksClearOfTrack(track) : []
+        let openGround = def.theme == .urban ? OpenGround(track) : nil
         let hasBridges = !track.bridges.isEmpty
         let paint = paintLayer(for: def)
         let ground = track.groundSurfaces
@@ -132,10 +132,9 @@ public enum TrackRenderer {
                     c = (idx / 2) & 1 == 0 ? RGB(206, 44, 40) : RGB(236, 236, 236)
                 case .grass:
                     let far = d > barrierOuter
-                    if def.theme == .urban {
-                        let block = (y / cityBlockSize.h) * cityBlockColumns(w) + x / cityBlockSize.w
+                    if let openGround {
                         c = far || (def.barrierDistance == nil && d > half + 70)
-                            ? cityBlock(x: x, y: y, clear: clearBlocks[block], pal: pal, noise: noise)
+                            ? cityBlock(x: x, y: y, open: openGround, pal: pal, noise: noise)
                             : pavement(x: x, y: y, pal: pal, noise: noise)
                         break
                     }
@@ -938,30 +937,43 @@ public enum TrackRenderer {
 
     static let cityBlockSize = (w: 72, h: 56)
 
-    static func cityBlockColumns(_ width: Int) -> Int { width / cityBlockSize.w + 1 }
+    /// Open ground away from the road and its walls, as a summed-area table so whether a whole
+    /// rectangle is open is a constant-time lookup.
+    struct OpenGround {
+        let w: Int
+        let sums: [Int32]
 
-    /// Per city block: whether all of it lies on open ground away from the road and its walls,
-    /// so a building or lot there isn't cut off by the track.
-    static func cityBlocksClearOfTrack(_ track: Track) -> [Bool] {
-        let w = track.width, h = track.height, def = track.definition
-        let cols = cityBlockColumns(w), rows = h / cityBlockSize.h + 1
-        var clear = [Bool](repeating: true, count: cols * rows)
-        for y in 0..<h {
-            for x in 0..<w {
-                let i = y * w + x
-                let half = track.halfRoad(atCell: i)
-                let reach = def.barrierDistance.map { half + $0 + def.barrierThickness + 4 } ?? half + 70
-                if track.groundSurfaces[i] != .grass || Double(track.distanceField[i]) <= reach {
-                    clear[(y / cityBlockSize.h) * cols + x / cityBlockSize.w] = false
+        init(_ track: Track) {
+            let w = track.width, h = track.height, def = track.definition
+            var sums = [Int32](repeating: 0, count: (w + 1) * (h + 1))
+            for y in 0..<h {
+                var row: Int32 = 0
+                for x in 0..<w {
+                    let i = y * w + x
+                    let half = track.halfRoad(atCell: i)
+                    let reach = def.barrierDistance.map { half + $0 + def.barrierThickness + 3 } ?? half + 70
+                    if track.groundSurfaces[i] == .grass, Double(track.distanceField[i]) > reach { row += 1 }
+                    sums[(y + 1) * (w + 1) + x + 1] = sums[y * (w + 1) + x + 1] + row
                 }
             }
+            self.w = w
+            self.sums = sums
         }
-        return clear
+
+        /// Whether every cell in x0..<x1, y0..<y1 is open. Rectangles off the map aren't.
+        func isOpen(_ x0: Int, _ y0: Int, _ x1: Int, _ y1: Int) -> Bool {
+            let h = sums.count / (w + 1) - 1
+            guard x0 >= 0, y0 >= 0, x1 <= w, y1 <= h, x0 < x1, y0 < y1 else { return false }
+            let s = w + 1
+            let total = sums[y1 * s + x1] - sums[y0 * s + x1] - sums[y1 * s + x0] + sums[y0 * s + x0]
+            return Int(total) == (x1 - x0) * (y1 - y0)
+        }
     }
 
-    /// Town blocks between streets: mostly plazas and lawns, with some parking lots and the odd
-    /// building set back from the sidewalk. Blocks the track runs through are left as plain paving.
-    static func cityBlock(x: Int, y: Int, clear: Bool, pal: Palette, noise: Double) -> RGB {
+    /// Town blocks between streets, each split into two lots: buildings set back from the
+    /// sidewalk, parking lots, lawns and plazas. A lot only gets something on it when all of it
+    /// is open ground, so nothing is cut off by the track, its walls or water.
+    static func cityBlock(x: Int, y: Int, open: OpenGround, pal: Palette, noise: Double) -> RGB {
         let bw = cityBlockSize.w, bh = cityBlockSize.h, street = 9, curb = 2
         let bx = x / bw, by = y / bh
         let lx = x % bw, ly = y % bh
@@ -978,26 +990,38 @@ public enum TrackRenderer {
         if ix < curb || iy < curb || ix >= iw - curb || iy >= ih - curb {
             return pal.ground.scaled(0.9 + noise * 0.05)
         }
-        let kind = hash01(bx, by, 32)
-        guard clear, kind >= 0.35 else { return pavement(x: x, y: y, pal: pal, noise: noise) }
-        if kind < 0.55 {
+        // Two lots side by side, with a strip of paving between them.
+        let gap = 2
+        let lotW = (iw - 2 * curb - gap) / 2
+        let lot = ix - curb < lotW ? 0 : 1
+        let lx0 = curb + lot * (lotW + gap), ly0 = curb, lw = lotW, lh = ih - 2 * curb
+        let ox = bx * bw + street, oy = by * bh + street
+        guard ix >= lx0, ix < lx0 + lw,
+              open.isOpen(ox + lx0, oy + ly0, ox + lx0 + lw, oy + ly0 + lh) else {
+            return pavement(x: x, y: y, pal: pal, noise: noise)
+        }
+        let px = ix - lx0, py = iy - ly0
+        let key = bx * 2 + lot
+        let kind = hash01(key, by, 32)
+        if kind < 0.12 { return pavement(x: x, y: y, pal: pal, noise: noise) }
+        if kind < 0.27 {
             let lawn = RGB(78, 138, 64).scaled(1 + noise * 0.12)
             return tree(x: x, y: y, base: lawn, color: pal.tree) ?? lawn
         }
-        if kind < 0.75 {
-            return parkingLot(ix - curb, iy - curb, iw - 2 * curb, ih - 2 * curb, seed: bx * 31 + by, pal: pal, noise: noise)
+        if kind < 0.52 {
+            return parkingLot(px, py, lw, lh, seed: key * 31 + by, pal: pal, noise: noise)
         }
-        // One building with a setback, on paving.
-        let mx = 4 + Int(hash01(bx, by, 37) * 6), my = 4 + Int(hash01(bx, by, 38) * 5)
-        let x0 = curb + mx, y0 = curb + my, x1 = iw - curb - 4 - Int(hash01(bx, by, 39) * 8), y1 = ih - curb - 4
-        guard ix >= x0, ix < x1, iy >= y0, iy < y1 else { return pavement(x: x, y: y, pal: pal, noise: noise) }
+        // A building with a setback, on paving.
+        let mx = 3 + Int(hash01(key, by, 37) * 4), my = 3 + Int(hash01(key, by, 38) * 5)
+        let x0 = mx, y0 = my, x1 = lw - 3 - Int(hash01(key, by, 39) * 4), y1 = lh - 3 - Int(hash01(key, by, 40) * 6)
+        guard px >= x0, px < x1, py >= y0, py < y1 else { return pavement(x: x, y: y, pal: pal, noise: noise) }
         let roofs = [RGB(196, 112, 82), RGB(214, 204, 184), RGB(150, 152, 158), RGB(232, 230, 222), RGB(176, 92, 70)]
-        let roof = roofs[Int(hash01(bx, by, 33) * Double(roofs.count)) % roofs.count]
-        if ix == x0 || iy == y1 - 1 { return roof.scaled(1.18) }
-        if ix == x1 - 1 || iy == y0 { return roof.scaled(0.7) }
+        let roof = roofs[Int(hash01(key, by, 33) * Double(roofs.count)) % roofs.count]
+        if px == x0 || py == y1 - 1 { return roof.scaled(1.18) }
+        if px == x1 - 1 || py == y0 { return roof.scaled(0.7) }
         var c = roof.scaled(1 + noise * 0.08)
-        let ux = x0 + 5 + Int(hash01(bx, by, 34) * 10), uy = y0 + 5 + Int(hash01(bx, by, 35) * 8)
-        if (ux..<ux + 7).contains(ix), (uy..<uy + 5).contains(iy) { c = RGB(110, 114, 122) }
+        let ux = x0 + 4 + Int(hash01(key, by, 34) * 8), uy = y0 + 5 + Int(hash01(key, by, 35) * 14)
+        if (ux..<ux + 6).contains(px), (uy..<uy + 5).contains(py) { c = RGB(110, 114, 122) }
         return c
     }
 
