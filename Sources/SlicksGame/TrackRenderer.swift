@@ -784,18 +784,19 @@ public enum TrackRenderer {
             rect(px - 0.25, -hd + 2, px + 0.25, hd - 2, RGB(168, 170, 178))
             px += 4
         }
-        let banner = min(3.5, o.size.y * 0.25)
-        let colors = [RGB(206, 44, 40), RGB(244, 244, 240)]
-        var bx = -hl + tower, k = 0
-        while bx < hl - tower {
-            let x1 = min(bx + 14, hl - tower)
-            rect(bx, -hd, x1, -hd + banner, colors[k % 2])
-            rect(bx, hd - banner, x1, hd, colors[(k + 1) % 2])
-            bx = x1
-            k += 1
+        // Steel side girders with a sponsor panel: solid, not striped, so it doesn't read as curb.
+        let girder = min(3.5, o.size.y * 0.25)
+        for (y0, y1) in [(-hd, -hd + girder), (hd - girder, hd)] {
+            rect(-hl + tower, y0, hl - tower, y1, RGB(36, 58, 104))
+            rect(-hl + tower, y0 + girder * 0.35, hl - tower, y1 - girder * 0.35, RGB(56, 92, 158))
+            var lx = -hl + tower + 8
+            while lx < hl - tower - 8 {
+                rect(lx, y0 + girder * 0.42, lx + 5, y1 - girder * 0.42, RGB(236, 238, 242))
+                lx += 18
+            }
         }
-        rect(-hl + tower, -hd + banner, hl - tower, -hd + banner + 0.8, RGB(70, 74, 84))
-        rect(-hl + tower, hd - banner - 0.8, hl - tower, hd - banner, RGB(70, 74, 84))
+        rect(-hl + tower, -hd + girder, hl - tower, -hd + girder + 0.8, RGB(70, 74, 84))
+        rect(-hl + tower, hd - girder - 0.8, hl - tower, hd - girder, RGB(70, 74, 84))
         // Stair towers: concrete blocks with steps running up toward the walkway.
         for side in [-1.0, 1.0] {
             let x0 = side < 0 ? -hl : hl - tower, x1 = x0 + tower
