@@ -9,7 +9,7 @@ public enum NetProtocol {
     /// 5: AI routes back to the road from behind walls.
     /// 6: tire rubber on the road (its checksum in race state, and rubber deltas).
     /// 7: AI driver personalities (their seeds in race state).
-    /// 8: boat and footbridge track objects (older builds can't decode tracks using them).
+    /// 8: boat and footbridge track objects, urban theme (older builds can't decode tracks using them).
     public static let version: UInt16 = 8
     /// UDP.
     public static let defaultPort: UInt16 = 47800

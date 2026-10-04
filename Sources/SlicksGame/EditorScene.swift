@@ -2092,9 +2092,10 @@ final class EditorScene: GameScene {
         }
         L.choices("Theme", TrackTheme.allCases.map { t in
             Option(title: t.rawValue.capitalized, selected: def.theme == t) { [unowned self] in perform { $0.theme = t } }
-        })
+        }, perRow: 2)
         L.choices("Ground", [Surface.grass, .sand, .ice, .asphalt].map { s in
-            Option(title: s.displayName, selected: def.background == s, tint: EditorColors.swatch(s, theme: def.theme),
+            Option(title: s == .grass && def.theme == .urban ? "Pavement" : s.displayName, selected: def.background == s,
+                   tint: EditorColors.swatch(s, theme: def.theme),
                    tip: "Surface everywhere off the road") { [unowned self] in perform { $0.background = s } }
         }, perRow: 2)
         L.stepper("Road width", value: "\(Int(def.roadWidth))",

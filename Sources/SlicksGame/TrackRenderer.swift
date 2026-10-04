@@ -30,6 +30,9 @@ public enum TrackRenderer {
         case .winter:
             Palette(ground: RGB(226, 232, 240), groundFar: RGB(200, 210, 224), tree: RGB(40, 80, 64),
                     asphalt: RGB(96, 100, 110), sand: RGB(180, 170, 150))
+        case .urban:
+            Palette(ground: RGB(158, 156, 150), groundFar: RGB(92, 92, 96), tree: RGB(40, 92, 44),
+                    asphalt: RGB(72, 74, 80), sand: RGB(206, 188, 146))
         }
     }
 
@@ -128,6 +131,11 @@ public enum TrackRenderer {
                     c = (idx / 2) & 1 == 0 ? RGB(206, 44, 40) : RGB(236, 236, 236)
                 case .grass:
                     let far = d > barrierOuter
+                    if def.theme == .urban {
+                        c = far || (def.barrierDistance == nil && d > half + 70)
+                            ? cityBlock(x: x, y: y, pal: pal, noise: noise) : pavement(x: x, y: y, pal: pal, noise: noise)
+                        break
+                    }
                     c = (far ? pal.groundFar : pal.ground).scaled(1 + noise * 0.14)
                     if hash01(x, y, 7) > 0.985 { c = c.scaled(0.8) }
                     if far || (def.barrierDistance == nil && d > half + 70) {
@@ -145,6 +153,12 @@ public enum TrackRenderer {
                     c = RGB(186, 222, 244).scaled(1 + noise * 0.05)
                     if (x + y * 3) % 23 == 0 || hash01(x, y, 11) > 0.97 { c = RGB(236, 246, 255) }
                 case .wall:
+                    if def.theme == .urban {
+                        // Concrete barrier blocks with dark joints.
+                        let joint = (x + y) % 9 == 0
+                        c = joint ? RGB(96, 96, 100) : RGB(184, 184, 180).scaled(1 + noise * 0.1)
+                        break
+                    }
                     // Stacked tire barrier look.
                     let cell = ((x / 4) + (y / 4)) & 1
                     c = cell == 0 ? RGB(46, 46, 52) : RGB(22, 22, 26)
@@ -909,6 +923,42 @@ public enum TrackRenderer {
         rect(tx, ty, tx + t, ty + t, RGB(70, 130, 190))
         rect(tx + 2, ty + 2, tx + t - 2, ty + t - 2, roof.scaled(1.02))
         rect(tx + 2, ty + t - 3.5, tx + t - 2, ty + t - 2, RGB(140, 196, 236))
+    }
+
+    /// Sidewalk paving: square slabs, each a slightly different shade, with dark joints.
+    static func pavement(x: Int, y: Int, pal: Palette, noise: Double) -> RGB {
+        let slab = 10
+        if x % slab == 0 || y % slab == 0 { return pal.ground.scaled(0.84) }
+        let tint = 0.95 + 0.08 * hash01(x / slab, y / slab, 31)
+        return pal.ground.scaled(tint + noise * 0.06)
+    }
+
+    /// Rooftops seen from above, packed into blocks separated by narrow streets.
+    static func cityBlock(x: Int, y: Int, pal: Palette, noise: Double) -> RGB {
+        let bw = 46, bh = 34, street = 5
+        let bx = x / bw, by = y / bh
+        let lx = x % bw, ly = y % bh
+        if lx < street || ly < street {
+            return pal.asphalt.scaled(0.9 + noise * 0.1)
+        }
+        // Split each block into two or three buildings of different heights and roofs.
+        let splits = 2 + Int(hash01(bx, by, 32) * 2)
+        let inner = bw - street
+        let part = min(splits - 1, (lx - street) * splits / inner)
+        let partStart = street + part * inner / splits
+        let roofs = [RGB(196, 112, 82), RGB(214, 204, 184), RGB(150, 152, 158), RGB(232, 230, 222),
+                     RGB(176, 92, 70), RGB(120, 124, 132)]
+        let roof = roofs[Int(hash01(bx * 3 + part, by, 33) * Double(roofs.count)) % roofs.count]
+        // Parapet edge, shadowed on the bottom-right like the walls.
+        if lx == partStart || ly == street { return roof.scaled(1.18) }
+        if lx == partStart + inner / splits - 1 || ly == bh - 1 { return roof.scaled(0.7) }
+        var c = roof.scaled(1 + noise * 0.08)
+        // A rooftop unit on some buildings.
+        let ux = partStart + 4 + Int(hash01(bx, by + part, 34) * 6), uy = street + 5 + Int(hash01(bx + part, by, 35) * 10)
+        if hash01(bx, by * 7 + part, 36) > 0.4, (ux..<ux + 6).contains(lx), (uy..<uy + 4).contains(ly) {
+            c = RGB(110, 114, 122)
+        }
+        return c
     }
 
     /// Flat-colored approximation of a track drawn with vector strokes: fast enough to redraw

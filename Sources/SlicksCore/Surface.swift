@@ -40,4 +40,6 @@ public enum TrackTheme: String, Codable, Sendable, CaseIterable {
     case summer
     case desert
     case winter
+    /// City streets: paved ground, concrete barriers and blocks of buildings.
+    case urban
 }
