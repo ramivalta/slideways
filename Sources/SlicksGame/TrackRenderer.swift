@@ -933,32 +933,66 @@ public enum TrackRenderer {
         return pal.ground.scaled(tint + noise * 0.06)
     }
 
-    /// Rooftops seen from above, packed into blocks separated by narrow streets.
+    /// Town blocks between streets: a mix of plazas, parking lots, small parks and buildings
+    /// set back from the sidewalk.
     static func cityBlock(x: Int, y: Int, pal: Palette, noise: Double) -> RGB {
-        let bw = 46, bh = 34, street = 5
+        let bw = 72, bh = 56, street = 9, curb = 2
         let bx = x / bw, by = y / bh
         let lx = x % bw, ly = y % bh
+        let road = pal.asphalt.scaled(0.95 + noise * 0.1)
         if lx < street || ly < street {
-            return pal.asphalt.scaled(0.9 + noise * 0.1)
+            // Dashed center line down the middle of each street.
+            let mid = street / 2
+            if lx == mid, ly >= street, (y / 6) & 1 == 0 { return RGB(214, 196, 120) }
+            if ly == mid, lx >= street, (x / 6) & 1 == 0 { return RGB(214, 196, 120) }
+            return road
         }
-        // Split each block into two or three buildings of different heights and roofs.
-        let splits = 2 + Int(hash01(bx, by, 32) * 2)
-        let inner = bw - street
-        let part = min(splits - 1, (lx - street) * splits / inner)
-        let partStart = street + part * inner / splits
-        let roofs = [RGB(196, 112, 82), RGB(214, 204, 184), RGB(150, 152, 158), RGB(232, 230, 222),
-                     RGB(176, 92, 70), RGB(120, 124, 132)]
-        let roof = roofs[Int(hash01(bx * 3 + part, by, 33) * Double(roofs.count)) % roofs.count]
-        // Parapet edge, shadowed on the bottom-right like the walls.
-        if lx == partStart || ly == street { return roof.scaled(1.18) }
-        if lx == partStart + inner / splits - 1 || ly == bh - 1 { return roof.scaled(0.7) }
+        // Sidewalk around every block.
+        let ix = lx - street, iy = ly - street, iw = bw - street, ih = bh - street
+        if ix < curb || iy < curb || ix >= iw - curb || iy >= ih - curb {
+            return pal.ground.scaled(0.9 + noise * 0.05)
+        }
+        let kind = hash01(bx, by, 32)
+        if kind < 0.3 {
+            return parkingLot(ix - curb, iy - curb, iw - 2 * curb, ih - 2 * curb, seed: bx * 31 + by, pal: pal, noise: noise)
+        }
+        if kind < 0.45 {
+            let lawn = RGB(78, 138, 64).scaled(1 + noise * 0.12)
+            return tree(x: x, y: y, base: lawn, color: pal.tree) ?? lawn
+        }
+        if kind < 0.6 { return pavement(x: x, y: y, pal: pal, noise: noise) }
+        // One building with a setback, on paving.
+        let mx = 4 + Int(hash01(bx, by, 37) * 6), my = 4 + Int(hash01(bx, by, 38) * 5)
+        let x0 = curb + mx, y0 = curb + my, x1 = iw - curb - 4 - Int(hash01(bx, by, 39) * 8), y1 = ih - curb - 4
+        guard ix >= x0, ix < x1, iy >= y0, iy < y1 else { return pavement(x: x, y: y, pal: pal, noise: noise) }
+        let roofs = [RGB(196, 112, 82), RGB(214, 204, 184), RGB(150, 152, 158), RGB(232, 230, 222), RGB(176, 92, 70)]
+        let roof = roofs[Int(hash01(bx, by, 33) * Double(roofs.count)) % roofs.count]
+        if ix == x0 || iy == y1 - 1 { return roof.scaled(1.18) }
+        if ix == x1 - 1 || iy == y0 { return roof.scaled(0.7) }
         var c = roof.scaled(1 + noise * 0.08)
-        // A rooftop unit on some buildings.
-        let ux = partStart + 4 + Int(hash01(bx, by + part, 34) * 6), uy = street + 5 + Int(hash01(bx + part, by, 35) * 10)
-        if hash01(bx, by * 7 + part, 36) > 0.4, (ux..<ux + 6).contains(lx), (uy..<uy + 4).contains(ly) {
-            c = RGB(110, 114, 122)
-        }
+        let ux = x0 + 5 + Int(hash01(bx, by, 34) * 10), uy = y0 + 5 + Int(hash01(bx, by, 35) * 8)
+        if (ux..<ux + 7).contains(ix), (uy..<uy + 5).contains(iy) { c = RGB(110, 114, 122) }
         return c
+    }
+
+    /// Parking lot in block-local coordinates: rows of stalls along two sides of an aisle, some taken.
+    static func parkingLot(_ x: Int, _ y: Int, _ w: Int, _ h: Int, seed: Int, pal: Palette, noise: Double) -> RGB {
+        let lot = pal.asphalt.scaled(1.12 + noise * 0.08)
+        let stall = 7, depth = 12
+        let aisleTop = depth, aisleBottom = h - depth
+        guard y < aisleTop || y >= aisleBottom, x >= 2, x < w - 2 else { return lot }
+        let row = y < aisleTop ? 0 : 1
+        let sx = (x - 2) % stall, k = (x - 2) / stall
+        if sx == 0 { return RGB(226, 226, 220) }
+        let ry = row == 0 ? y : y - aisleBottom
+        if hash01(k, seed * 2 + row, 41) > 0.45, sx >= 2, sx <= stall - 2, ry >= 2, ry <= depth - 3 {
+            let colors = [RGB(200, 40, 40), RGB(230, 230, 232), RGB(40, 60, 130), RGB(30, 30, 34), RGB(150, 152, 160), RGB(220, 180, 50)]
+            let body = colors[Int(hash01(k, seed + row, 42) * Double(colors.count)) % colors.count]
+            // Windshield toward the aisle.
+            let glass = row == 0 ? ry == depth - 5 : ry == 4
+            return glass ? RGB(60, 80, 100) : body
+        }
+        return lot
     }
 
     /// Flat-colored approximation of a track drawn with vector strokes: fast enough to redraw
