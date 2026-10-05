@@ -7,6 +7,8 @@ enum RaceMode {
     case local
     /// From the editor: restart re-races the same track, exit returns to the editor.
     case testDrive
+    /// A championship round: results score points, then the standings come up.
+    case series
     /// Can't pause; the host sends everyone back to the lobby afterwards.
     case online(OnlineSession)
 }
@@ -69,6 +71,11 @@ final class RaceScene: GameScene {
 
     private var isTestDrive: Bool {
         if case .testDrive = mode { return true }
+        return false
+    }
+
+    private var isSeries: Bool {
+        if case .series = mode { return true }
         return false
     }
 
@@ -448,7 +455,7 @@ final class RaceScene: GameScene {
         } else {
             isPausedByPlayer = true
             title = makeLabel("PAUSED", size: 36, color: .accent, align: .center)
-            let quit = isTestDrive ? "Q back to editor" : "Q quit to menu"
+            let quit = isTestDrive ? "Q back to editor" : isSeries ? "Q quit series" : "Q quit to menu"
             help = makeLabel("Esc/Enter resume   R restart   \(quit)", size: 15, color: .white, align: .center)
         }
         title.position = CGPoint(x: 0, y: 40)
@@ -463,32 +470,38 @@ final class RaceScene: GameScene {
         showingResults = true
         overlay?.removeFromParent()
         let standings = race.standings
+        if isSeries { coordinator.recordSeriesRound(finishingOrder: standings.map(\.id)) }
         let rowHeight: CGFloat = 30
         let height = CGFloat(standings.count) * rowHeight + 150
         let panel = makePanel(height: height)
         let top = height / 2
 
-        let title = makeLabel("RESULTS - \(track.definition.name.uppercased())", size: 24, color: .accent, align: .center)
+        var titleText = "RESULTS - \(track.definition.name.uppercased())"
+        if isSeries, let series = coordinator.series {
+            titleText = "ROUND \(series.roundsCompleted)/\(series.trackIDs.count) - \(track.definition.name.uppercased())"
+        }
+        let title = makeLabel(titleText, size: 24, color: .accent, align: .center)
         title.position = CGPoint(x: 0, y: top - 34)
         panel.addChild(title)
 
-        func columns(_ pos: String, _ name: String, _ time: String, _ best: String) -> String {
+        func columns(_ pos: String, _ name: String, _ time: String, _ best: String, _ points: String = "") -> String {
             func pad(_ s: String, _ w: Int, right: Bool = false) -> String {
                 let p = String(repeating: " ", count: max(0, w - s.count))
                 return right ? p + s : s + p
             }
             return pad(pos, 4) + pad(name, 12) + pad(time, 10, right: true) + pad(best, 11, right: true)
+                + (isSeries ? pad(points, 6, right: true) : "")
         }
 
-        let header = makeLabel(columns("POS", "DRIVER", "TIME", "BEST LAP"), size: 15, color: .dim)
-        header.position = CGPoint(x: -250, y: top - 72)
+        let header = makeLabel(columns("POS", "DRIVER", "TIME", "BEST LAP", "PTS"), size: 15, color: .dim)
+        header.position = CGPoint(x: isSeries ? -272 : -250, y: top - 72)
         panel.addChild(header)
 
         let leader = standings.first
         for (i, car) in standings.enumerated() {
             let y = top - 104 - CGFloat(i) * rowHeight
             let swatch = SKSpriteNode(color: CarArt.color(car.colorIndex), size: CGSize(width: 12, height: 12))
-            swatch.position = CGPoint(x: -266, y: y)
+            swatch.position = CGPoint(x: isSeries ? -288 : -266, y: y)
             panel.addChild(swatch)
 
             let time: String
@@ -501,14 +514,18 @@ final class RaceScene: GameScene {
                 time = "DNF"
             }
             let best = car.bestLap.map(formatTime) ?? "-"
-            let row = makeLabel(columns("\(i + 1).", car.name, time, best), size: 15, color: car.isAI ? .white : .accent)
-            row.position = CGPoint(x: -250, y: y)
+            let points = Series.points(forPlace: i)
+            let row = makeLabel(columns("\(i + 1).", car.name, time, best, points > 0 ? "+\(points)" : "-"),
+                                size: 15, color: car.isAI ? .white : .accent)
+            row.position = CGPoint(x: isSeries ? -272 : -250, y: y)
             panel.addChild(row)
         }
 
         let helpText: String
         if let online {
             helpText = online.isHost ? "Enter back to the lobby   Esc end the game" : "Waiting for the host...   Esc leave the game"
+        } else if isSeries {
+            helpText = "Enter series standings"
         } else {
             helpText = "Enter race again   Esc \(isTestDrive ? "editor" : "menu")"
         }
@@ -530,6 +547,10 @@ final class RaceScene: GameScene {
         #if os(macOS)
         if isTestDrive { return coordinator.raceTestTrack(track) }
         #endif
+        if isSeries {
+            // Once scored, the round is over: carry on to the standings.
+            return showingResults ? coordinator.showSeriesStandings() : coordinator.startSeriesRound()
+        }
         coordinator.startRace()
     }
 
@@ -542,6 +563,9 @@ final class RaceScene: GameScene {
         #if os(macOS)
         if isTestDrive { return coordinator.returnToEditor() }
         #endif
+        if isSeries {
+            return showingResults ? coordinator.showSeriesStandings() : coordinator.endSeries()
+        }
         coordinator.showMenu()
     }
 

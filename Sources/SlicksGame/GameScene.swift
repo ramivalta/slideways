@@ -64,6 +64,48 @@ public final class GameCoordinator {
         present(localRace(settings, on: TrackLibrary.shared.track(at: settings.trackIndex), isTestDrive: false))
     }
 
+    // MARK: Championship
+
+    /// The championship being played, if any.
+    private(set) var series: Series?
+
+    func showSeriesSetup() {
+        present(SeriesSetupScene(coordinator: self))
+    }
+
+    func startSeries(trackIDs: [String], persist: Bool = true) {
+        settings.seriesTrackIDs = trackIDs
+        if persist { settings.save() }
+        series = Series(trackIDs: trackIDs, entrants: settings.entrants(seed: RaceSetup.randomSeed()))
+        startSeriesRound()
+    }
+
+    /// Runs, or reruns, the series' next round.
+    func startSeriesRound() {
+        guard let series, let id = series.nextTrackID, let index = TrackLibrary.shared.index(of: id) else {
+            return showSeriesStandings()
+        }
+        let track = TrackLibrary.shared.track(at: index)
+        let setup = RaceSetup(track: track.definition, entrants: series.entrants,
+                              laps: track.definition.defaultLaps, seed: RaceSetup.randomSeed())
+        let controller = LocalRaceController(race: Race(setup: setup, track: track), localSlots: Array(0..<setup.inputSlotCount))
+        present(RaceScene(coordinator: self, controller: controller, mode: .series))
+    }
+
+    func recordSeriesRound(finishingOrder: [Int]) {
+        series?.record(finishingOrder: finishingOrder)
+    }
+
+    func showSeriesStandings() {
+        guard let series else { return showMenu() }
+        present(SeriesStandingsScene(coordinator: self, series: series))
+    }
+
+    func endSeries() {
+        series = nil
+        showMenu()
+    }
+
     /// A race where every human is at this machine: local player p drives input slot p.
     private func localRace(_ s: RaceSettings, on track: Track, isTestDrive: Bool) -> RaceScene {
         let setup = s.raceSetup(track: track.definition, seed: RaceSetup.randomSeed())
@@ -202,6 +244,10 @@ public final class GameCoordinator {
 
     func present(_ scene: SKScene) {
         Input.shared.releaseAll()
+        #if DEBUG && os(macOS)
+        // A window in the background may never finish a fade, leaving snapshots on the old scene.
+        if DebugHarness.isActive { return view?.presentScene(scene) ?? () }
+        #endif
         view?.presentScene(scene, transition: .fade(withDuration: 0.2))
     }
 }

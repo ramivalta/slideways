@@ -11,7 +11,7 @@ final class MenuScene: GameScene {
         #if os(macOS)
         case display
         #endif
-        case start, online
+        case start, series, online
         #if os(macOS)
         case editor
         #endif
@@ -20,7 +20,7 @@ final class MenuScene: GameScene {
             #if os(macOS)
             if self == .editor { return true }
             #endif
-            return self == .start || self == .online
+            return self == .start || self == .series || self == .online
         }
 
         /// Two-state rows ignore key repeat, so holding Left/Right doesn't flip them back and forth.
@@ -69,9 +69,9 @@ final class MenuScene: GameScene {
         subtitle.position = CGPoint(x: 480, y: 524)
         addChild(subtitle)
 
-        // Up to eleven rows with the display, online and editor entries: tighter spacing keeps
-        // them clear of the help text.
-        let spacing: CGFloat = Row.allCases.count > 10 ? 28 : Row.allCases.count > 9 ? 32 : Row.allCases.count > 8 ? 35 : 40
+        // Up to twelve rows with the display, championship, online and editor entries: tighter
+        // spacing keeps them clear of the help text.
+        let spacing: CGFloat = Row.allCases.count > 11 ? 26 : Row.allCases.count > 10 ? 28 : Row.allCases.count > 9 ? 32 : Row.allCases.count > 8 ? 35 : 40
         for (i, row) in Row.allCases.enumerated() {
             let l = makeLabel("", size: 20)
             l.position = CGPoint(x: 60, y: 456 - CGFloat(i) * spacing - (row.isAction ? 12 : 0))
@@ -136,6 +136,7 @@ final class MenuScene: GameScene {
             .skill: "AI SKILL   < \(MenuScene.skillLevels[skillIndex].name) >",
             .sound: "SOUND      < \(volumeText) >",
             .start: "START RACE",
+            .series: "CHAMPIONSHIP",
             .online: "ONLINE",
         ]
         #if os(macOS)
@@ -183,6 +184,10 @@ final class MenuScene: GameScene {
             if selected == .online {
                 settings.save()
                 return coordinator.showOnlineMenu()
+            }
+            if selected == .series {
+                settings.save()
+                return coordinator.showSeriesSetup()
             }
             #if os(macOS)
             if selected == .editor {

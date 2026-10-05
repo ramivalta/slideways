@@ -11,6 +11,8 @@ import UniformTypeIdentifiers
 /// Debug-only smoke test: set SLIDEWAYS_SNAPSHOT_DIR to have the app capture the menu,
 /// run a 1-lap AI-only race, save frames along the way, then quit.
 public enum DebugHarness {
+    static let isActive = ProcessInfo.processInfo.environment["SLIDEWAYS_SNAPSHOT_DIR"] != nil
+
     @MainActor
     public static func runIfRequested(view: SKView) {
         guard let dir = ProcessInfo.processInfo.environment["SLIDEWAYS_SNAPSHOT_DIR"] else { return }
@@ -67,6 +69,33 @@ public enum DebugHarness {
         }
         if let role = ProcessInfo.processInfo.environment["SLIDEWAYS_NET_TEST"] {
             return runOnlineScript(role: role, snap: snap, after: after)
+        }
+        if ProcessInfo.processInfo.environment["SLIDEWAYS_SERIES_TEST"] != nil {
+            // Snaps the championship screens; round results are made up rather than raced.
+            let coordinator = GameCoordinator.shared
+            after(1) { snap("menu") }
+            after(1.5) { coordinator.showSeriesSetup() }
+            after(4) { snap("series-setup") }
+            after(4.5) {
+                var s = RaceSettings()
+                s.humanPlayers = 1
+                s.aiOpponents = 7
+                coordinator.settings = s
+                coordinator.startSeries(trackIDs: ["speedway", "pine-ridge"], persist: false)
+            }
+            after(6) { snap("series-race") }
+            after(6.5) {
+                coordinator.recordSeriesRound(finishingOrder: [3, 7, 0, 1, 2, 4, 5, 6])
+                coordinator.showSeriesStandings()
+            }
+            after(7.5) { snap("series-standings") }
+            after(8) {
+                coordinator.recordSeriesRound(finishingOrder: [7, 0, 3, 1, 2, 4, 5, 6])
+                coordinator.showSeriesStandings()
+            }
+            after(9) { snap("series-final") }
+            after(9.5) { NSApplication.shared.terminate(nil) }
+            return
         }
 
         after(1) { snap("menu") }

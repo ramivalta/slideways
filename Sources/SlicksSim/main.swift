@@ -14,7 +14,7 @@ import UniformTypeIdentifiers
 
 let args = CommandLine.arguments
 if args.dropFirst().first == "--race-checks" {
-    let problems = raceEndChecks()
+    let problems = raceEndChecks() + seriesChecks()
     print(problems == 0 ? "ALL OK" : "\(problems) problem(s)")
     exit(problems == 0 ? 0 : 1)
 }
@@ -104,6 +104,7 @@ if args.dropFirst().first != "--physics" {
     failures += rubberCheck()
     failures += fencedInCheck()
     failures += raceEndChecks()
+    failures += seriesChecks()
     failures += netChecks()
     failures += loopbackChecks()
     failures += portMapperChecks()

@@ -17,6 +17,8 @@ public struct RaceSettings: Codable, Sendable, Equatable {
     public var aiOpponents = 5
     public var aiSkill = 0.75
     public var playerNames: [String]?
+    /// Tracks last picked for a championship.
+    public var seriesTrackIDs: [String]?
 
     public init() {}
 
