@@ -189,15 +189,42 @@ public final class GameCoordinator {
         texturedDefinitions[id] = track.definition
     }
 
-    /// Track with bridge decks baked in, for the menu preview.
-    func previewTexture(for track: Track) -> SKTexture {
-        checkTextureCache(track)
-        let key = track.definition.id + "#preview"
-        if let t = textures[key] { return t }
-        let t = SKTexture(cgImage: TrackRenderer.makeCompositeImage(for: track))
-        t.filteringMode = .linear
-        textures[key] = t
-        return t
+    /// Callbacks waiting on previews being drawn, by track id.
+    private var previewWaiters: [String: [(SKTexture) -> Void]] = [:]
+
+    /// Track with bridge decks baked in, for the menu preview. The first time, the track is
+    /// built and drawn off the main thread, so `done` may run later (always on the main thread).
+    func loadPreview(at index: Int, priority: DispatchQoS.QoSClass = .userInitiated,
+                     _ done: @escaping (SKTexture) -> Void) {
+        let lib = TrackLibrary.shared
+        let def = lib.definition(at: index)
+        let key = def.id + "#preview"
+        if texturedDefinitions[def.id] == def, let t = textures[key] { return done(t) }
+        if previewWaiters[def.id] != nil {
+            previewWaiters[def.id]!.append(done)
+            return
+        }
+        previewWaiters[def.id] = [done]
+        let built = lib.builtTrack(for: def)
+        DispatchQueue.global(qos: priority).async {
+            let track = built ?? Track(definition: def)
+            let image = TrackRenderer.makeCompositeImage(for: track)
+            DispatchQueue.main.async { [self] in
+                lib.adopt(track)
+                checkTextureCache(track)
+                let t = SKTexture(cgImage: image)
+                t.filteringMode = .linear
+                textures[key] = t
+                previewWaiters.removeValue(forKey: def.id)?.forEach { $0(t) }
+            }
+        }
+    }
+
+    /// Draws every library track's preview in the background, ready for browsing.
+    func prewarmPreviews() {
+        for i in TrackLibrary.shared.definitions.indices {
+            loadPreview(at: i, priority: .utility) { _ in }
+        }
     }
 
     func deckTexture(for track: Track, bridge: Bridge) -> SKTexture {

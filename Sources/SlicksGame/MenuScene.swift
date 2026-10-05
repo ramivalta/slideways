@@ -82,6 +82,7 @@ final class MenuScene: GameScene {
         preview.position = CGPoint(x: 712, y: 350)
         preview.size = CGSize(width: 400, height: 250)
         addChild(preview)
+        preview.color = .clear
         let frame = SKShapeNode(rect: CGRect(x: -202, y: -127, width: 404, height: 254))
         frame.strokeColor = SKColor(white: 1, alpha: 0.35)
         frame.lineWidth = 2
@@ -110,11 +111,25 @@ final class MenuScene: GameScene {
             addChild(l)
         }
         refresh()
+        coordinator.prewarmPreviews()
     }
 
     override func willMove(from view: SKView) {
         fullScreenObservers.forEach(NotificationCenter.default.removeObserver)
         fullScreenObservers = []
+    }
+
+    private var previewIndex: Int?
+
+    private func showPreview(at index: Int) {
+        guard index != previewIndex else { return }
+        previewIndex = index
+        preview.alpha = 0.3
+        coordinator.loadPreview(at: index) { [weak self] texture in
+            guard let self, self.previewIndex == index else { return }
+            self.preview.texture = texture
+            self.preview.alpha = 1
+        }
     }
 
     private var skillIndex: Int { MenuScene.skillIndex(settings.aiSkill) }
@@ -148,7 +163,7 @@ final class MenuScene: GameScene {
             label.text = (isSel ? "> " : "  ") + (values[row] ?? "")
             label.fontColor = isSel ? .accent : .white
         }
-        preview.texture = coordinator.previewTexture(for: lib.track(at: settings.trackIndex))
+        showPreview(at: settings.trackIndex)
         let bridges = def.bridges.isEmpty ? "" : " - \(def.bridges.count) bridge\(def.bridges.count > 1 ? "s" : "")"
         previewCaption.text = "\(def.name) - \(def.theme.rawValue)\(bridges) - suggested \(def.defaultLaps) laps"
     }

@@ -63,6 +63,7 @@ final class SeriesSetupScene: GameScene {
 
         preview.position = CGPoint(x: 712, y: 350)
         preview.size = CGSize(width: 400, height: 250)
+        preview.color = .clear
         addChild(preview)
         let frame = SKShapeNode(rect: CGRect(x: -202, y: -127, width: 404, height: 254))
         frame.strokeColor = SKColor(white: 1, alpha: 0.35)
@@ -77,6 +78,7 @@ final class SeriesSetupScene: GameScene {
         help.position = CGPoint(x: 480, y: 50)
         addChild(help)
         refresh()
+        coordinator.prewarmPreviews()
     }
 
     private var rounds: [String] { definitions.map(\.id).filter(chosen.contains) }
@@ -107,8 +109,21 @@ final class SeriesSetupScene: GameScene {
 
         let shown = selected < startRow ? selected : definitions.firstIndex { chosen.contains($0.id) } ?? 0
         let def = definitions[shown]
-        preview.texture = coordinator.previewTexture(for: TrackLibrary.shared.track(at: shown))
+        showPreview(at: shown)
         previewCaption.text = "\(def.name) - \(def.theme.rawValue) - \(def.defaultLaps) laps"
+    }
+
+    private var previewIndex: Int?
+
+    private func showPreview(at index: Int) {
+        guard index != previewIndex else { return }
+        previewIndex = index
+        preview.alpha = 0.3
+        coordinator.loadPreview(at: index) { [weak self] texture in
+            guard let self, self.previewIndex == index else { return }
+            self.preview.texture = texture
+            self.preview.alpha = 1
+        }
     }
 
     override func keyPressed(_ key: Key, isRepeat: Bool) {
@@ -212,7 +227,8 @@ final class SeriesStandingsScene: GameScene {
             let caption = makeLabel("NEXT: ROUND \(series.roundsCompleted + 1) - \(def.name.uppercased())", size: 17, color: .accent, align: .center)
             caption.position = CGPoint(x: 712, y: 490)
             addChild(caption)
-            let preview = SKSpriteNode(texture: coordinator.previewTexture(for: library.track(at: index)), size: CGSize(width: 400, height: 250))
+            let preview = SKSpriteNode(color: .clear, size: CGSize(width: 400, height: 250))
+            coordinator.loadPreview(at: index) { preview.texture = $0 }
             preview.position = CGPoint(x: 712, y: 330)
             addChild(preview)
             let frame = SKShapeNode(rect: CGRect(x: -202, y: -127, width: 404, height: 254))

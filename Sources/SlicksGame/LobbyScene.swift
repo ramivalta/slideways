@@ -42,6 +42,7 @@ final class LobbyScene: GameScene {
         if session.isHost {
             preview.position = CGPoint(x: 752, y: 452)
             preview.size = CGSize(width: 256, height: 160)
+            preview.color = .clear
             addChild(preview)
             let frame = SKShapeNode(rect: CGRect(x: -130, y: -82, width: 260, height: 164))
             frame.strokeColor = SKColor(white: 1, alpha: 0.35)
@@ -55,6 +56,19 @@ final class LobbyScene: GameScene {
 
     override func willMove(from view: SKView) {
         if session.lobbyScene === self { session.lobbyScene = nil }
+    }
+
+    private var previewIndex: Int?
+
+    private func showPreview(at index: Int) {
+        guard index != previewIndex else { return }
+        previewIndex = index
+        preview.alpha = 0.3
+        coordinator.loadPreview(at: index) { [weak self] texture in
+            guard let self, self.previewIndex == index else { return }
+            self.preview.texture = texture
+            self.preview.alpha = 1
+        }
     }
 
     private var playerRows: [Row] {
@@ -116,7 +130,7 @@ final class LobbyScene: GameScene {
                 row(r, values[r] ?? "", y: y)
                 y -= 33
             }
-            preview.texture = coordinator.previewTexture(for: lib.track(at: s.trackIndex))
+            showPreview(at: s.trackIndex)
         } else if let lobby {
             for line in ["TRACK      \(lobby.trackName)", "LAPS       \(lobby.laps)",
                          "OPPONENTS  \(lobby.aiOpponents)", "AI SKILL   \(lobby.aiSkillName)"] {

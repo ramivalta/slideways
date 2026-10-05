@@ -118,10 +118,26 @@ public final class TrackLibrary {
     }
 
     public func track(at index: Int) -> Track {
-        let def = definitions[(index % definitions.count + definitions.count) % definitions.count]
+        let def = definition(at: index)
         if let t = built[def.id] { return t }
         let t = Track(definition: def)
         built[def.id] = t
         return t
+    }
+
+    /// Wraps out-of-range indices like `track(at:)`.
+    public func definition(at index: Int) -> TrackDefinition {
+        definitions[(index % definitions.count + definitions.count) % definitions.count]
+    }
+
+    func builtTrack(for def: TrackDefinition) -> Track? {
+        built[def.id].flatMap { $0.definition == def ? $0 : nil }
+    }
+
+    /// Keeps a track built elsewhere (off the main thread), if it's still in the library.
+    func adopt(_ track: Track) {
+        let id = track.definition.id
+        guard built[id] == nil, definitions.contains(where: { $0.id == id && $0 == track.definition }) else { return }
+        built[id] = track
     }
 }
