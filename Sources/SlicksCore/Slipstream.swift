@@ -8,7 +8,7 @@ import Foundation
 /// flat out on fast surfaces, and does next to nothing in sand or grass where drag dominates.
 enum Slipstream {
     /// How far back the wake reaches, in lead-car lengths.
-    static let reachLengths = 7.0
+    static let reachLengths = 9.0
     /// No wake from a car that isn't really moving.
     static let minLeaderSpeed = 90.0
     /// Leader speed above `minLeaderSpeed` at which the wake reaches full strength.
@@ -20,11 +20,11 @@ enum Slipstream {
     static let minAlignment = 0.8
     /// Most draft stacked from several cars.
     static let maxDraft = 1.5
-    /// Extra engine top speed per unit of draft. One car right ahead gives roughly 12% more
-    /// top speed on asphalt, a line of cars about 17%.
-    static let topSpeedGain = 0.18
+    /// Extra engine top speed per unit of draft. One car right ahead gives roughly 19% more
+    /// top speed on asphalt, a line of cars about 27%.
+    static let topSpeedGain = 0.27
     /// Seconds for the effect to build up or fade once a car enters or leaves a wake.
-    static let response = 0.3
+    static let response = 0.12
 
     /// Updates every car's draft from where the others are at the start of this step, so the
     /// result doesn't depend on the order the cars are integrated in.

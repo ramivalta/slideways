@@ -9,7 +9,8 @@ public enum NetProtocol {
     /// 5: AI routes back to the road from behind walls.
     /// 6: tire rubber on the road (its checksum in race state, and rubber deltas).
     /// 7: AI driver personalities (their seeds in race state).
-    public static let version: UInt16 = 7
+    /// 8: stronger slipstream and rubber grip.
+    public static let version: UInt16 = 8
     /// UDP.
     public static let defaultPort: UInt16 = 47800
     public static let bonjourType = "_slideways._udp"

@@ -336,6 +336,9 @@ final class RaceScene: GameScene {
             if car.surface == .water, !car.isAirborne, car.speed > 40, Double.random(in: 0..<1) < car.speed / 500 {
                 spawnSplash(at: Bool.random() ? rearL : rearR, car: car)
             }
+            if !isPausedByPlayer, car.slipstream > 0.1, Double.random(in: 0..<1) < min(0.9, car.slipstream * 0.8) {
+                spawnDraftStreak(car: car, pose: pose)
+            }
         }
         skids.tick()
         deckSkids.tick()
@@ -369,6 +372,32 @@ final class RaceScene: GameScene {
         let d = (back * 0.6 + side).normalized * Double.random(in: 5...12)
         s.run(.sequence([
             .group([.moveBy(x: d.x, y: d.y, duration: 0.35), .fadeOut(withDuration: 0.35), .scale(to: 1.8, duration: 0.35)]),
+            .removeFromParent(),
+        ]))
+    }
+
+    /// Air peeling off a drafting car's rear spoiler and trailing away behind it.
+    private func spawnDraftStreak(car: Car, pose: (position: Vec2, heading: Double)) {
+        let fwd = Vec2(angle: pose.heading), left = fwd.perp
+        let side = Bool.random() ? 1.0 : -1.0
+        let half = car.spec.width / 2
+        let p = pose.position - fwd * (car.spec.length / 2 - 1) + left * (side * (half - Double.random(in: 0...2.5)))
+        let strength = CGFloat(min(car.slipstream, 1))
+        let s = SKSpriteNode(color: .white, size: CGSize(width: CGFloat.random(in: 7...12), height: 1))
+        // Anchored at its front end so it stretches back from the spoiler.
+        s.anchorPoint = CGPoint(x: 1, y: 0.5)
+        s.xScale = 0.2
+        s.position = CGPoint(x: p.x, y: p.y)
+        s.zRotation = pose.heading
+        s.zPosition = carNodes[car.id].zPosition - 0.05
+        s.alpha = 0.35 + 0.4 * strength
+        world.addChild(s)
+        let duration = 0.3
+        // Keep most of the car's pace so the streak peels away behind it rather than vanishing at once.
+        let d = car.velocity * (duration * 0.8) - fwd * car.spec.length
+        s.run(.sequence([
+            .group([.moveBy(x: d.x, y: d.y, duration: duration), .scaleX(to: 1, duration: duration * 0.5),
+                    .fadeOut(withDuration: duration)]),
             .removeFromParent(),
         ]))
     }

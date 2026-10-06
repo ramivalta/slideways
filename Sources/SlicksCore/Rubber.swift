@@ -12,10 +12,10 @@ import Foundation
 public final class Rubber {
     /// Track pixels per rubber cell, a little over half a car's width.
     public static let cellSize = 6
-    /// Extra lateral grip on fully rubbered road: 1.12 × the surface's own.
-    public static let gripGain = 0.12
+    /// Extra lateral grip on fully rubbered road: 1.25 × the surface's own.
+    public static let gripGain = 0.25
     /// Extra engine and brake traction on fully rubbered road.
-    public static let tractionGain = 0.06
+    public static let tractionGain = 0.12
     /// Sideways speed above which tires leave skid marks and heavy rubber.
     public static let markingSlip = 22.0
 
