@@ -13,8 +13,9 @@ func editorChecks() -> Int {
     check(BuiltInTracks.all.map(\.name) == [
         "Speedway", "Pine Ridge", "Quickstep", "Proving Grounds", "Bridge Run",
         "Cloverleaf", "Cloverleaf Crossing", "Scramble", "Hairpin Valley", "Figure Eight",
-    ], "release catalog has exactly the ten approved tracks")
-    check(Set(BuiltInTracks.all.map(\.id)).count == 10, "built-in track IDs are unique")
+        "Ardennes Ring", "Esses Crossover", "Riviera Streets", "Snowline Pass",
+    ], "release catalog has exactly the fourteen approved tracks")
+    check(Set(BuiltInTracks.all.map(\.id)).count == 14, "built-in track IDs are unique")
     check(BuiltInTracks.all.allSatisfy { !TrackStore.isCustom($0.id) }, "release tracks are built-in, not custom")
     check(BuiltInTracks.all[RaceSettings().trackIndex].id == "speedway", "Speedway is the default track")
     let hairpinTrack = Track(definition: BuiltInTracks.all.first { $0.id == "hairpin-valley" }!)

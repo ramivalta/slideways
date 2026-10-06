@@ -59,6 +59,10 @@ local races pause, but online races keep running.
 - Scramble
 - Hairpin Valley
 - Figure Eight
+- Ardennes Ring
+- Esses Crossover
+- Riviera Streets
+- Snowline Pass
 
 ## Online Racing
 
@@ -104,8 +108,9 @@ relay can also be built from source on macOS or Linux with
 
 ## Custom Tracks
 
-The editor supports road layouts and widths, bridges, surface patches, scenery,
-paint lines, and jump ramps. Custom tracks are stored in
+The editor supports road layouts and widths, bridges, surface patches, scenery
+(including boats and footbridges cars drive under), paint lines, jump ramps,
+and summer, desert, winter, and urban themes. Custom tracks are stored in
 `~/Library/Application Support/Slideways/Tracks`.
 
 Export a `.slideways-track` file to share a track. Recipients can open it with
