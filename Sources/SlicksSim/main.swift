@@ -11,8 +11,15 @@ import UniformTypeIdentifiers
 //        swift run -c release SlicksSim --net    (online checks only)
 //        swift run SlicksSim --editor           (editor checks only)
 //        swift run -c release SlicksSim --physics (wall recovery checks only)
+//        swift run -c release SlicksSim --drive <track.json> [x1,y1,x2,y2 ...]
+//                                                 (drive shortcuts, see DriveChecks.swift)
 
 let args = CommandLine.arguments
+if args.dropFirst().first == "--drive", args.count > 2 {
+    let problems = driveChecks(trackFile: args[2], cuts: Array(args.dropFirst(3)))
+    print(problems == 0 ? "ALL OK" : "\(problems) problem(s)")
+    exit(problems == 0 ? 0 : 1)
+}
 if args.dropFirst().first == "--race-checks" {
     let problems = raceEndChecks() + seriesChecks()
     print(problems == 0 ? "ALL OK" : "\(problems) problem(s)")
