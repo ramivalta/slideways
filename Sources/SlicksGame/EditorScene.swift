@@ -163,6 +163,7 @@ final class EditorScene: GameScene {
     private var cursorWorld: Vec2?
 
     private var snapToGrid = false
+    private var showShortcutReach = false
     private var panelVisible = true
     private var zoom: CGFloat = 1
     private var offset: CGPoint = .zero
@@ -171,6 +172,7 @@ final class EditorScene: GameScene {
 
     private var track: Track?
     private var issues: [TrackIssue] = []
+    private var shortcuts: [Shortcut] = []
     private var requestedGeneration = 0
     private var builtGeneration = -1
     private var isBuilding = false
@@ -460,18 +462,20 @@ final class EditorScene: GameScene {
             let track = Track(definition: d)
             let image = TrackRenderer.makeCompositeImage(for: track)
             let issues = track.issues()
+            let shortcuts = track.shortcuts()
             DispatchQueue.main.async { [weak self] in
-                self?.finishBuild(track: track, image: image, issues: issues, generation: generation)
+                self?.finishBuild(track: track, image: image, issues: issues, shortcuts: shortcuts, generation: generation)
             }
         }
     }
 
-    private func finishBuild(track: Track, image: CGImage, issues: [TrackIssue], generation: Int) {
+    private func finishBuild(track: Track, image: CGImage, issues: [TrackIssue], shortcuts: [Shortcut], generation: Int) {
         isBuilding = false
         self.track = track
         builtGeneration = generation
         if isCurrent {
-            self.issues = issues
+            self.shortcuts = shortcuts
+            self.issues = issues + shortcuts.map(\.issue)
             mapSprite.removeAction(forKey: "preview")
             let texture = SKTexture(cgImage: image)
             texture.filteringMode = .nearest
@@ -1149,7 +1153,7 @@ final class EditorScene: GameScene {
         let h = computeHover(at: p)
         cursorWorld = isOverUI(p) ? nil : toWorld(p)
         // The line rubber band and object ghost follow the mouse.
-        let followsCursor = drawingLine != nil || (tool == .object && h == .none)
+        let followsCursor = drawingLine != nil || (tool == .object && h == .none) || showShortcutReach
         if h != hover || followsCursor {
             hover = h
             refreshOverlay()
@@ -1444,6 +1448,13 @@ final class EditorScene: GameScene {
         refreshAll()
     }
 
+    private func toggleShortcutReach() {
+        showShortcutReach.toggle()
+        if showShortcutReach { flash("Hover the road: shortcuts rejoining on green count, on red the lap is lost (K)") }
+        refreshPanel()
+        refreshOverlay()
+    }
+
     private func togglePanel() {
         panelVisible.toggle()
         refreshAll()
@@ -1648,6 +1659,7 @@ final class EditorScene: GameScene {
             case "l", "5": setTool(.line)
             case "o", "6": setTool(.object)
             case "g": toggleGrid()
+            case "k": toggleShortcutReach()
             case "f": fitView()
             case "t": testDrive()
             case "=", "+": zoom(by: 1.25, around: CGPoint(x: 480, y: 300))
@@ -1838,6 +1850,7 @@ final class EditorScene: GameScene {
             chevron.addLine(to: CGPoint(x: c.x - t.x * size - nrm.x * size, y: c.y - t.y * size - nrm.y * size))
         }
         addShape(chevron, stroke: SKColor(white: 1, alpha: 0.75), width: 1.5, z: 3)
+        drawShortcutReach()
 
         // Crossings and which road each bridge carries over.
         let selectedBridge: Int? = {
@@ -1936,6 +1949,10 @@ final class EditorScene: GameScene {
 
         // Problems found by the last build.
         if isCurrent {
+            for s in shortcuts {
+                addShape(polyline(s.route.map(toScene), closed: false).copy(dashingWithPhase: 0, lengths: [6, 4]),
+                         stroke: EditorColors.issue, width: 2.5, z: 7)
+            }
             for issue in issues {
                 guard let p = issue.position else { continue }
                 let s = toScene(p)
@@ -1943,6 +1960,28 @@ final class EditorScene: GameScene {
                 addText("!", at: s, size: 12, color: .white, z: 8)
             }
         }
+    }
+
+    /// From the road under the cursor: green is where a shortcut can rejoin and still count,
+    /// red is too far ahead for lap tracking to follow.
+    private func drawShortcutReach() {
+        guard showShortcutReach, let track, let c = cursorWorld else { return }
+        let x = Int(floor(c.x)), y = Int(floor(c.y))
+        guard x >= 0, y >= 0, x < track.width, y < track.height else { return }
+        let from = Int(track.nearestSample[track.cellIndex(x, y)])
+        guard from >= 0 else { return }
+        let n = track.sampleCount
+        let ahead = min(Track.progressWindow.ahead, n / 2)
+        let behind = min(Track.progressWindow.behind, n - 1 - ahead)
+        func span(_ a: Int, _ b: Int) -> CGPath {
+            polyline((a...b).map { toScene(track.path[((from + $0) % n + n) % n]) }, closed: false)
+        }
+        if ahead + behind < n {
+            addShape(span(ahead, n - behind), stroke: EditorColors.issue.withAlphaComponent(0.6), width: 3, z: 3.5)
+        }
+        addShape(span(-behind, 0), stroke: SKColor(white: 1, alpha: 0.5), width: 3, z: 3.5)
+        addShape(span(0, ahead), stroke: EditorColors.ok, width: 4, z: 3.5)
+        addDot(toScene(track.path[from]), radius: 5, fill: EditorColors.ok, z: 3.6)
     }
 
     private func circlePath(_ c: CGPoint, _ r: CGFloat) -> CGPath {
@@ -2173,6 +2212,15 @@ final class EditorScene: GameScene {
             for issue in issues.prefix(5) { L.note("! " + issue.message, color: EditorColors.issue) }
             if issues.count > 5 { L.note("...and \(issues.count - 5) more", color: EditorColors.issue) }
         }
+        L.choices("Shortcuts", [
+            Option(title: "Hide", selected: !showShortcutReach, tip: "Hide shortcut reach (K)") { [unowned self] in
+                if showShortcutReach { toggleShortcutReach() }
+            },
+            Option(title: "Show", selected: showShortcutReach,
+                   tip: "Hover the road to see how far ahead a shortcut can rejoin and still count the lap (K)") { [unowned self] in
+                if !showShortcutReach { toggleShortcutReach() }
+            },
+        ])
     }
 
     private func pointSection(_ L: PanelLayout, _ i: Int) {

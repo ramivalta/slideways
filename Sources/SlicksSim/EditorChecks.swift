@@ -223,6 +223,7 @@ func editorChecks() -> Int {
     }
 
     extendedBridgeChecks(check)
+    shortcutChecks(check)
 
     // Round trip through JSON.
     if let data = try? JSONEncoder().encode(BuiltInTracks.all),
@@ -376,6 +377,20 @@ func widthTestTracks() -> [TrackDefinition] {
         patches: [Patch(.wall, .capsule(from: Vec2(560, 497), to: Vec2(800, 497), radius: 5))],
         bridges: [BridgeDefinition(controlPoint: 22), BridgeDefinition(controlPoint: 13)])
     return [hairpin, overpass, overlap, combTrack(gap: 180), stretchedComb()]
+}
+
+/// Legs folded close together with open grass between them make shortcuts;
+/// tire walls along the road close them.
+func shortcutChecks(_ check: (Bool, String) -> Void) {
+    let pts: [(Double, Double)] = [(120, 90), (840, 90), (840, 510), (120, 510), (120, 380), (640, 380), (640, 220), (120, 220)]
+    let open = TrackDefinition(id: "fold", name: "Fold", controlPoints: pts.map { Vec2($0.0, $0.1) })
+    let found = Track(definition: open).shortcuts()
+    check(!found.isEmpty, "shortcut found across open grass")
+    var walled = open
+    walled.barrierDistance = 10
+    let none = Track(definition: walled).shortcuts()
+    check(none.isEmpty, "tire walls close the shortcut: \(none.map(\.via))")
+    print("  shortcuts: open fold \(found.map { Int($0.saving) }), walled \(none.count)")
 }
 
 /// A straight crossing three legs of a serpentine `gap` apart, with a bridge carrying the

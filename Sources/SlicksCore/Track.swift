@@ -280,9 +280,13 @@ public final class Track: @unchecked Sendable {
         return d
     }
 
+    /// Samples behind and ahead of a car's last one that lap tracking searches each tick.
+    public static let progressWindow = (behind: 30, ahead: 60)
+
     /// Nearest centerline sample to `p`, searching only a window around `index`.
     /// The window keeps crossings (figure eights) and big shortcuts from confusing progress.
-    public func nearestSample(to p: Vec2, near index: Int, behind: Int = 30, ahead: Int = 60) -> Int {
+    public func nearestSample(to p: Vec2, near index: Int, behind: Int = Track.progressWindow.behind,
+                              ahead: Int = Track.progressWindow.ahead) -> Int {
         let n = sampleCount
         var best = index
         var bestD = Double.infinity

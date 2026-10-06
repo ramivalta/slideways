@@ -451,6 +451,10 @@ for def in simTracks {
     let issueText = track.issues().map { i in i.message + (i.position.map { String(format: " @%.0f,%.0f", $0.x, $0.y) } ?? "") }
     print("  editor: \(crossings.count) crossing(s), \(bridged) bridged, \(covered) under a deck, issues: \(issueText)")
     if bridged != def.bridges.count { print("  FAIL: editor doesn't find every bridge on a crossing"); failures += 1 }
+    for s in track.shortcuts() {
+        print(String(format: "  NOTE: shortcut saves %.0f, crossing at %.0f,%.0f%@", s.saving, s.via.x, s.via.y,
+                     s.reliable ? "" : ", can lose the lap"))
+    }
     let ov = overlaps(track)
     if !ov.isEmpty {
         let sample = ov.prefix(3).map { "(\($0.0),\($0.1)) d=\(Int($0.2)) at \(Int(track.path[$0.0].x)),\(Int(track.path[$0.0].y))" }
@@ -580,6 +584,12 @@ for def in simTracks {
         guard let first = trail.first else { continue }
         ctx.move(to: CGPoint(x: first.x, y: first.y))
         for p in trail.dropFirst() { ctx.addLine(to: CGPoint(x: p.x, y: p.y)) }
+        ctx.strokePath()
+    }
+    ctx.setLineWidth(3)
+    for s in track.shortcuts() {
+        ctx.setStrokeColor(s.reliable ? CGColor(srgbRed: 1, green: 0.9, blue: 0, alpha: 1) : CGColor(srgbRed: 1, green: 0.1, blue: 0.1, alpha: 1))
+        ctx.addLines(between: s.route.map { CGPoint(x: $0.x, y: $0.y) })
         ctx.strokePath()
     }
     writePNG(ctx.makeImage()!, to: outDir.appendingPathComponent("\(def.id).png"))
