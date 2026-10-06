@@ -46,11 +46,15 @@ public enum TrackObjectKind: String, Codable, Sendable, CaseIterable {
     case pitBuilding
     /// Jump ramp: low at the front (local -y), rising to a lip at the back (local +y).
     case ramp
+    /// Moored boat, bow at local +x.
+    case boat
+    /// Pedestrian bridge spanning the road along local x. Cars drive under it.
+    case footbridge
 
     public var isTree: Bool {
         switch self {
         case .tree, .pine, .palm: true
-        case .grandstand, .pitBuilding, .ramp: false
+        case .grandstand, .pitBuilding, .ramp, .boat, .footbridge: false
         }
     }
 
@@ -58,8 +62,9 @@ public enum TrackObjectKind: String, Codable, Sendable, CaseIterable {
     public var isRamp: Bool { self == .ramp }
 }
 
-/// A tree, building or ramp on the map. Buildings are always solid; trees are solid only
-/// when `solid` is set, otherwise cars drive under their canopy. Ramps are driven over.
+/// A tree, building, boat, footbridge or ramp on the map. Buildings and boats are always solid;
+/// trees are solid only when `solid` is set, otherwise cars drive under their canopy. Ramps are
+/// driven over and footbridges driven under.
 ///
 /// Trees are circles of diameter `size.x`. Buildings and ramps are rectangles `size.x` long
 /// and `size.y` deep, rotated by `angle`; their front (the seats of a grandstand, the garage
@@ -82,7 +87,7 @@ public struct TrackObject: Codable, Sendable, Equatable {
     }
 
     /// Whether cars crash into it.
-    public var isSolid: Bool { kind.isBuilding || (kind.isTree && solid) }
+    public var isSolid: Bool { kind.isBuilding || kind == .boat || (kind.isTree && solid) }
 
     /// Direction a ramp launches cars in: from its low front toward its lip.
     public var rampDirection: Vec2 { axes.v }
@@ -157,6 +162,8 @@ public extension TrackObjectKind {
         case .grandstand: Vec2(130, 34)
         case .pitBuilding: Vec2(150, 40)
         case .ramp: Vec2(60, 32)
+        case .boat: Vec2(40, 14)
+        case .footbridge: Vec2(140, 14)
         }
     }
 }

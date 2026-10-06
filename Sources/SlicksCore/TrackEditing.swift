@@ -372,7 +372,8 @@ public extension Track {
 
         for k in objectsOnRoad {
             let o = definition.objects[k]
-            out.append(TrackIssue(message: o.kind.isTree ? "Tree on the road" : "Building on the road", position: o.position))
+            let what = o.kind.isTree ? "Tree" : o.kind == .boat ? "Boat" : "Building"
+            out.append(TrackIssue(message: "\(what) on the road", position: o.position))
         }
 
         for b in bridges {

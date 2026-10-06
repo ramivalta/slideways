@@ -97,6 +97,7 @@ final class SkidMarks: SKNode {
     static func color(for surface: Surface, theme: TrackTheme) -> SKColor? {
         switch surface {
         case .asphalt, .curb: SKColor(white: 0.05, alpha: 0.32)
+        case .grass where theme == .urban: SKColor(white: 0.08, alpha: 0.32)
         case .grass: theme == .winter ? SKColor(red: 0.55, green: 0.6, blue: 0.68, alpha: 0.45)
             : theme == .desert ? SKColor(red: 0.45, green: 0.3, blue: 0.16, alpha: 0.4)
             : SKColor(red: 0.18, green: 0.3, blue: 0.1, alpha: 0.5)

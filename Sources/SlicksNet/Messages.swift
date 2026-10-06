@@ -10,7 +10,8 @@ public enum NetProtocol {
     /// 6: tire rubber on the road (its checksum in race state, and rubber deltas).
     /// 7: AI driver personalities (their seeds in race state).
     /// 8: stronger slipstream and rubber grip.
-    public static let version: UInt16 = 8
+    /// 9: boat and footbridge track objects, urban theme (older builds can't decode tracks using them).
+    public static let version: UInt16 = 9
     /// UDP.
     public static let defaultPort: UInt16 = 47800
     public static let bonjourType = "_slideways._udp"

@@ -30,6 +30,9 @@ public enum TrackRenderer {
         case .winter:
             Palette(ground: RGB(226, 232, 240), groundFar: RGB(200, 210, 224), tree: RGB(40, 80, 64),
                     asphalt: RGB(96, 100, 110), sand: RGB(180, 170, 150))
+        case .urban:
+            Palette(ground: RGB(158, 156, 150), groundFar: RGB(92, 92, 96), tree: RGB(40, 92, 44),
+                    asphalt: RGB(72, 74, 80), sand: RGB(206, 188, 146))
         }
     }
 
@@ -43,6 +46,7 @@ public enum TrackRenderer {
         let grid = slots.map { (position: $0.position, forward: Vec2(cos($0.heading), sin($0.heading))) }
         let gridStart = gridStartDistance(track, slots)
         let step = track.length / Double(track.sampleCount)
+        let openGround = def.theme == .urban ? OpenGround(track) : nil
         let hasBridges = !track.bridges.isEmpty
         let paint = paintLayer(for: def)
         let ground = track.groundSurfaces
@@ -128,6 +132,12 @@ public enum TrackRenderer {
                     c = (idx / 2) & 1 == 0 ? RGB(206, 44, 40) : RGB(236, 236, 236)
                 case .grass:
                     let far = d > barrierOuter
+                    if let openGround {
+                        c = far || (def.barrierDistance == nil && d > half + 70)
+                            ? cityBlock(x: x, y: y, open: openGround, pal: pal, noise: noise)
+                            : pavement(x: x, y: y, pal: pal, noise: noise)
+                        break
+                    }
                     c = (far ? pal.groundFar : pal.ground).scaled(1 + noise * 0.14)
                     if hash01(x, y, 7) > 0.985 { c = c.scaled(0.8) }
                     if far || (def.barrierDistance == nil && d > half + 70) {
@@ -145,6 +155,12 @@ public enum TrackRenderer {
                     c = RGB(186, 222, 244).scaled(1 + noise * 0.05)
                     if (x + y * 3) % 23 == 0 || hash01(x, y, 11) > 0.97 { c = RGB(236, 246, 255) }
                 case .wall:
+                    if def.theme == .urban {
+                        // Concrete barrier blocks with dark joints.
+                        let joint = (x + y) % 9 == 0
+                        c = joint ? RGB(96, 96, 100) : RGB(184, 184, 180).scaled(1 + noise * 0.1)
+                        break
+                    }
                     // Stacked tire barrier look.
                     let cell = ((x / 4) + (y / 4)) & 1
                     c = cell == 0 ? RGB(46, 46, 52) : RGB(22, 22, 26)
@@ -553,8 +569,9 @@ public enum TrackRenderer {
         ctx.endTransparencyLayer()
         ctx.restoreGState()
 
-        for o in objects where !o.kind.isTree { drawObject(o, theme: theme, in: ctx) }
+        for o in objects where !o.kind.isTree && o.kind != .footbridge { drawObject(o, theme: theme, in: ctx) }
         for o in objects where o.kind.isTree { drawObject(o, theme: theme, in: ctx) }
+        for o in objects where o.kind == .footbridge { drawObject(o, theme: theme, in: ctx) }
     }
 
     /// How far down-right an object's shadow falls.
@@ -565,6 +582,8 @@ public enum TrackRenderer {
         case .grandstand: 7
         case .pitBuilding: 5
         case .ramp: 3.5
+        case .boat: 2.5
+        case .footbridge: 9
         }
     }
 
@@ -578,7 +597,10 @@ public enum TrackRenderer {
             ctx.addPath(starPath(center: c, outer: o.radius, inner: o.radius * 0.72, points: 9, rotation: o.angle))
         case .palm:
             ctx.addPath(palmFronds(o))
-        case .grandstand, .pitBuilding, .ramp:
+        case .boat:
+            var t = CGAffineTransform(translationX: c.x, y: c.y).rotated(by: o.angle)
+            if let hull = boatHull(o).copy(using: &t) { ctx.addPath(hull) }
+        case .grandstand, .pitBuilding, .ramp, .footbridge:
             ctx.addLines(between: o.corners.map { CGPoint(x: $0.x, y: $0.y) })
             ctx.closePath()
         }
@@ -703,6 +725,104 @@ public enum TrackRenderer {
             ctx.translateBy(x: c.x, y: c.y)
             ctx.rotate(by: o.angle)
             drawRamp(o, in: ctx)
+        case .boat:
+            ctx.translateBy(x: c.x, y: c.y)
+            ctx.rotate(by: o.angle)
+            drawBoat(o, snowy: snowy, in: ctx)
+        case .footbridge:
+            ctx.translateBy(x: c.x, y: c.y)
+            ctx.rotate(by: o.angle)
+            drawFootbridge(o, in: ctx)
+        }
+    }
+
+    /// Hull outline in local coordinates: square stern at -x, pointed bow at +x.
+    static func boatHull(_ o: TrackObject) -> CGPath {
+        let hl = o.size.x / 2, hd = o.size.y / 2
+        let path = CGMutablePath()
+        path.move(to: CGPoint(x: -hl, y: -hd * 0.85))
+        path.addLine(to: CGPoint(x: hl * 0.35, y: -hd))
+        path.addQuadCurve(to: CGPoint(x: hl, y: 0), control: CGPoint(x: hl * 0.85, y: -hd * 0.9))
+        path.addQuadCurve(to: CGPoint(x: hl * 0.35, y: hd), control: CGPoint(x: hl * 0.85, y: hd * 0.9))
+        path.addLine(to: CGPoint(x: -hl, y: hd * 0.85))
+        path.closeSubpath()
+        return path
+    }
+
+    /// Motor yacht from above: white hull, teak deck, cabin with dark windows. Local coordinates.
+    static func drawBoat(_ o: TrackObject, snowy: Bool, in ctx: CGContext) {
+        let hl = o.size.x / 2, hd = o.size.y / 2
+        let hull = boatHull(o)
+        ctx.addPath(hull)
+        ctx.setFillColor(cgColor(RGB(244, 244, 240)))
+        ctx.fillPath()
+        ctx.addPath(hull)
+        ctx.setStrokeColor(cgColor(RGB(40, 52, 78)))
+        ctx.setLineWidth(max(0.6, hd * 0.12))
+        ctx.strokePath()
+        // Teak deck inset from the hull.
+        var inset = CGAffineTransform(translationX: -hl * 0.06, y: 0).scaledBy(x: 0.82, y: 0.7)
+        if let deck = hull.copy(using: &inset) {
+            ctx.addPath(deck)
+            ctx.setFillColor(cgColor(snowy ? RGB(214, 220, 226) : RGB(184, 136, 88)))
+            ctx.fillPath()
+        }
+        func rect(_ x0: Double, _ y0: Double, _ x1: Double, _ y1: Double, _ c: RGB) {
+            ctx.setFillColor(cgColor(c))
+            ctx.fill(CGRect(x: x0, y: y0, width: x1 - x0, height: y1 - y0))
+        }
+        let accents = [RGB(30, 60, 130), RGB(176, 36, 40), RGB(24, 24, 30), RGB(30, 120, 140)]
+        let accent = accents[Int(objectHash(o, 70) * Double(accents.count)) % accents.count]
+        // Cabin with a wraparound band of windows and a radar mast.
+        let cx0 = -hl * 0.5, cx1 = hl * 0.25, cy = hd * 0.5
+        rect(cx0, -cy, cx1, cy, RGB(236, 238, 242))
+        rect(cx0 + 1, -cy + 0.8, cx1 - 1, -cy + 1.8, accent)
+        rect(cx0 + 1, cy - 1.8, cx1 - 1, cy - 0.8, accent)
+        rect(cx1 - 2.2, -cy + 1, cx1 - 0.8, cy - 1, accent)
+        rect(cx0 + hl * 0.25, -cy * 0.4, cx0 + hl * 0.25 + 2, cy * 0.4, RGB(150, 154, 164))
+        // Swim platform at the stern.
+        rect(-hl - 1.5, -hd * 0.6, -hl, hd * 0.6, RGB(200, 200, 196))
+    }
+
+    /// Footbridge over the road along local x: stair towers at both ends, a railed walkway
+    /// and sponsor banners down both sides. Local coordinates.
+    static func drawFootbridge(_ o: TrackObject, in ctx: CGContext) {
+        let hl = o.size.x / 2, hd = o.size.y / 2
+        func rect(_ x0: Double, _ y0: Double, _ x1: Double, _ y1: Double, _ c: RGB) {
+            ctx.setFillColor(cgColor(c))
+            ctx.fill(CGRect(x: x0, y: y0, width: x1 - x0, height: y1 - y0))
+        }
+        let tower = min(16, o.size.x * 0.14)
+        // Walkway: deck, planks, railings and banners.
+        rect(-hl + tower, -hd, hl - tower, hd, RGB(192, 194, 200))
+        var px = -hl + tower + 3
+        while px < hl - tower {
+            rect(px - 0.25, -hd + 2, px + 0.25, hd - 2, RGB(168, 170, 178))
+            px += 4
+        }
+        // Steel side girders with a sponsor panel: solid, not striped, so it doesn't read as curb.
+        let girder = min(3.5, o.size.y * 0.25)
+        for (y0, y1) in [(-hd, -hd + girder), (hd - girder, hd)] {
+            rect(-hl + tower, y0, hl - tower, y1, RGB(36, 58, 104))
+            rect(-hl + tower, y0 + girder * 0.35, hl - tower, y1 - girder * 0.35, RGB(56, 92, 158))
+            var lx = -hl + tower + 8
+            while lx < hl - tower - 8 {
+                rect(lx, y0 + girder * 0.42, lx + 5, y1 - girder * 0.42, RGB(236, 238, 242))
+                lx += 18
+            }
+        }
+        rect(-hl + tower, -hd + girder, hl - tower, -hd + girder + 0.8, RGB(70, 74, 84))
+        rect(-hl + tower, hd - girder - 0.8, hl - tower, hd - girder, RGB(70, 74, 84))
+        // Stair towers: concrete blocks with steps running up toward the walkway.
+        for side in [-1.0, 1.0] {
+            let x0 = side < 0 ? -hl : hl - tower, x1 = x0 + tower
+            rect(x0, -hd - 2, x1, hd + 2, RGB(118, 120, 128))
+            rect(x0 + 1, -hd - 1, x1 - 1, hd + 1, RGB(150, 152, 160))
+            var sy = -hd
+            while sy < hd {
+                rect(x0 + 2, sy, x1 - 2, sy + 0.6, RGB(126, 128, 136))
+                sy += 2.2
+            }
         }
     }
 
@@ -805,6 +925,124 @@ public enum TrackRenderer {
         rect(tx, ty, tx + t, ty + t, RGB(70, 130, 190))
         rect(tx + 2, ty + 2, tx + t - 2, ty + t - 2, roof.scaled(1.02))
         rect(tx + 2, ty + t - 3.5, tx + t - 2, ty + t - 2, RGB(140, 196, 236))
+    }
+
+    /// Sidewalk paving: square slabs, each a slightly different shade, with dark joints.
+    static func pavement(x: Int, y: Int, pal: Palette, noise: Double) -> RGB {
+        let slab = 10
+        if x % slab == 0 || y % slab == 0 { return pal.ground.scaled(0.84) }
+        let tint = 0.95 + 0.08 * hash01(x / slab, y / slab, 31)
+        return pal.ground.scaled(tint + noise * 0.06)
+    }
+
+    static let cityBlockSize = (w: 72, h: 56)
+
+    /// Open ground away from the road and its walls, as a summed-area table so whether a whole
+    /// rectangle is open is a constant-time lookup.
+    struct OpenGround {
+        let w: Int
+        let sums: [Int32]
+
+        init(_ track: Track) {
+            let w = track.width, h = track.height, def = track.definition
+            var sums = [Int32](repeating: 0, count: (w + 1) * (h + 1))
+            for y in 0..<h {
+                var row: Int32 = 0
+                for x in 0..<w {
+                    let i = y * w + x
+                    let half = track.halfRoad(atCell: i)
+                    let reach = def.barrierDistance.map { half + $0 + def.barrierThickness + 3 } ?? half + 70
+                    if track.groundSurfaces[i] == .grass, Double(track.distanceField[i]) > reach { row += 1 }
+                    sums[(y + 1) * (w + 1) + x + 1] = sums[y * (w + 1) + x + 1] + row
+                }
+            }
+            self.w = w
+            self.sums = sums
+        }
+
+        /// Whether every cell in x0..<x1, y0..<y1 is open. Rectangles off the map aren't.
+        func isOpen(_ x0: Int, _ y0: Int, _ x1: Int, _ y1: Int) -> Bool {
+            let h = sums.count / (w + 1) - 1
+            guard x0 >= 0, y0 >= 0, x1 <= w, y1 <= h, x0 < x1, y0 < y1 else { return false }
+            let s = w + 1
+            let total = sums[y1 * s + x1] - sums[y0 * s + x1] - sums[y1 * s + x0] + sums[y0 * s + x0]
+            return Int(total) == (x1 - x0) * (y1 - y0)
+        }
+    }
+
+    /// Town blocks between streets, each split into two lots: buildings set back from the
+    /// sidewalk, parking lots, lawns and plazas. A lot only gets something on it when all of it
+    /// is open ground, so nothing is cut off by the track, its walls or water.
+    static func cityBlock(x: Int, y: Int, open: OpenGround, pal: Palette, noise: Double) -> RGB {
+        let bw = cityBlockSize.w, bh = cityBlockSize.h, street = 9, curb = 2
+        let bx = x / bw, by = y / bh
+        let lx = x % bw, ly = y % bh
+        let road = pal.asphalt.scaled(0.95 + noise * 0.1)
+        if lx < street || ly < street {
+            // Dashed center line down the middle of each street.
+            let mid = street / 2
+            if lx == mid, ly >= street, (y / 6) & 1 == 0 { return RGB(214, 196, 120) }
+            if ly == mid, lx >= street, (x / 6) & 1 == 0 { return RGB(214, 196, 120) }
+            return road
+        }
+        // Sidewalk around every block.
+        let ix = lx - street, iy = ly - street, iw = bw - street, ih = bh - street
+        if ix < curb || iy < curb || ix >= iw - curb || iy >= ih - curb {
+            return pal.ground.scaled(0.9 + noise * 0.05)
+        }
+        // Two lots side by side, with a strip of paving between them.
+        let gap = 2
+        let lotW = (iw - 2 * curb - gap) / 2
+        let lot = ix - curb < lotW ? 0 : 1
+        let lx0 = curb + lot * (lotW + gap), ly0 = curb, lw = lotW, lh = ih - 2 * curb
+        let ox = bx * bw + street, oy = by * bh + street
+        guard ix >= lx0, ix < lx0 + lw,
+              open.isOpen(ox + lx0, oy + ly0, ox + lx0 + lw, oy + ly0 + lh) else {
+            return pavement(x: x, y: y, pal: pal, noise: noise)
+        }
+        let px = ix - lx0, py = iy - ly0
+        let key = bx * 2 + lot
+        let kind = hash01(key, by, 32)
+        if kind < 0.12 { return pavement(x: x, y: y, pal: pal, noise: noise) }
+        if kind < 0.27 {
+            let lawn = RGB(78, 138, 64).scaled(1 + noise * 0.12)
+            return tree(x: x, y: y, base: lawn, color: pal.tree) ?? lawn
+        }
+        if kind < 0.52 {
+            return parkingLot(px, py, lw, lh, seed: key * 31 + by, pal: pal, noise: noise)
+        }
+        // A building with a setback, on paving.
+        let mx = 3 + Int(hash01(key, by, 37) * 4), my = 3 + Int(hash01(key, by, 38) * 5)
+        let x0 = mx, y0 = my, x1 = lw - 3 - Int(hash01(key, by, 39) * 4), y1 = lh - 3 - Int(hash01(key, by, 40) * 6)
+        guard px >= x0, px < x1, py >= y0, py < y1 else { return pavement(x: x, y: y, pal: pal, noise: noise) }
+        let roofs = [RGB(196, 112, 82), RGB(214, 204, 184), RGB(150, 152, 158), RGB(232, 230, 222), RGB(176, 92, 70)]
+        let roof = roofs[Int(hash01(key, by, 33) * Double(roofs.count)) % roofs.count]
+        if px == x0 || py == y1 - 1 { return roof.scaled(1.18) }
+        if px == x1 - 1 || py == y0 { return roof.scaled(0.7) }
+        var c = roof.scaled(1 + noise * 0.08)
+        let ux = x0 + 4 + Int(hash01(key, by, 34) * 8), uy = y0 + 5 + Int(hash01(key, by, 35) * 14)
+        if (ux..<ux + 6).contains(px), (uy..<uy + 5).contains(py) { c = RGB(110, 114, 122) }
+        return c
+    }
+
+    /// Parking lot in block-local coordinates: rows of stalls along two sides of an aisle, some taken.
+    static func parkingLot(_ x: Int, _ y: Int, _ w: Int, _ h: Int, seed: Int, pal: Palette, noise: Double) -> RGB {
+        let lot = pal.asphalt.scaled(1.12 + noise * 0.08)
+        let stall = 7, depth = 12
+        let aisleTop = depth, aisleBottom = h - depth
+        guard y < aisleTop || y >= aisleBottom, x >= 2, x < w - 2 else { return lot }
+        let row = y < aisleTop ? 0 : 1
+        let sx = (x - 2) % stall, k = (x - 2) / stall
+        if sx == 0 { return RGB(226, 226, 220) }
+        let ry = row == 0 ? y : y - aisleBottom
+        if hash01(k, seed * 2 + row, 41) > 0.45, sx >= 2, sx <= stall - 2, ry >= 2, ry <= depth - 3 {
+            let colors = [RGB(200, 40, 40), RGB(230, 230, 232), RGB(40, 60, 130), RGB(30, 30, 34), RGB(150, 152, 160), RGB(220, 180, 50)]
+            let body = colors[Int(hash01(k, seed + row, 42) * Double(colors.count)) % colors.count]
+            // Windshield toward the aisle.
+            let glass = row == 0 ? ry == depth - 5 : ry == 4
+            return glass ? RGB(60, 80, 100) : body
+        }
+        return lot
     }
 
     /// Flat-colored approximation of a track drawn with vector strokes: fast enough to redraw
