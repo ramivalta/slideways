@@ -7,6 +7,8 @@ final class SeriesSetupScene: GameScene {
     private static let rowSpacing: CGFloat = 27
 
     private unowned let coordinator: GameCoordinator
+    /// Picking for an online game's lobby rather than starting a local series.
+    private let online: OnlineSession?
     private let definitions = TrackLibrary.shared.definitions
     private var chosen: Set<String>
     /// Tracks first, then START and BACK.
@@ -23,10 +25,11 @@ final class SeriesSetupScene: GameScene {
     private var startRow: Int { definitions.count }
     private var backRow: Int { definitions.count + 1 }
 
-    init(coordinator: GameCoordinator) {
+    init(coordinator: GameCoordinator, online: OnlineSession? = nil) {
         self.coordinator = coordinator
+        self.online = online
         let known = Set(definitions.map(\.id))
-        let saved = (coordinator.settings.seriesTrackIDs ?? []).filter(known.contains)
+        let saved = (online?.seriesTrackIDs ?? coordinator.settings.seriesTrackIDs ?? []).filter(known.contains)
         chosen = Set(saved.isEmpty ? BuiltInTracks.all.map(\.id) : saved)
         super.init()
         selected = startRow
@@ -102,7 +105,8 @@ final class SeriesSetupScene: GameScene {
         moreBelow.isHidden = scroll + visible >= definitions.count
 
         let count = rounds.count
-        startLabel.text = (selected == startRow ? "> " : "  ") + "START SERIES (\(count) race\(count == 1 ? "" : "s"))"
+        let action = online == nil ? "START SERIES" : "USE THESE TRACKS"
+        startLabel.text = (selected == startRow ? "> " : "  ") + "\(action) (\(count) race\(count == 1 ? "" : "s"))"
         startLabel.fontColor = selected == startRow ? .accent : count == 0 ? .dim : .white
         backLabel.text = (selected == backRow ? "> " : "  ") + "BACK"
         backLabel.fontColor = selected == backRow ? .accent : .white
@@ -126,6 +130,10 @@ final class SeriesSetupScene: GameScene {
         }
     }
 
+    private func leave() {
+        online == nil ? coordinator.showMenu() : coordinator.showLobby()
+    }
+
     override func keyPressed(_ key: Key, isRepeat: Bool) {
         let rowCount = definitions.count + 2
         switch key {
@@ -139,19 +147,21 @@ final class SeriesSetupScene: GameScene {
             if isRepeat { return }
             if selected == backRow {
                 SoundSystem.shared.play(.menuSelect)
-                return coordinator.showMenu()
+                return leave()
             }
             if selected == startRow {
                 guard !rounds.isEmpty else { return }
                 SoundSystem.shared.play(.menuSelect)
-                return coordinator.startSeries(trackIDs: rounds)
+                guard let online else { return coordinator.startSeries(trackIDs: rounds) }
+                online.seriesTrackIDs = rounds
+                return coordinator.showLobby()
             }
             let id = definitions[selected].id
             if chosen.contains(id) { chosen.remove(id) } else { chosen.insert(id) }
             SoundSystem.shared.play(.menuMove)
         case .escape:
             if isRepeat { return }
-            return coordinator.showMenu()
+            return leave()
         default:
             return
         }

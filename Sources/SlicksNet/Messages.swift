@@ -12,7 +12,8 @@ public enum NetProtocol {
     /// 8: stronger slipstream and rubber grip.
     /// 9: boat and footbridge track objects, urban theme (older builds can't decode tracks using them).
     /// 10: rounded-corner rect patches, square-ended capsules.
-    public static let version: UInt16 = 10
+    /// 11: online championships (standings in the lobby).
+    public static let version: UInt16 = 11
     /// UDP.
     public static let defaultPort: UInt16 = 47800
     public static let bonjourType = "_slideways._udp"
@@ -46,17 +47,56 @@ public struct LobbyInfo: Codable, Equatable, Sendable {
     public var aiOpponents: Int
     public var aiSkillName: String
     public var inRace: Bool
+    /// Set when the host is running (or about to start) a championship.
+    public var series: LobbySeries?
 
-    public init(players: [LobbyPlayer], trackName: String, laps: Int, aiOpponents: Int, aiSkillName: String, inRace: Bool) {
+    public init(players: [LobbyPlayer], trackName: String, laps: Int, aiOpponents: Int, aiSkillName: String, inRace: Bool,
+                series: LobbySeries? = nil) {
         self.players = players
         self.trackName = trackName
         self.laps = laps
         self.aiOpponents = aiOpponents
         self.aiSkillName = aiSkillName
         self.inRace = inRace
+        self.series = series
     }
 
     public var humanCount: Int { players.reduce(0) { $0 + $1.localPlayers } }
+}
+
+/// A championship as the lobby shows it.
+public struct LobbySeries: Codable, Equatable, Sendable {
+    public struct Standing: Codable, Equatable, Sendable {
+        public var name: String
+        public var colorIndex: Int
+        public var points: Int
+        public var wins: Int
+        /// Points scored in the latest round.
+        public var last: Int?
+        public var isHuman: Bool
+
+        public init(name: String, colorIndex: Int, points: Int, wins: Int, last: Int?, isHuman: Bool) {
+            self.name = name
+            self.colorIndex = colorIndex
+            self.points = points
+            self.wins = wins
+            self.last = last
+            self.isHuman = isHuman
+        }
+    }
+
+    public var roundsCompleted: Int
+    public var rounds: Int
+    /// Empty until the first round starts.
+    public var standings: [Standing]
+
+    public init(roundsCompleted: Int, rounds: Int, standings: [Standing]) {
+        self.roundsCompleted = roundsCompleted
+        self.rounds = rounds
+        self.standings = standings
+    }
+
+    public var isComplete: Bool { roundsCompleted >= rounds }
 }
 
 public enum NetMessage: Equatable {

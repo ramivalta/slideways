@@ -69,8 +69,8 @@ public final class GameCoordinator {
     /// The championship being played, if any.
     private(set) var series: Series?
 
-    func showSeriesSetup() {
-        present(SeriesSetupScene(coordinator: self))
+    func showSeriesSetup(online: OnlineSession? = nil) {
+        present(SeriesSetupScene(coordinator: self, online: online))
     }
 
     func startSeries(trackIDs: [String], persist: Bool = true) {

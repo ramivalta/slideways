@@ -25,6 +25,31 @@ final class OnlineSession {
     /// Save the host's race picks as the menu defaults. Off for scripted test runs.
     var persistsSettings = true
 
+    /// Host: the next start begins a championship instead of a single race.
+    var seriesMode = false {
+        didSet { publishLobby() }
+    }
+    /// Host: rounds for the next championship.
+    var seriesTrackIDs: [String] {
+        didSet { publishLobby() }
+    }
+    /// Laps for every championship round instead of each track's own. For scripted test runs.
+    var seriesLaps: Int?
+    /// Host: the championship being run, if any.
+    private(set) var series: Series?
+    /// Who drives each series entrant; nil for computer drivers.
+    private var seats: [Seat?] = []
+    /// Round of the race on screen (or last raced), nil when it's not a championship round.
+    private(set) var raceRound: (round: Int, of: Int)?
+
+    private struct Seat {
+        /// 0 for the host, nil after the player left (the car is then driven by the AI).
+        var clientID: Int?
+        /// The machine's player name, so someone who drops out can take their seat back.
+        let name: String
+        let localIndex: Int
+    }
+
     private unowned let coordinator: GameCoordinator
     private var clientRace: ClientRaceController?
     /// Last track built for an online race, so racing it again doesn't rebuild it.
@@ -44,6 +69,9 @@ final class OnlineSession {
         var s = coordinator.settings
         s.humanPlayers = localPlayers
         settings = s
+        let known = Set(TrackLibrary.shared.definitions.map(\.id))
+        let saved = (s.seriesTrackIDs ?? []).filter(known.contains)
+        seriesTrackIDs = saved.isEmpty ? BuiltInTracks.all.map(\.id) : saved
     }
 
     /// - Parameter relayServer: "host[:port]" of a rendezvous/relay server, or nil.
@@ -58,6 +86,7 @@ final class OnlineSession {
         }
         host.onError = { [weak session] in session?.fail($0) }
         host.onChange = { [weak session] in session?.publishLobby() }
+        host.admitPlayer = { [weak session] name, count in session?.seriesRefusal(name: name, localPlayers: count) }
         host.start()
         session.publishLobby()
         return session
@@ -159,11 +188,32 @@ final class OnlineSession {
 
     private func publishLobby() {
         guard case let .host(host) = role else { return refresh() }
+        claimSeats()
         let lib = TrackLibrary.shared
-        let def = lib.definitions[clamp(settings.trackIndex, 0, lib.definitions.count - 1)]
-        let ai = min(settings.aiOpponents, GameInfo.maxCars - host.humanCount)
-        let info = LobbyInfo(players: host.lobbyPlayers, trackName: def.name, laps: settings.laps, aiOpponents: max(0, ai),
-                             aiSkillName: MenuScene.skillName(settings.aiSkill), inRace: host.raceID != nil)
+        var def = lib.definitions[clamp(settings.trackIndex, 0, lib.definitions.count - 1)]
+        var laps = settings.laps
+        var ai = min(settings.aiOpponents, GameInfo.maxCars - host.humanCount)
+        var lobbySeries: LobbySeries?
+        if let series {
+            if let id = series.nextTrackID, let i = lib.index(of: id) { def = lib.definitions[i] }
+            laps = seriesLaps ?? def.defaultLaps
+            ai = series.entrants.filter { $0.playerIndex == nil }.count
+            let last = series.roundsCompleted - 1
+            lobbySeries = LobbySeries(roundsCompleted: series.roundsCompleted, rounds: series.trackIDs.count,
+                                      standings: series.standings.map { s in
+                                          let e = series.entrants[s.entrant]
+                                          return .init(name: e.name, colorIndex: e.colorIndex, points: s.points, wins: s.wins,
+                                                       last: last >= 0 ? series.points(of: s.entrant, inRound: last) : nil,
+                                                       isHuman: e.playerIndex != nil)
+                                      })
+        } else if seriesMode {
+            if let id = seriesTrackIDs.first, let i = lib.index(of: id) { def = lib.definitions[i] }
+            laps = seriesLaps ?? def.defaultLaps
+            lobbySeries = LobbySeries(roundsCompleted: 0, rounds: seriesTrackIDs.count, standings: [])
+        }
+        let info = LobbyInfo(players: host.lobbyPlayers, trackName: def.name, laps: laps, aiOpponents: max(0, ai),
+                             aiSkillName: MenuScene.skillName(settings.aiSkill), inRace: host.raceID != nil,
+                             series: lobbySeries)
         lobby = info
         host.updateLobby(info)
         refresh()
@@ -190,24 +240,41 @@ final class OnlineSession {
 
     // MARK: Races
 
-    /// Host: puts everyone in the lobby onto the grid.
+    /// Host: puts everyone in the lobby onto the grid, for a single race or the championship's next round.
     func startRace() {
         guard case let .host(host) = role, host.raceID == nil else { return }
-        var humans: [String] = []
-        func add(_ name: String, count: Int) -> [Int] {
-            (0..<count).map { k in
-                humans.append(count > 1 ? "\(name.prefix(NetProtocol.maxNameLength - 2)) \(k + 1)" : name)
-                return humans.count - 1
-            }
-        }
-        let hostSlots = add(name, count: localPlayers)
-        var slots: [Int: [Int]] = [:]
-        for c in host.clients { slots[c.id] = add(c.name, count: c.localPlayers) }
-
-        let track = TrackLibrary.shared.track(at: settings.trackIndex)
+        if seriesMode, series == nil { beginSeries(host) }
         let seed = RaceSetup.randomSeed()
-        let setup = RaceSetup(track: track.definition, entrants: settings.entrants(seed: seed, humans: humans),
+        let track: Track
+        let setup: RaceSetup
+        var slots: [Int: [Int]] = [:]
+        if let series {
+            guard let id = series.nextTrackID, let index = TrackLibrary.shared.index(of: id) else { return }
+            claimSeats()
+            track = TrackLibrary.shared.track(at: index)
+            var entrants = series.entrants
+            for (i, seat) in seats.enumerated() {
+                guard let seat, let slot = entrants[i].playerIndex else { continue }
+                if let owner = seat.clientID {
+                    slots[owner, default: []].append(slot)
+                } else {
+                    entrants[i].playerIndex = nil
+                    entrants[i].aiSkill = settings.aiSkill
+                }
+            }
+            setup = RaceSetup(track: track.definition, entrants: entrants, laps: seriesLaps ?? track.definition.defaultLaps, seed: seed)
+            raceRound = (series.roundsCompleted + 1, series.trackIDs.count)
+        } else {
+            let grid = humanGrid(host)
+            for (slot, owner) in grid.owners.enumerated() { slots[owner.clientID ?? 0, default: []].append(slot) }
+            track = TrackLibrary.shared.track(at: settings.trackIndex)
+            setup = RaceSetup(track: track.definition, entrants: settings.entrants(seed: seed, humans: grid.names),
                               laps: settings.laps, seed: seed)
+            raceRound = nil
+        }
+        let hostSlots = slots.removeValue(forKey: 0) ?? []
+        // Clients read the round number from the lobby, so it goes out ahead of the start.
+        publishLobby()
         host.startRace(setup: setup, slots: slots)
         if persistsSettings {
             // Remember the host's picks for next time, like the local menu does.
@@ -215,11 +282,73 @@ final class OnlineSession {
             coordinator.settings.laps = settings.laps
             coordinator.settings.aiOpponents = settings.aiOpponents
             coordinator.settings.aiSkill = settings.aiSkill
+            if seriesMode { coordinator.settings.seriesTrackIDs = seriesTrackIDs }
             coordinator.settings.save()
         }
         publishLobby()
         let controller = HostRaceController(race: Race(setup: setup, track: track), host: host, localSlots: hostSlots)
         coordinator.present(RaceScene(coordinator: coordinator, controller: controller, mode: .online(self)))
+    }
+
+    /// Everyone in the lobby, in input slot order: the host's players, then each client's.
+    private func humanGrid(_ host: NetHost) -> (names: [String], owners: [Seat]) {
+        var names: [String] = []
+        var owners: [Seat] = []
+        func add(_ name: String, id: Int, count: Int) {
+            for k in 0..<count {
+                names.append(count > 1 ? "\(name.prefix(NetProtocol.maxNameLength - 2)) \(k + 1)" : name)
+                owners.append(Seat(clientID: id, name: name, localIndex: k))
+            }
+        }
+        add(name, id: 0, count: localPlayers)
+        for c in host.clients { add(c.name, id: c.id, count: c.localPlayers) }
+        return (names, owners)
+    }
+
+    private func beginSeries(_ host: NetHost) {
+        let known = Set(TrackLibrary.shared.definitions.map(\.id))
+        let rounds = seriesTrackIDs.filter(known.contains)
+        guard !rounds.isEmpty else { return }
+        let grid = humanGrid(host)
+        let entrants = settings.entrants(seed: RaceSetup.randomSeed(), humans: grid.names)
+        series = Series(trackIDs: rounds, entrants: entrants)
+        seats = entrants.map { e in e.playerIndex.map { grid.owners[$0] } }
+    }
+
+    /// Seats of players who left go to the AI; players who come back by the same name get theirs back.
+    private func claimSeats() {
+        guard let host = netHost, series != nil else { return }
+        let present = Set(host.clients.map(\.id)).union([0])
+        for i in seats.indices {
+            if let id = seats[i]?.clientID, !present.contains(id) { seats[i]?.clientID = nil }
+        }
+        for c in host.clients where !seats.contains(where: { $0?.clientID == c.id }) {
+            for i in seats.indices {
+                guard let seat = seats[i], seat.clientID == nil, seat.name == c.name, seat.localIndex < c.localPlayers else { continue }
+                seats[i]?.clientID = c.id
+            }
+        }
+    }
+
+    /// Mid-championship, only players with a seat to come back to get in.
+    private func seriesRefusal(name: String, localPlayers: Int) -> String? {
+        guard let series, !series.isComplete else { return nil }
+        claimSeats()
+        let free = Set(seats.compactMap { $0 }.filter { $0.clientID == nil && $0.name == name }.map(\.localIndex))
+        return free.isSuperset(of: 0..<localPlayers) ? nil : "a championship is in progress, try again when it's over"
+    }
+
+    /// Host: scores the round just finished. `finishingOrder` holds car ids, winner first.
+    func recordSeriesRound(finishingOrder: [Int]) {
+        series?.record(finishingOrder: finishingOrder)
+        publishLobby()
+    }
+
+    /// Host: drops the championship, back to picking races.
+    func endSeries() {
+        series = nil
+        seats = []
+        publishLobby()
     }
 
     /// Host: race over (or abandoned), everyone back to the lobby.
@@ -246,6 +375,11 @@ final class OnlineSession {
             guard track.sampleCount >= 20 else { return fail("the host's track is too small to race on") }
         }
         trackCache = track
+        if let s = lobby?.series, !s.isComplete {
+            raceRound = (s.roundsCompleted + 1, s.rounds)
+        } else {
+            raceRound = nil
+        }
         let controller = ClientRaceController(race: Race(setup: setup, track: track), raceID: raceID,
                                               localSlots: slots, client: client)
         clientRace = controller
