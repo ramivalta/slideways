@@ -242,8 +242,8 @@ public struct RaggedEdge: Sendable {
         let extent: Double
         switch shape {
         case let .circle(_, r): extent = r
-        case let .rect(_, s): extent = min(s.x, s.y) / 2
-        case let .capsule(_, _, r): extent = r
+        case let .rect(_, s, _): extent = min(s.x, s.y) / 2
+        case let .capsule(_, _, r, _): extent = r
         }
         amplitude = clamp(extent * 0.22, 1.5, 9)
         featureSize = clamp(extent * 0.45, 6, 18)
@@ -287,16 +287,16 @@ public extension PatchShape {
     var center: Vec2 {
         switch self {
         case let .circle(c, _): c
-        case let .rect(o, s): o + s * 0.5
-        case let .capsule(a, b, _): (a + b) * 0.5
+        case let .rect(o, s, _): o + s * 0.5
+        case let .capsule(a, b, _, _): (a + b) * 0.5
         }
     }
 
     func translated(by d: Vec2) -> PatchShape {
         switch self {
         case let .circle(c, r): .circle(center: c + d, radius: r)
-        case let .rect(o, s): .rect(origin: o + d, size: s)
-        case let .capsule(a, b, r): .capsule(from: a + d, to: b + d, radius: r)
+        case let .rect(o, s, r): .rect(origin: o + d, size: s, cornerRadius: r)
+        case let .capsule(a, b, r, c): .capsule(from: a + d, to: b + d, radius: r, cornerRadius: c)
         }
     }
 
@@ -305,11 +305,16 @@ public extension PatchShape {
         switch self {
         case let .circle(c, r):
             return (p - c).length - r
-        case let .rect(o, s):
-            let h = s * 0.5, q = p - (o + h)
-            let dx = abs(q.x) - h.x, dy = abs(q.y) - h.y
-            return Vec2(max(dx, 0), max(dy, 0)).length + min(max(dx, dy), 0)
-        case let .capsule(a, b, r):
+        case let .rect(o, s, cr):
+            let h = s * 0.5
+            return PatchShape.roundedBoxDistance(p - (o + h), half: h, radius: PatchShape.cornerRadius(cr, size: s))
+        case let .capsule(a, b, r, cr):
+            let c = PatchShape.capsuleCorner(cr, radius: r)
+            if c < r {
+                let ab = b - a, len = ab.length
+                let dir = len > 1e-9 ? ab * (1 / len) : Vec2(1, 0), q = p - (a + b) * 0.5
+                return PatchShape.roundedBoxDistance(Vec2(q.dot(dir), q.dot(dir.perp)), half: Vec2(len / 2 + r, r), radius: c)
+            }
             let ab = b - a
             let t = clamp((p - a).dot(ab) / max(ab.lengthSquared, 1e-9), 0, 1)
             return (p - (a + ab * t)).length - r
@@ -323,8 +328,8 @@ public extension PatchShape {
         let extent: Vec2
         switch self {
         case let .circle(_, r): extent = Vec2(r, r)
-        case let .rect(_, s): extent = s * 0.5
-        case let .capsule(a, b, r): extent = Vec2(abs(b.x - a.x) / 2 + r, abs(b.y - a.y) / 2 + r)
+        case let .rect(_, s, _): extent = s * 0.5
+        case let .capsule(a, b, r, _): extent = Vec2(abs(b.x - a.x) / 2 + r, abs(b.y - a.y) / 2 + r)
         }
         switch kind {
         case .circle:

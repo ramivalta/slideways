@@ -156,6 +156,27 @@ func editorChecks() -> Int {
                    Patch(.wall, .rect(origin: Vec2(2000, 50), size: Vec2(10, 10)))]
     _ = Track(definition: off)
 
+    // Rounded rects: square ones still save without a radius, rounded ones cut their corners.
+    let square = PatchShape.rect(origin: Vec2(0, 0), size: Vec2(40, 20))
+    let squareJSON = (try? JSONEncoder().encode(square)).flatMap { String(data: $0, encoding: .utf8) } ?? ""
+    check(!squareJSON.isEmpty && !squareJSON.contains("cornerRadius"), "square rect saves as before")
+    let rounded = PatchShape.rect(origin: Vec2(0, 0), size: Vec2(40, 20), cornerRadius: 50)
+    check((try? JSONEncoder().encode(rounded)).flatMap { try? JSONDecoder().decode(PatchShape.self, from: $0) } == rounded,
+          "rounded rect round-trips")
+    check(square.contains(Vec2(0.5, 0.5)) && !rounded.contains(Vec2(0.5, 0.5)) && rounded.contains(Vec2(20, 0.5)),
+          "rounded rect corners")
+    check(abs(rounded.distance(to: Vec2(-5, 10)) - 5) < 1e-9 && rounded.distance(to: Vec2(0, 0)) > 0, "rounded rect distance")
+    let round = PatchShape.capsule(from: Vec2(0, 0), to: Vec2(40, 0), radius: 10)
+    let squared = PatchShape.capsule(from: Vec2(0, 0), to: Vec2(40, 0), radius: 10, cornerRadius: 0)
+    check(!(try? JSONEncoder().encode(round)).map { String(decoding: $0, as: UTF8.self) }!.contains("cornerRadius"),
+          "round capsule saves as before")
+    check(!round.contains(Vec2(-9, 9)) && squared.contains(Vec2(-9, 9)) && !squared.contains(Vec2(-11, 0)),
+          "square-ended capsule corners")
+    check(abs(squared.distance(to: Vec2(20, 15)) - 5) < 1e-9 && abs(squared.distance(to: Vec2(-15, 0)) - 5) < 1e-9,
+          "square-ended capsule distance")
+    let sb = squared.bounds
+    check(sb.minX <= -10 && sb.minY <= -10 && sb.maxX >= 50 && sb.maxY >= 10, "square-ended capsule bounds")
+
     // Shape conversions keep the center.
     for shape in [PatchShape.circle(center: Vec2(100, 100), radius: 30),
                   .rect(origin: Vec2(10, 20), size: Vec2(80, 40)),

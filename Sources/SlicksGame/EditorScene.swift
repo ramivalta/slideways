@@ -545,9 +545,9 @@ final class EditorScene: GameScene {
         switch shape {
         case let .circle(c, r):
             return [(.radius, c + Vec2(r, 0))]
-        case let .rect(o, s):
+        case let .rect(o, s, _):
             return [(.corner(0), o), (.corner(1), o + Vec2(s.x, 0)), (.corner(2), o + s), (.corner(3), o + Vec2(0, s.y))]
-        case let .capsule(a, b, r):
+        case let .capsule(a, b, r, _):
             return [(.end(0), a), (.end(1), b), (.radius, (a + b) * 0.5 + capsuleNormal(a, b) * r)]
         }
     }
@@ -1315,16 +1315,16 @@ final class EditorScene: GameScene {
         switch (shape, h) {
         case let (.circle(c, _), .radius):
             return .circle(center: c, radius: clamp(w.distance(to: c).rounded(), 3, maxSize / 2))
-        case let (.rect(o, s), .corner(k)):
+        case let (.rect(o, s, r), .corner(k)):
             let corners = [o, o + Vec2(s.x, 0), o + s, o + Vec2(0, s.y)]
             let opposite = corners[(k + 2) % 4]
             return .rect(origin: Vec2(min(w.x, opposite.x), min(w.y, opposite.y)),
-                         size: Vec2(max(3, abs(w.x - opposite.x)), max(3, abs(w.y - opposite.y))))
-        case let (.capsule(a, b, r), .end(k)):
-            return k == 0 ? .capsule(from: w, to: b, radius: r) : .capsule(from: a, to: w, radius: r)
-        case let (.capsule(a, b, _), .radius):
+                         size: Vec2(max(3, abs(w.x - opposite.x)), max(3, abs(w.y - opposite.y))), cornerRadius: r)
+        case let (.capsule(a, b, r, c), .end(k)):
+            return k == 0 ? .capsule(from: w, to: b, radius: r, cornerRadius: c) : .capsule(from: a, to: w, radius: r, cornerRadius: c)
+        case let (.capsule(a, b, _, c), .radius):
             let r = clamp(abs((w - (a + b) * 0.5).dot(capsuleNormal(a, b))).rounded(), 2, 200)
-            return .capsule(from: a, to: b, radius: r)
+            return .capsule(from: a, to: b, radius: r, cornerRadius: c)
         default:
             return shape
         }
@@ -1425,7 +1425,7 @@ final class EditorScene: GameScene {
             patchSurface = p.surface
             patchKind = p.shape.kind
             patchCoversRoad = p.coversRoad
-            if case let .capsule(_, _, r) = p.shape { capsuleRadius = r }
+            if case let .capsule(_, _, r, _) = p.shape { capsuleRadius = r }
         }
         if case let .line(i) = s, def.lines.indices.contains(i) {
             lineColor = def.lines[i].color
@@ -1765,14 +1765,13 @@ final class EditorScene: GameScene {
         case let .circle(c, r):
             let s = toScene(c), rr = CGFloat(r) * zoom
             return CGPath(ellipseIn: CGRect(x: s.x - rr, y: s.y - rr, width: rr * 2, height: rr * 2), transform: nil)
-        case let .rect(o, sz):
-            let s = toScene(o)
-            return CGPath(rect: CGRect(x: s.x, y: s.y, width: CGFloat(sz.x) * zoom, height: CGFloat(sz.y) * zoom), transform: nil)
-        case let .capsule(a, b, r):
-            let line = CGMutablePath()
-            line.move(to: toScene(a))
-            line.addLine(to: toScene(b))
-            return line.copy(strokingWithWidth: CGFloat(r) * 2 * zoom, lineCap: .round, lineJoin: .round, miterLimit: 1)
+        case let .rect(o, sz, cr):
+            let s = toScene(o), r = CGFloat(PatchShape.cornerRadius(cr, size: sz)) * zoom
+            return CGPath(roundedRect: CGRect(x: s.x, y: s.y, width: CGFloat(sz.x) * zoom, height: CGFloat(sz.y) * zoom),
+                          cornerWidth: r, cornerHeight: r, transform: nil)
+        case let .capsule(a, b, r, c):
+            return capsulePath(a, b, radius: r, corner: c,
+                               transform: CGAffineTransform(a: zoom, b: 0, c: 0, d: zoom, tx: offset.x, ty: offset.y))
         }
     }
 
@@ -2405,11 +2404,11 @@ final class EditorScene: GameScene {
             } plus: { [unowned self] in
                 updatePatch(i) { $0.shape = .circle(center: c, radius: min(maxSize / 2, r + 5)) }
             }
-        case let .rect(o, s):
+        case let .rect(o, s, cr):
             let center = o + s * 0.5
             func resized(_ size: Vec2) -> PatchShape {
                 let sz = Vec2(clamp(size.x, 3, maxSize), clamp(size.y, 3, maxSize))
-                return .rect(origin: center - sz * 0.5, size: sz)
+                return .rect(origin: center - sz * 0.5, size: sz, cornerRadius: cr)
             }
             L.stepper("Width", value: "\(Int(s.x))") { [unowned self] in
                 updatePatch(i) { $0.shape = resized(s - Vec2(10, 0)) }
@@ -2421,24 +2420,44 @@ final class EditorScene: GameScene {
             } plus: { [unowned self] in
                 updatePatch(i) { $0.shape = resized(s + Vec2(0, 10)) }
             }
-        case let .capsule(a, b, r):
+            let r = PatchShape.cornerRadius(cr, size: s), maxR = min(s.x, s.y) / 2
+            func rounded(_ radius: Double) -> PatchShape {
+                let r = clamp(radius, 0, maxR)
+                return .rect(origin: o, size: s, cornerRadius: r > 0 ? r : nil)
+            }
+            L.stepper("Corners", value: "\(Int(r))") { [unowned self] in
+                updatePatch(i) { $0.shape = rounded(r - 5) }
+            } plus: { [unowned self] in
+                updatePatch(i) { $0.shape = rounded(r + 5) }
+            }
+        case let .capsule(a, b, r, cr):
             let mid = (a + b) * 0.5, dir = (b - a).normalized.lengthSquared > 0 ? (b - a).normalized : Vec2(1, 0)
             let length = a.distance(to: b)
             func stretched(_ l: Double) -> PatchShape {
                 let h = clamp(l, 0, maxSize) / 2
-                return .capsule(from: mid - dir * h, to: mid + dir * h, radius: r)
+                return .capsule(from: mid - dir * h, to: mid + dir * h, radius: r, cornerRadius: cr)
             }
             L.stepper("Thickness", value: "\(Int(r * 2))") { [unowned self] in
                 capsuleRadius = max(2, r - 1)
-                updatePatch(i) { $0.shape = .capsule(from: a, to: b, radius: max(2, r - 1)) }
+                updatePatch(i) { $0.shape = .capsule(from: a, to: b, radius: max(2, r - 1), cornerRadius: cr) }
             } plus: { [unowned self] in
                 capsuleRadius = min(100, r + 1)
-                updatePatch(i) { $0.shape = .capsule(from: a, to: b, radius: min(100, r + 1)) }
+                updatePatch(i) { $0.shape = .capsule(from: a, to: b, radius: min(100, r + 1), cornerRadius: cr) }
             }
             L.stepper("Length", value: "\(Int(length.rounded()))") { [unowned self] in
                 updatePatch(i) { $0.shape = stretched(length - 10) }
             } plus: { [unowned self] in
                 updatePatch(i) { $0.shape = stretched(length + 10) }
+            }
+            let c = PatchShape.capsuleCorner(cr, radius: r)
+            func cornered(_ corner: Double) -> PatchShape {
+                let c = clamp(corner, 0, r)
+                return .capsule(from: a, to: b, radius: r, cornerRadius: c < r ? c : nil)
+            }
+            L.stepper("Corners", value: "\(Int(c))") { [unowned self] in
+                updatePatch(i) { $0.shape = cornered(c - 2) }
+            } plus: { [unowned self] in
+                updatePatch(i) { $0.shape = cornered(c + 2) }
             }
         }
         L.choices(nil, [

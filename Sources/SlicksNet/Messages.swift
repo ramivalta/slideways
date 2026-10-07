@@ -11,7 +11,8 @@ public enum NetProtocol {
     /// 7: AI driver personalities (their seeds in race state).
     /// 8: stronger slipstream and rubber grip.
     /// 9: boat and footbridge track objects, urban theme (older builds can't decode tracks using them).
-    public static let version: UInt16 = 9
+    /// 10: rounded-corner rect patches, square-ended capsules.
+    public static let version: UInt16 = 10
     /// UDP.
     public static let defaultPort: UInt16 = 47800
     public static let bonjourType = "_slideways._udp"

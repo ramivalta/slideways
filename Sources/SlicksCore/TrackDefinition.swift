@@ -157,17 +157,25 @@ public struct Patch: Codable, Sendable, Equatable {
 
 public enum PatchShape: Codable, Sendable, Equatable {
     case circle(center: Vec2, radius: Double)
-    case rect(origin: Vec2, size: Vec2)
+    /// `cornerRadius` is clamped to half the shorter side; nil means square corners.
+    case rect(origin: Vec2, size: Vec2, cornerRadius: Double? = nil)
     /// A thick line segment with rounded ends. Handy for walls.
-    case capsule(from: Vec2, to: Vec2, radius: Double)
+    /// `cornerRadius` below `radius` squares off the ends; nil means fully round.
+    case capsule(from: Vec2, to: Vec2, radius: Double, cornerRadius: Double? = nil)
 
     public func contains(_ p: Vec2) -> Bool {
         switch self {
         case let .circle(c, r):
             return (p - c).lengthSquared <= r * r
-        case let .rect(o, s):
-            return p.x >= o.x && p.y >= o.y && p.x <= o.x + s.x && p.y <= o.y + s.y
-        case let .capsule(a, b, r):
+        case let .rect(o, s, cr):
+            guard p.x >= o.x && p.y >= o.y && p.x <= o.x + s.x && p.y <= o.y + s.y else { return false }
+            let r = PatchShape.cornerRadius(cr, size: s)
+            guard r > 0 else { return true }
+            let h = s * 0.5
+            let qx = abs(p.x - o.x - h.x) - (h.x - r), qy = abs(p.y - o.y - h.y) - (h.y - r)
+            return qx <= 0 || qy <= 0 || qx * qx + qy * qy <= r * r
+        case let .capsule(a, b, r, cr):
+            guard PatchShape.capsuleCorner(cr, radius: r) >= r else { return distance(to: p) <= 0 }
             let ab = b - a
             let t = clamp((p - a).dot(ab) / max(ab.lengthSquared, 1e-9), 0, 1)
             return (p - (a + ab * t)).lengthSquared <= r * r
@@ -179,13 +187,31 @@ public enum PatchShape: Codable, Sendable, Equatable {
         switch self {
         case let .circle(c, r):
             return (Int(floor(c.x - r)), Int(floor(c.y - r)), Int(ceil(c.x + r)), Int(ceil(c.y + r)))
-        case let .rect(o, s):
+        case let .rect(o, s, _):
             return (Int(floor(o.x)), Int(floor(o.y)), Int(ceil(o.x + s.x)), Int(ceil(o.y + s.y)))
-        case let .capsule(a, b, r):
+        case let .capsule(a, b, r, cr):
+            // Square corners poke out up to r * sqrt(2) from the ends.
+            let c = PatchShape.capsuleCorner(cr, radius: r), e = (r - c) * 2.0.squareRoot() + c
             return (
-                Int(floor(min(a.x, b.x) - r)), Int(floor(min(a.y, b.y) - r)),
-                Int(ceil(max(a.x, b.x) + r)), Int(ceil(max(a.y, b.y) + r))
+                Int(floor(min(a.x, b.x) - e)), Int(floor(min(a.y, b.y) - e)),
+                Int(ceil(max(a.x, b.x) + e)), Int(ceil(max(a.y, b.y) + e))
             )
         }
+    }
+
+    /// The corner radius a rect of this size actually gets.
+    public static func cornerRadius(_ r: Double?, size s: Vec2) -> Double {
+        max(0, min(r ?? 0, min(s.x, s.y) / 2))
+    }
+
+    /// The corner radius a capsule of this radius actually gets.
+    public static func capsuleCorner(_ c: Double?, radius r: Double) -> Double {
+        max(0, min(c ?? r, r))
+    }
+
+    /// Signed distance from `q` (relative to the center) to a box with half-size `h` and rounded corners `r`.
+    static func roundedBoxDistance(_ q: Vec2, half h: Vec2, radius r: Double) -> Double {
+        let dx = abs(q.x) - h.x + r, dy = abs(q.y) - h.y + r
+        return Vec2(max(dx, 0), max(dy, 0)).length + min(max(dx, dy), 0) - r
     }
 }

@@ -9,6 +9,18 @@ struct RGB {
     func mixed(_ o: RGB, _ t: Double) -> RGB { RGB(r + (o.r - r) * t, g + (o.g - g) * t, b + (o.b - b) * t) }
 }
 
+/// Outline of a capsule patch in map coordinates, mapped through `transform`.
+func capsulePath(_ a: Vec2, _ b: Vec2, radius r: Double, corner: Double?,
+                 transform: CGAffineTransform = .identity) -> CGPath {
+    let d = b - a, len = d.length
+    let c = PatchShape.capsuleCorner(corner, radius: r)
+    var t = CGAffineTransform(translationX: (a.x + b.x) / 2, y: (a.y + b.y) / 2)
+        .rotated(by: len > 1e-9 ? atan2(d.y, d.x) : 0)
+        .concatenating(transform)
+    return CGPath(roundedRect: CGRect(x: -len / 2 - r, y: -r, width: len + 2 * r, height: 2 * r),
+                  cornerWidth: c, cornerHeight: c, transform: &t)
+}
+
 /// Paints a `Track` into a pixel-art image: one image pixel per track cell.
 public enum TrackRenderer {
     struct Palette {
@@ -1085,15 +1097,16 @@ public enum TrackRenderer {
             case let .circle(c, r):
                 ctx.setFillColor(color(patch.surface))
                 ctx.fillEllipse(in: CGRect(x: c.x - r, y: c.y - r, width: r * 2, height: r * 2))
-            case let .rect(o, s):
+            case let .rect(o, s, cr):
+                let r = PatchShape.cornerRadius(cr, size: s)
                 ctx.setFillColor(color(patch.surface))
-                ctx.fill(CGRect(x: o.x, y: o.y, width: s.x, height: s.y))
-            case let .capsule(a, b, r):
-                ctx.move(to: CGPoint(x: a.x, y: a.y))
-                ctx.addLine(to: CGPoint(x: b.x, y: b.y))
-                ctx.setLineWidth(r * 2)
-                ctx.setStrokeColor(color(patch.surface))
-                ctx.strokePath()
+                ctx.addPath(CGPath(roundedRect: CGRect(x: o.x, y: o.y, width: s.x, height: s.y),
+                                   cornerWidth: r, cornerHeight: r, transform: nil))
+                ctx.fillPath()
+            case let .capsule(a, b, r, c):
+                ctx.setFillColor(color(patch.surface))
+                ctx.addPath(capsulePath(a, b, radius: r, corner: c))
+                ctx.fillPath()
             }
         }
 

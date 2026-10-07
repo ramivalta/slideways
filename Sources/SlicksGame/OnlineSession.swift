@@ -331,8 +331,8 @@ enum OnlineRules {
             let ok: Bool
             switch p.shape {
             case let .circle(c, r): ok = c.x.isFinite && c.y.isFinite && r.isFinite && (0...2000).contains(r)
-            case let .rect(o, s): ok = [o.x, o.y, s.x, s.y].allSatisfy { $0.isFinite && abs($0) < 10_000 }
-            case let .capsule(a, b, r): ok = [a.x, a.y, b.x, b.y, r].allSatisfy { $0.isFinite && abs($0) < 10_000 } && r >= 0
+            case let .rect(o, s, r): ok = [o.x, o.y, s.x, s.y, r ?? 0].allSatisfy { $0.isFinite && abs($0) < 10_000 }
+            case let .capsule(a, b, r, c): ok = [a.x, a.y, b.x, b.y, r, c ?? 0].allSatisfy { $0.isFinite && abs($0) < 10_000 } && r >= 0
             }
             if !ok { return "bad patch" }
         }
