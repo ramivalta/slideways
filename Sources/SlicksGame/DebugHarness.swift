@@ -150,6 +150,12 @@ public enum DebugHarness {
                     settings.laps = 1
                     settings.aiOpponents = 3
                     s.settings = settings
+                    // SLIDEWAYS_NET_SERIES: a two-round championship instead of a single race.
+                    if env["SLIDEWAYS_NET_SERIES"] != nil {
+                        s.seriesMode = true
+                        s.seriesTrackIDs = ["speedway", "cloverleaf"]
+                        s.seriesLaps = 1
+                    }
                 }
                 return
             }
@@ -221,15 +227,33 @@ public enum DebugHarness {
                     } else {
                         if lobbyAgainAt == nil { lobbyAgainAt = Date() }
                         if Date().timeIntervalSince(lobbyAgainAt!) > 1.5 {
+                            if let series = session?.lobby?.series, !series.isComplete {
+                                once("6-standings-after-round\(series.roundsCompleted)")
+                                if role == "host", session?.lobby?.inRace == false {
+                                    print("online test: starting round \(series.roundsCompleted + 1)")
+                                    session?.startRace()
+                                }
+                                return
+                            }
+                            if !shots.contains("6-back-in-lobby"), let standings = session?.lobby?.series?.standings {
+                                print("online test: final standings \(standings.map { "\($0.name) \($0.points)" })")
+                            }
                             once("6-back-in-lobby")
                             after(1) { NSApplication.shared.terminate(nil) }
                         }
                     }
                 } else if let race = scene() as? RaceScene {
                     if !raceSeen { raceSeen = true; started = Date() }
+                    if lobbyAgainAt != nil {
+                        // Next championship round.
+                        lobbyAgainAt = nil
+                        resultsAt = nil
+                        started = Date()
+                    }
+                    let round = session?.raceRound.map { "-round\($0.round)" } ?? ""
                     let t = Date().timeIntervalSince(started)
-                    if t > 2 { once("3-countdown") }
-                    if t > 7 { once("4-racing") }
+                    if t > 2 { once("3-countdown" + round) }
+                    if t > 7 { once("4-racing" + round) }
                     // SLIDEWAYS_NET_QUIT_AT: vanish mid-race to test the other side's handling.
                     if let quit = Double(ProcessInfo.processInfo.environment["SLIDEWAYS_NET_QUIT_AT"] ?? ""), t > quit {
                         print("online test: quitting mid-race")
@@ -240,7 +264,7 @@ public enum DebugHarness {
                             resultsAt = Date()
                             print("online test: results \(race.debugStandings)")
                         }
-                        if Date().timeIntervalSince(resultsAt!) > 1.5 { once("5-results") }
+                        if Date().timeIntervalSince(resultsAt!) > 1.5 { once("5-results" + round) }
                         if role == "host", Date().timeIntervalSince(resultsAt!) > 3 { session?.returnToLobby() }
                     }
                 } else if scene() is OnlineScene, raceSeen || session == nil && Date().timeIntervalSince(started) > 8 {
@@ -251,7 +275,7 @@ public enum DebugHarness {
             }
         }
         after(1, poll)
-        after(120) {
+        after(env["SLIDEWAYS_NET_SERIES"] != nil ? 240 : 120) {
             print("online test: timed out")
             NSApplication.shared.terminate(nil)
         }

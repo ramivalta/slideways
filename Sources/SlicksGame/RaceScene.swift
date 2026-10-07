@@ -500,6 +500,9 @@ final class RaceScene: GameScene {
         overlay?.removeFromParent()
         let standings = race.standings
         if isSeries { coordinator.recordSeriesRound(finishingOrder: standings.map(\.id)) }
+        let onlineRound = online?.raceRound
+        if let online, online.isHost, onlineRound != nil { online.recordSeriesRound(finishingOrder: standings.map(\.id)) }
+        let showsPoints = isSeries || onlineRound != nil
         let rowHeight: CGFloat = 30
         let height = CGFloat(standings.count) * rowHeight + 150
         let panel = makePanel(height: height)
@@ -508,6 +511,8 @@ final class RaceScene: GameScene {
         var titleText = "RESULTS - \(track.definition.name.uppercased())"
         if isSeries, let series = coordinator.series {
             titleText = "ROUND \(series.roundsCompleted)/\(series.trackIDs.count) - \(track.definition.name.uppercased())"
+        } else if let onlineRound {
+            titleText = "ROUND \(onlineRound.round)/\(onlineRound.of) - \(track.definition.name.uppercased())"
         }
         let title = makeLabel(titleText, size: 24, color: .accent, align: .center)
         title.position = CGPoint(x: 0, y: top - 34)
@@ -519,18 +524,18 @@ final class RaceScene: GameScene {
                 return right ? p + s : s + p
             }
             return pad(pos, 4) + pad(name, 12) + pad(time, 10, right: true) + pad(best, 11, right: true)
-                + (isSeries ? pad(points, 6, right: true) : "")
+                + (showsPoints ? pad(points, 6, right: true) : "")
         }
 
         let header = makeLabel(columns("POS", "DRIVER", "TIME", "BEST LAP", "PTS"), size: 15, color: .dim)
-        header.position = CGPoint(x: isSeries ? -272 : -250, y: top - 72)
+        header.position = CGPoint(x: showsPoints ? -272 : -250, y: top - 72)
         panel.addChild(header)
 
         let leader = standings.first
         for (i, car) in standings.enumerated() {
             let y = top - 104 - CGFloat(i) * rowHeight
             let swatch = SKSpriteNode(color: CarArt.color(car.colorIndex), size: CGSize(width: 12, height: 12))
-            swatch.position = CGPoint(x: isSeries ? -288 : -266, y: y)
+            swatch.position = CGPoint(x: showsPoints ? -288 : -266, y: y)
             panel.addChild(swatch)
 
             let time: String
@@ -546,13 +551,14 @@ final class RaceScene: GameScene {
             let points = Series.points(forPlace: i)
             let row = makeLabel(columns("\(i + 1).", car.name, time, best, points > 0 ? "+\(points)" : "-"),
                                 size: 15, color: car.isAI ? .white : .accent)
-            row.position = CGPoint(x: isSeries ? -272 : -250, y: y)
+            row.position = CGPoint(x: showsPoints ? -272 : -250, y: y)
             panel.addChild(row)
         }
 
         let helpText: String
         if let online {
-            helpText = online.isHost ? "Enter back to the lobby   Esc end the game" : "Waiting for the host...   Esc leave the game"
+            let back = onlineRound != nil ? "Enter standings" : "Enter back to the lobby"
+            helpText = online.isHost ? "\(back)   Esc end the game" : "Waiting for the host...   Esc leave the game"
         } else if isSeries {
             helpText = "Enter series standings"
         } else {

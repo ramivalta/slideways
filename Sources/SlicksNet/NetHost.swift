@@ -65,6 +65,8 @@ public final class NetHost {
     /// The socket is open, on this port.
     public var onListening: ((UInt16) -> Void)?
     public var onError: ((String) -> Void)?
+    /// Last say on a player joining, by name and local player count: a refusal reason, or nil to let them in.
+    public var admitPlayer: ((_ name: String, _ localPlayers: Int) -> String?)?
 
     private var transport: NetTransport?
     private var waiting: [ObjectIdentifier: NetPeer] = [:]
@@ -389,6 +391,7 @@ public final class NetHost {
         var name = String(rawName.filter { !$0.isNewline && $0 != "\t" && !$0.isASCIIControl }.prefix(NetProtocol.maxNameLength))
             .trimmingCharacters(in: .whitespaces)
         if name.isEmpty { name = "Player" }
+        if let refusal = admitPlayer?(name, localPlayers) { return peer.close(reason: refusal) }
         let client = Client(id: nextID, name: name, localPlayers: localPlayers, peer: peer)
         nextID += 1
         clients.append(client)

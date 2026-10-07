@@ -7,7 +7,7 @@ import SpriteKit
 /// everyone sees who's there.
 final class LobbyScene: GameScene {
     private enum Row: Hashable {
-        case track, laps, opponents, skill, access, newCode, start, leave
+        case mode, track, rounds, laps, opponents, skill, access, newCode, start, endSeries, leave
         /// A joined player (client id), which the host can remove.
         case player(Int)
     }
@@ -17,8 +17,11 @@ final class LobbyScene: GameScene {
     private var selected: Row
     /// Asked "remove this player?" and waiting for a second Enter.
     private var confirmingKick: Int?
+    /// Asked "end the championship?" and waiting for a second Enter.
+    private var confirmingEnd = false
     private var dynamic: [SKNode] = []
     private let preview = SKSpriteNode()
+    private let previewFrame = SKShapeNode(rect: CGRect(x: -130, y: -82, width: 260, height: 164))
 
     init(coordinator: GameCoordinator, session: OnlineSession) {
         self.coordinator = coordinator
@@ -44,11 +47,10 @@ final class LobbyScene: GameScene {
             preview.size = CGSize(width: 256, height: 160)
             preview.color = .clear
             addChild(preview)
-            let frame = SKShapeNode(rect: CGRect(x: -130, y: -82, width: 260, height: 164))
-            frame.strokeColor = SKColor(white: 1, alpha: 0.35)
-            frame.lineWidth = 2
-            frame.position = preview.position
-            addChild(frame)
+            previewFrame.strokeColor = SKColor(white: 1, alpha: 0.35)
+            previewFrame.lineWidth = 2
+            previewFrame.position = preview.position
+            addChild(previewFrame)
         }
         session.lobbyScene = self
         refresh()
@@ -76,15 +78,24 @@ final class LobbyScene: GameScene {
         return (session.lobby?.players ?? []).dropFirst().map { .player($0.id) }
     }
 
+    private var hostRows: [Row] {
+        if let series = session.series {
+            return [.access, .newCode] + (series.isComplete ? [] : [.start]) + [.endSeries, .leave]
+        }
+        return [.mode] + (session.seriesMode ? [.rounds] : [.track, .laps]) + [.opponents, .skill, .access, .newCode, .start, .leave]
+    }
+
     private var rows: [Row] {
-        session.isHost ? [.track, .laps, .opponents, .skill, .access, .newCode, .start, .leave] + playerRows : [.leave]
+        session.isHost ? hostRows + playerRows : [.leave]
     }
 
     func refresh() {
         for n in dynamic { n.removeFromParent() }
         dynamic.removeAll()
-        if !rows.contains(selected) { selected = session.isHost ? .start : .leave }
+        let rows = rows
+        if !rows.contains(selected) { selected = rows.contains(.start) ? .start : rows.contains(.endSeries) ? .endSeries : .leave }
         if case let .player(id) = selected, confirmingKick != id { confirmingKick = nil }
+        if selected != .endSeries { confirmingEnd = false }
 
         func add(_ text: String, x: CGFloat, y: CGFloat, size: CGFloat = 19, color: SKColor = .white,
                  align: SKLabelHorizontalAlignmentMode = .left) {
@@ -104,8 +115,25 @@ final class LobbyScene: GameScene {
         let humans = session.humanCount
         let maxAI = max(0, GameInfo.maxCars - humans)
         let bad = SKColor(red: 1, green: 0.45, blue: 0.4, alpha: 1)
-
+        let lobbySeries = lobby?.series
+        let standings = lobbySeries?.standings ?? []
         var y: CGFloat = 530
+
+        /// Championship lines above the rows: the round, and the next track or the champion.
+        func seriesLines(_ ls: LobbySeries, spacing: CGFloat) {
+            if ls.isComplete {
+                add("  CHAMPIONSHIP OVER", x: 50, y: y)
+                y -= spacing
+                if let champion = ls.standings.first {
+                    add("  CHAMPION   \(champion.name)", x: 50, y: y, color: .accent)
+                    y -= spacing
+                }
+            } else {
+                add("  ROUND      \(ls.roundsCompleted + 1) of \(ls.rounds)", x: 50, y: y)
+                y -= spacing
+            }
+        }
+
         if let host = session.netHost {
             // The code, big: it's what the host reads out to friends.
             add("CODE", x: 50, y: y + 6, size: 14, color: .dim)
@@ -115,27 +143,51 @@ final class LobbyScene: GameScene {
             y -= 72
 
             let def = lib.definitions[clamp(s.trackIndex, 0, lib.definitions.count - 1)]
-            let values: [Row: String] = [
+            let rounds = session.seriesTrackIDs.count
+            var values: [Row: String] = [
+                .mode: "MODE       < \(session.seriesMode ? "Championship" : "Single race") >",
                 .track: "TRACK      < \(def.name) >",
+                .rounds: "TRACKS     \(rounds) race\(rounds == 1 ? "" : "s") (Enter)",
                 .laps: "LAPS       < \(s.laps) >",
                 .opponents: "OPPONENTS  < \(min(s.aiOpponents, maxAI)) >",
                 .skill: "AI SKILL   < \(MenuScene.skillName(s.aiSkill)) >",
                 .access: "ACCESS     < \(host.requireCode ? "Code needed" : "Open") >",
                 .newCode: "NEW CODE",
-                .start: "START RACE",
+                .start: session.seriesMode ? "START CHAMPIONSHIP" : "START RACE",
                 .leave: "CLOSE GAME",
             ]
-            for r in [Row.track, .laps, .opponents, .skill, .access, .newCode, .start, .leave] {
+            if let series = session.series, let lobby, let lobbySeries {
+                seriesLines(lobbySeries, spacing: 33)
+                if !series.isComplete {
+                    add("  TRACK      \(lobby.trackName)", x: 50, y: y)
+                    y -= 33
+                    add("  LAPS       \(lobby.laps)", x: 50, y: y)
+                    y -= 41
+                }
+                values[.start] = "START ROUND \(series.roundsCompleted + 1)"
+                values[.endSeries] = series.isComplete ? "DONE" : confirmingEnd ? "Enter again to end the championship" : "END CHAMPIONSHIP"
+            }
+            for r in hostRows {
                 if r == .start { y -= 8 }
                 row(r, values[r] ?? "", y: y)
                 y -= 33
             }
-            showPreview(at: s.trackIndex)
+            let previewID = session.seriesMode ? session.seriesTrackIDs.first : nil
+            showPreview(at: previewID.flatMap(lib.index(of:)) ?? s.trackIndex)
+            preview.isHidden = !standings.isEmpty
+            previewFrame.isHidden = !standings.isEmpty
         } else if let lobby {
-            for line in ["TRACK      \(lobby.trackName)", "LAPS       \(lobby.laps)",
-                         "OPPONENTS  \(lobby.aiOpponents)", "AI SKILL   \(lobby.aiSkillName)"] {
+            if let lobbySeries {
+                add("  MODE       Championship", x: 50, y: y)
+                y -= 34
+                seriesLines(lobbySeries, spacing: 34)
+            }
+            var lines = ["TRACK      \(lobby.trackName)", "LAPS       \(lobby.laps)",
+                         "OPPONENTS  \(lobby.aiOpponents)", "AI SKILL   \(lobby.aiSkillName)"]
+            if lobbySeries?.isComplete == true { lines.removeFirst(2) }
+            for line in lines {
                 add("  " + line, x: 50, y: y)
-                y -= 38
+                y -= lobbySeries == nil ? 38 : 34
             }
             y -= 12
             add(lobby.inRace ? "  Race in progress, you're in the next one" : "  Waiting for the host to start...", x: 50, y: y, color: .dim)
@@ -148,9 +200,34 @@ final class LobbyScene: GameScene {
             row(.leave, "CANCEL", y: y)
         }
 
-        // Who's in. The host can walk down into this list to remove someone.
+        // Championship table, where the host's track preview would be.
         let listX: CGFloat = 560
-        var ly: CGFloat = session.isHost ? 340 : 530
+        if let lobbySeries, !standings.isEmpty {
+            func columns(_ pos: String, _ name: String, _ wins: String, _ last: String, _ points: String) -> String {
+                func pad(_ s: String, _ w: Int, right: Bool = false) -> String {
+                    let p = String(repeating: " ", count: max(0, w - s.count))
+                    return right ? p + s : s + p
+                }
+                return pad(pos, 4) + pad(name, 13) + pad(wins, 5, right: true) + pad(last, 5, right: true) + pad(points, 5, right: true)
+            }
+            let done = lobbySeries.roundsCompleted
+            add(lobbySeries.isComplete ? "FINAL STANDINGS" : done == 0 ? "CHAMPIONSHIP" : "STANDINGS AFTER ROUND \(done) OF \(lobbySeries.rounds)",
+                x: listX, y: 545, size: 14, color: lobbySeries.isComplete ? .accent : .dim)
+            add(columns("POS", "DRIVER", "WINS", "LAST", "PTS"), x: listX, y: 522, size: 13, color: .dim)
+            for (i, st) in standings.enumerated() {
+                let sy = 500 - CGFloat(i) * 20
+                let swatch = SKSpriteNode(color: CarArt.color(st.colorIndex), size: CGSize(width: 10, height: 10))
+                swatch.position = CGPoint(x: listX - 12, y: sy)
+                addChild(swatch)
+                dynamic.append(swatch)
+                let last = st.last.map { "+\($0)" } ?? "-"
+                add(columns("\(i + 1).", String(st.name.prefix(12)), "\(st.wins)", last, "\(st.points)"),
+                    x: listX, y: sy, size: 14, color: st.isHuman ? .accent : .white)
+            }
+        }
+
+        // Who's in. The host can walk down into this list to remove someone.
+        var ly: CGFloat = session.isHost || !standings.isEmpty ? 340 : 530
         add("PLAYERS \(humans)/\(GameInfo.maxCars)", x: listX, y: ly, size: 14, color: .dim)
         ly -= 28
         for (i, p) in (lobby?.players ?? []).enumerated() {
@@ -186,8 +263,9 @@ final class LobbyScene: GameScene {
 
     override func keyPressed(_ key: Key, isRepeat: Bool) {
         if key == .escape || key == .q {
-            if confirmingKick != nil {
+            if confirmingKick != nil || confirmingEnd {
                 confirmingKick = nil
+                confirmingEnd = false
                 return refresh()
             }
             return session.leave()
@@ -215,6 +293,15 @@ final class LobbyScene: GameScene {
             switch selected {
             case .start: return session.startRace()
             case .leave: return session.leave()
+            case .mode: session.seriesMode.toggle()
+            case .rounds: return coordinator.showSeriesSetup(online: session)
+            case .endSeries:
+                if session.series?.isComplete == true || confirmingEnd {
+                    confirmingEnd = false
+                    session.endSeries()
+                } else {
+                    confirmingEnd = true
+                }
             case .newCode: session.newCode()
             case .access: session.requireCode.toggle()
             case let .player(id):
@@ -236,6 +323,10 @@ final class LobbyScene: GameScene {
         var s = session.settings
         let lib = TrackLibrary.shared
         switch selected {
+        case .mode:
+            SoundSystem.shared.play(.menuMove)
+            session.seriesMode.toggle()
+            return
         case .track:
             s.trackIndex = (s.trackIndex + delta + lib.definitions.count) % lib.definitions.count
             s.laps = lib.definitions[s.trackIndex].defaultLaps
